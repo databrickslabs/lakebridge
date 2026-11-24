@@ -53,3 +53,151 @@ steps:
     frequency: once
     flag: active
     optional: true
+
+  # Cloudera Manager steps are optional: they run only when hadoop.cloudera_manager is configured.
+  - name: cm_clusters
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_clusters.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: cm_services
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_services.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: cm_hosts
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_hosts.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: cm_host_config
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_host_config.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: cm_cluster_export
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_cluster_export.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: cm_timeseries
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_timeseries.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: cm_impala_queries
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_impala_queries.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  # Ranger steps are optional: they run only when hadoop.ranger is configured.
+  - name: ranger_services
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_services.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ranger_service_defs
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_service_defs.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ranger_policies
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_policies.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ranger_policy_items
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_policy_items.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ranger_users
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_users.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ranger_groups
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_groups.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  # Impala daemon steps are optional: they run only when hadoop.impala is configured.
+  - name: impala_queries
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/impala_queries.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: impala_backends
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/impala_backends.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: impala_daemon_config
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/impala_daemon_config.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  # The catalogd and statestore steps also need hadoop.impala.catalogd_url or statestored_url.
+  - name: impala_catalog
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/impala_catalog.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: impala_statestore
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/impala_statestore.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true

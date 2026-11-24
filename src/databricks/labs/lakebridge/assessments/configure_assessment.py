@@ -27,12 +27,30 @@ from databricks.labs.lakebridge.connections.snowflake_auth import (
     Pat,
 )
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
+from databricks.labs.lakebridge.resources.assessments.hadoop.cloudera_manager import (
+    ClouderaManagerError,
+    api_root,
+    resolve_cluster,
+    resolve_impala_service,
+)
+from databricks.labs.lakebridge.resources.assessments.hadoop.endpoints import (
+    IMPALA_BACKENDS_PATH,
+    IMPALA_CATALOG_PATH,
+    IMPALA_SUBSCRIBERS_PATH,
+)
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
+    DEFAULT_IMPALA_INTERVAL_MINUTES,
     DEFAULT_LOOKBACK_DAYS,
     DISTRIBUTIONS,
+    IMPALA_INTERVAL_OPTIONS,
+    ClouderaManagerConfig,
+    HadoopConfig,
     HadoopConfigError,
+    ImpalaConfig,
+    RestEndpoint,
     parse_hadoop_config,
 )
+from databricks.labs.lakebridge.resources.assessments.hadoop.ranger import list_services
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import (
     HadoopApiError,
     RestClient,
@@ -504,25 +522,67 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
 
 
 class ConfigureHadoopAssessment(AssessmentConfigurator):
-    """Hadoop (YARN ResourceManager and Spark History Server) assessment configuration."""
+    """Hadoop (YARN, Spark History Server, Cloudera Manager, Apache Ranger and Impala) assessment configuration."""
 
     def _check_connection(self, raw_config: dict) -> None:
         try:
-            config = parse_hadoop_config(raw_config)
-            if config.yarn is not None:
-                find_active_resource_manager(
-                    config.yarn.urls,
-                    username=config.yarn.username,
-                    password=config.yarn.password,
-                    verify=config.yarn.verify,
-                )
-            if config.spark_history is not None:
-                spark = config.spark_history
-                RestClient(
-                    spark.urls[0], username=spark.username, password=spark.password, verify=spark.verify
-                ).get_json("/api/v1/applications", {"limit": 1})
-        except (HadoopConfigError, HadoopApiError) as e:
+            self._check_sources(parse_hadoop_config(raw_config))
+        except (HadoopConfigError, HadoopApiError, ClouderaManagerError) as e:
             raise ConnectionError(str(e)) from e
+
+    def _check_sources(self, config: HadoopConfig) -> None:
+        if config.yarn is not None:
+            find_active_resource_manager(
+                config.yarn.urls,
+                username=config.yarn.username,
+                password=config.yarn.password,
+                verify=config.yarn.verify,
+            )
+        if config.spark_history is not None:
+            self._check_spark_history(config.spark_history)
+        if config.cloudera_manager is not None:
+            self._check_cloudera_manager(config.cloudera_manager)
+        if config.ranger is not None:
+            self._check_ranger(config.ranger)
+        if config.impala is not None:
+            self._check_impala(config.impala)
+
+    @staticmethod
+    def _check_impala(impala: ImpalaConfig) -> None:
+        """Read each daemon's backends, and catalogd and statestore when configured, as the Impala steps do."""
+        for url in impala.endpoint.urls:
+            _impala_client(url, impala).get_json(IMPALA_BACKENDS_PATH)
+        if impala.catalogd_url is not None:
+            _impala_client(impala.catalogd_url, impala).get_json(IMPALA_CATALOG_PATH)
+        if impala.statestored_url is not None:
+            _impala_client(impala.statestored_url, impala).get_json(IMPALA_SUBSCRIBERS_PATH)
+
+    @staticmethod
+    def _check_spark_history(spark: RestEndpoint) -> None:
+        RestClient(spark.urls[0], username=spark.username, password=spark.password, verify=spark.verify).get_json(
+            "/api/v1/applications", {"limit": 1}
+        )
+
+    @staticmethod
+    def _check_ranger(ranger: RestEndpoint) -> None:
+        """Read the service list, as the Ranger services step does (v2, or v1 when v2 is absent)."""
+        list_services(
+            RestClient(ranger.urls[0], username=ranger.username, password=ranger.password, verify=ranger.verify)
+        )
+
+    @staticmethod
+    def _check_cloudera_manager(cloudera: ClouderaManagerConfig) -> None:
+        """Resolve what the steps resolve: the API version, the cluster, and the Impala service when it is extracted."""
+        client = RestClient(
+            cloudera.endpoint.urls[0],
+            username=cloudera.endpoint.username,
+            password=cloudera.endpoint.password,
+            verify=cloudera.endpoint.verify,
+        )
+        root = api_root(client, cloudera)
+        cluster = resolve_cluster(client, root, cloudera.cluster)
+        if cloudera.extract_impala_queries:
+            resolve_impala_service(client, root, cluster, cloudera.impala_service)
 
     def _configure_credentials(self) -> None:
         cred_file = self._credential_file
@@ -550,6 +610,14 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
         }
         if self.prompts.confirm("Configure a Spark History Server?"):
             source_creds["spark_history"] = self._prompt_endpoint(secret_vault_type, multiple_urls=False)
+        if self.prompts.confirm("Configure Cloudera Manager (CDH and CDP clusters)?"):
+            source_creds["cloudera_manager"] = self._prompt_cloudera_manager(secret_vault_type)
+
+        if self.prompts.confirm("Configure Apache Ranger (policies, users and groups)?"):
+            source_creds["ranger"] = self._prompt_ranger(secret_vault_type)
+
+        if self.prompts.confirm("Read Impala daemons directly (query history from each impalad web UI)?"):
+            source_creds["impala"] = self._prompt_impala(secret_vault_type)
 
         credential = {
             "secret_vault_type": secret_vault_type,
@@ -558,15 +626,95 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
         }
         _save_to_disk(credential, cred_file)
 
-    def _prompt_endpoint(self, secret_vault_type: str, *, multiple_urls: bool) -> dict[str, Any]:
-        name = "YARN ResourceManager" if multiple_urls else "Spark History Server"
+    def _prompt_impala(self, secret_vault_type: str) -> dict[str, Any]:
+        logger.info(
+            "Impala daemons: list every coordinator's impalad web UI (port 25000 by default). Each daemon only knows "
+            "the queries it coordinated, so all of them are read. Each daemon keeps only its last query_log_size "
+            "queries (200 by default), so schedule the profiler run often enough. Cloudera Manager's Impala extract "
+            "keeps more history when Cloudera Manager manages the cluster."
+        )
+        impala = self._prompt_endpoint(
+            secret_vault_type,
+            multiple_urls=True,
+            name="Impala daemon",
+            example="http://impalad.example.com:25000",
+        )
+        catalogd = self.prompts.question(
+            "Enter the Impala catalogd web UI URL (for example http://catalogd.example.com:25020), "
+            "or leave empty to skip the catalog step",
+            default="",
+        ).strip()
+        if catalogd:
+            impala["catalogd_url"] = catalogd
+        statestored = self.prompts.question(
+            "Enter the Impala statestore web UI URL (for example http://statestored.example.com:25010), "
+            "or leave empty to skip the statestore step",
+            default="",
+        ).strip()
+        if statestored:
+            impala["statestored_url"] = statestored
+        return impala
+
+    def _prompt_ranger(self, secret_vault_type: str) -> dict[str, Any]:
+        logger.info(
+            "Apache Ranger: the Ranger Admin URL. Users and groups need an account with the Ranger admin role. "
+            "Ranger masks passwords in service configurations as '*****'."
+        )
+        return self._prompt_endpoint(
+            secret_vault_type,
+            multiple_urls=False,
+            name="Apache Ranger",
+            example="https://ranger.example.com:6182",
+        )
+
+    def _prompt_cloudera_manager(self, secret_vault_type: str) -> dict[str, Any]:
+        logger.info(
+            "Cloudera Manager: the API version, the cluster and the Impala service are detected when they are left "
+            "empty. Impala query extraction is optional because it is slow on busy clusters."
+        )
+        cloudera = self._prompt_endpoint(
+            secret_vault_type,
+            multiple_urls=False,
+            name="Cloudera Manager",
+            example="https://cm.example.com:7183",
+        )
+        cluster = self.prompts.question(
+            "Enter the Cloudera Manager cluster name (leave empty to detect it when CM manages one cluster)",
+            default="",
+        ).strip()
+        if cluster:
+            cloudera["cluster"] = cluster
+        if self.prompts.confirm("Extract Impala queries?"):
+            cloudera["extract_impala_queries"] = True
+            interval = self.prompts.choice(
+                "Select the Impala query interval in minutes",
+                [str(option) for option in IMPALA_INTERVAL_OPTIONS],
+                sort=False,
+            )
+            cloudera["impala_interval_minutes"] = int(interval) if interval else DEFAULT_IMPALA_INTERVAL_MINUTES
+            impala_service = self.prompts.question(
+                "Enter the Impala service name (leave empty to detect it)", default=""
+            ).strip()
+            if impala_service:
+                cloudera["impala_service"] = impala_service
+        return cloudera
+
+    def _prompt_endpoint(
+        self,
+        secret_vault_type: str,
+        *,
+        multiple_urls: bool,
+        name: str | None = None,
+        example: str = "http://spark-hs:18081",
+    ) -> dict[str, Any]:
+        name = name or ("YARN ResourceManager" if multiple_urls else "Spark History Server")
         endpoint: dict[str, Any] = {}
         if multiple_urls:
             raw_urls = self.prompts.question(f"Enter the {name} URL(s), comma-separated")
             urls = [url.strip() for url in raw_urls.split(",") if url.strip()]
             endpoint["urls"] = urls
         else:
-            urls = [self.prompts.question(f"Enter the {name} URL (for example http://spark-hs:18081)")]
+            urls = [self.prompts.question(f"Enter the {name} URL (for example {example})")]
             endpoint["url"] = urls[0]
 
         auth = str(
@@ -592,6 +740,12 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
             else:
                 endpoint["verify_ssl"] = False
         return endpoint
+
+
+def _impala_client(url: str, impala: ImpalaConfig) -> RestClient:
+    return RestClient(
+        url, username=impala.endpoint.username, password=impala.endpoint.password, verify=impala.endpoint.verify
+    )
 
 
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]

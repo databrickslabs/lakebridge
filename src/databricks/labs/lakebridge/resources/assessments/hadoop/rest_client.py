@@ -45,6 +45,15 @@ class HadoopApiError(RuntimeError):
     """A Hadoop service is unreachable, returned an error status, or did not return JSON."""
 
 
+class HadoopHttpError(HadoopApiError):
+    """A Hadoop service returned an HTTP error status. The status and body let a caller handle a known error."""
+
+    def __init__(self, message: str, *, status_code: int, body: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = body
+
+
 def normalize_base_url(url: str) -> str:
     """Validate a service base URL and return it without a trailing slash.
 
@@ -93,11 +102,7 @@ class RestClient:
 
     def get_text(self, path: str, params: Mapping[str, str | int] | None = None) -> str:
         """GET ``path`` and return the response body, which is checked to be JSON."""
-        response = self._get(path, params)
-        if response.status_code >= 400:
-            hint = _HTTP_STATUS_HINTS.get(response.status_code, "")
-            raise HadoopApiError(f"GET {path} from {self._base_url} returned HTTP {response.status_code}{hint}")
-        text = response.text
+        text = self.get_plain_text(path, params)
         try:
             json.loads(text)
         except ValueError as e:
@@ -106,6 +111,18 @@ class RestClient:
                 "(a gateway may need its path) and the credentials"
             ) from e
         return text
+
+    def get_plain_text(self, path: str, params: Mapping[str, str | int] | None = None) -> str:
+        """GET ``path`` and return the body as is, for endpoints that answer in plain text (Cloudera's /api/version)."""
+        response = self._get(path, params)
+        if response.status_code >= 400:
+            hint = _HTTP_STATUS_HINTS.get(response.status_code, "")
+            raise HadoopHttpError(
+                f"GET {path} from {self._base_url} returned HTTP {response.status_code}{hint}",
+                status_code=response.status_code,
+                body=response.text,
+            )
+        return response.text
 
     def get_json(self, path: str, params: Mapping[str, str | int] | None = None) -> Any:
         return json.loads(self.get_text(path, params))

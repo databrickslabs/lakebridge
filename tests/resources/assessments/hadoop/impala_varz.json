@@ -1,0 +1,4255 @@
+{
+	"__common__": {
+		"process-name": "impalad",
+		"navbar": [{
+				"link": "/",
+				"title": "/"
+			}, {
+				"link": "/admission",
+				"title": "/admission"
+			}, {
+				"link": "/backends",
+				"title": "/backends"
+			}, {
+				"link": "/catalog",
+				"title": "/catalog"
+			}, {
+				"link": "/hadoop-varz",
+				"title": "/hadoop-varz"
+			}, {
+				"link": "/jmx",
+				"title": "/jmx"
+			}, {
+				"link": "/log_level",
+				"title": "/log_level"
+			}, {
+				"link": "/memz",
+				"title": "/memz"
+			}, {
+				"link": "/metrics",
+				"title": "/metrics"
+			}, {
+				"link": "/profile_docs",
+				"title": "/profile_docs"
+			}, {
+				"link": "/queries",
+				"title": "/queries"
+			}, {
+				"link": "/rpcz",
+				"title": "/rpcz"
+			}, {
+				"link": "/sessions",
+				"title": "/sessions"
+			}, {
+				"link": "/threadz",
+				"title": "/threadz"
+			}, {
+				"link": "/varz",
+				"title": "/varz"
+			}]
+	},
+	"title": "Command-line Flags",
+	"flags": [{
+			"name": "flagfile",
+			"type": "string",
+			"description": "load flags from file",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "fromenv",
+			"type": "string",
+			"description": "set flags from the environment [use 'export FLAGS_flag1=value']",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "tryfromenv",
+			"type": "string",
+			"description": "set flags from the environment if present",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "undefok",
+			"type": "string",
+			"description": "comma-separated list of flag names that it is okay to specify on the command line even if the program does not define a flag with that name.  IMPORTANT: flags in this list that have arguments MUST use the flag=value format",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "tab_completion_columns",
+			"type": "int32",
+			"description": "Number of columns to use in output for tab completion",
+			"default": "80",
+			"current": "80",
+			"experimental": false
+		}, {
+			"name": "tab_completion_word",
+			"type": "string",
+			"description": "If non-empty, HandleCommandLineCompletions() will hijack the process and attempt to do bash-style command line flag completion on this value.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "help",
+			"type": "bool",
+			"description": "show help on all flags [tip: all flags can have two dashes]",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "helpfull",
+			"type": "bool",
+			"description": "show help on all flags -- same as -help",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "helpmatch",
+			"type": "string",
+			"description": "show help on modules whose name contains the specified substr",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "helpon",
+			"type": "string",
+			"description": "show help on the modules named by this flag value",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "helppackage",
+			"type": "bool",
+			"description": "show help on all modules in the main package",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "helpshort",
+			"type": "bool",
+			"description": "show help on only the main module for this program",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "helpxml",
+			"type": "bool",
+			"description": "produce an xml version of help",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "version",
+			"type": "bool",
+			"description": "show version and build info and exit",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "catalog_max_lock_skipped_topic_updates",
+			"type": "int32",
+			"description": "Maximum number of topic updates skipped for a table due to lock contention in catalogd after which it mustbe added to the topic the update log. This limit only applies to distinct lock operations which block the topic update thread.",
+			"default": "3",
+			"current": "3",
+			"experimental": false
+		}, {
+			"name": "catalog_operation_log_size",
+			"type": "int32",
+			"description": "Number of catalog operation log records to retain in catalogd. If -1, the operation log has unbounded size.",
+			"default": "100",
+			"current": "100",
+			"experimental": false
+		}, {
+			"name": "catalog_service_port",
+			"type": "int32",
+			"description": "port where the CatalogService is running",
+			"default": "26000",
+			"current": "26000",
+			"experimental": false
+		}, {
+			"name": "catalog_topic_mode",
+			"type": "string",
+			"description": "The type of data that the catalog service will publish into the Catalog StateStore topic. Valid values are 'full', 'mixed', or 'minimal'.\n\nIn 'full' mode, complete catalog objects are published any time a new version is available. In 'minimal' mode, only a minimal object is published when a new version of a catalog object is available. In 'mixed' mode, both types of topic entries are published.\n\nWhen all impalad coordinators are configured with --use_local_catalog disabled (the default), 'full' mode should be used. If all impalad coordinators are configured with --use_local_catalog enabled, 'minimal' mode should be used. When some impalads are configured with --use_local_catalog disabled and others configured with it enabled, then 'mixed' mode is required.",
+			"default": "full",
+			"current": "full",
+			"experimental": false
+		}, {
+			"name": "common_hms_event_types",
+			"type": "string",
+			"description": "Common HMS event types that will be used in eventTypeSkipList when fetching events from HMS. The strings come from constants in org.apache.hadoop.hive.metastore.messaging.MessageBuilder. When bumping Hive versions, the list might need to be updated accordingly. To avoid bringing too much computation overhead to HMS's underlying RDBMS in evaluating predicates of EVENT_TYPE != 'xxx', rare event types are not tracked in this list. They are CREATE_FUNCTION,DROP_FUNCTION,ADD_PRIMARYKEY,ADD_FOREIGNKEY,ADD_UNIQUECONSTRAINT,ADD_NOTNULLCONSTRAINT, ADD_DEFAULTCONSTRAINT, ADD_CHECKCONSTRAINT, DROP_CONSTRAINT,CREATE_ISCHEMA, ALTER_ISCHEMA, DROP_ISCHEMA, ADD_SCHEMA_VERSION,ALTER_SCHEMA_VERSION, DROP_SCHEMA_VERSION, CREATE_CATALOG, ALTER_CATALOG,DROP_CATALOG, CREATE_DATACONNECTOR, ALTER_DATACONNECTOR, DROP_DATACONNECTOR.",
+			"default": "ADD_PARTITION,ALTER_PARTITION,DROP_PARTITION,ADD_PARTITION,ALTER_PARTITION,DROP_PARTITION,CREATE_TABLE,ALTER_TABLE,DROP_TABLE,CREATE_DATABASE,ALTER_DATABASE,DROP_DATABASE,INSERT,OPEN_TXN,COMMIT_TXN,ABORT_TXN,ALLOC_WRITE_ID_EVENT,ACID_WRITE_EVENT,BATCH_ACID_WRITE_EVENT,UPDATE_TBL_COL_STAT_EVENT,DELETE_TBL_COL_STAT_EVENT,UPDATE_PART_COL_STAT_EVENT,UPDATE_PART_COL_STAT_EVENT_BATCH,DELETE_PART_COL_STAT_EVENT,COMMIT_COMPACTION_EVENT,RELOAD",
+			"current": "ADD_PARTITION,ALTER_PARTITION,DROP_PARTITION,ADD_PARTITION,ALTER_PARTITION,DROP_PARTITION,CREATE_TABLE,ALTER_TABLE,DROP_TABLE,CREATE_DATABASE,ALTER_DATABASE,DROP_DATABASE,INSERT,OPEN_TXN,COMMIT_TXN,ABORT_TXN,ALLOC_WRITE_ID_EVENT,ACID_WRITE_EVENT,BATCH_ACID_WRITE_EVENT,UPDATE_TBL_COL_STAT_EVENT,DELETE_TBL_COL_STAT_EVENT,UPDATE_PART_COL_STAT_EVENT,UPDATE_PART_COL_STAT_EVENT_BATCH,DELETE_PART_COL_STAT_EVENT,COMMIT_COMPACTION_EVENT,RELOAD",
+			"experimental": false
+		}, {
+			"name": "default_skipped_hms_event_types",
+			"type": "string",
+			"description": "HMS event types that are not used by Impala. They are skipped by default in fetching HMS event batches. Only in few places they will be fetched, e.g. fetching the latest event time in HMS.",
+			"default": "OPEN_TXN,UPDATE_TBL_COL_STAT_EVENT,UPDATE_PART_COL_STAT_EVENT",
+			"current": "OPEN_TXN,UPDATE_TBL_COL_STAT_EVENT,UPDATE_PART_COL_STAT_EVENT",
+			"experimental": false
+		}, {
+			"name": "enable_reload_events",
+			"type": "bool",
+			"description": "This configuration is used to fire a refresh/invalidate table event to the HMS such that other event processors (such as other Impala catalogds) that poll HMS notification logs can process this event. The default value is false, so impala will not fire this event. If enabled, impala will fire this event and other catalogD will process it.This config only affects the firing of the reload event. Processing of reload event will always happen",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "enable_skipping_older_events",
+			"type": "bool",
+			"description": "This configuration is used to skip anyolder events in the event processor based on the lastRefreshEventId on thedatabase/table/partition in the cache. All the DML queries that change the metadatain the catalogD's cache will update the lastRefreshEventId i.e.., fetch the latestavailable event on HMS and set it on the object. In case the event processor islagging, the older events in event processor queue can be skipped by comparing thecurrent event id to that of lastRefreshEventId. The default is set to false todisable the optimisation. Set this true to enable skipping the older events andquickly catch with the events of HMS",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "enable_sync_to_latest_event_on_ddls",
+			"type": "bool",
+			"description": "This configuration is used to sync db/table in catalogd cache to latest HMS event id whenever DDL operations are performed from Impala shell and catalog metastore server (if enabled). If this config is enabled, then the flag invalidate_hms_cache_on_ddls should be disabled",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "fallback_to_hms_on_errors",
+			"type": "bool",
+			"description": "This configuration is only used if start_hms_server is true. This is used to determine if the Catalog should fallback to the backing HMS service if there are errors while processing the HMS request",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "file_metadata_reload_properties",
+			"type": "string",
+			"description": "This configuration is used to whitelist the table properties that are supposed torefresh file metadata when these properties are changed. To skip this optimization,set the value to empty string",
+			"default": "EXTERNAL, metadata_location,transactional, transactional_properties, TRANSLATED_TO_EXTERNAL, repl.last.id",
+			"current": "EXTERNAL, metadata_location,transactional, transactional_properties, TRANSLATED_TO_EXTERNAL, repl.last.id",
+			"experimental": false
+		}, {
+			"name": "hms_event_incremental_refresh_transactional_table",
+			"type": "bool",
+			"description": "When set to true events processor will refresh transactional tables incrementally for partition level events. Otherwise, it will always reload the whole table for transactional tables.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "hms_port",
+			"type": "int32",
+			"description": "If start_hms_server is set to true, this configuration specifies the port number at which it is started.",
+			"default": "5899",
+			"current": "5899",
+			"experimental": false
+		}, {
+			"name": "invalidate_global_metadata_on_event_processing_failure",
+			"type": "bool",
+			"description": "This configuration is used to global invalidate metadata when invalidate_metadata_on_event_processing_failure cannot invalidate metadata for table(s). The default value is false. When enabled, global invalidate metadata is performed automatically. Otherwise, failure can put metastore event processor in non-active state.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "invalidate_hms_cache_on_ddls",
+			"type": "bool",
+			"description": "This configuration is used only if start_hms_server is true. This is used to invalidate catalogd cache for non transactional tables if alter/create/delete table hms apis are invoked over catalogd's metastore endpoint",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "invalidate_metadata_on_event_processing_failure",
+			"type": "bool",
+			"description": "This configuration is used to invalidate metadata for table(s) upon event process failure other than HMS connection issues. The default value is true. When enabled, invalidate metadata is performed automatically upon event process failure. Otherwise, failure can put metastore event processor in non-active state.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "max_wait_time_for_sync_ddl_s",
+			"type": "int32",
+			"description": "Maximum time (in seconds) until which a sync ddl operation will wait for the updated tables to be the added to the catalog topic. A value of 0 means sync ddl operation will wait as long as necessary until the update is propogated to all the coordinators. This flag only takes effect when topic_update_tbl_max_wait_time_ms is enabled.A value greater than 0 means catalogd will wait until that number of seconds before throwing an error indicating that not all the coordinators might have applied the changes caused due to the ddl.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "start_hms_server",
+			"type": "bool",
+			"description": "When set to true catalog server starts a HMS server at a port specified by hms_port flag",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "topic_update_log_gc_frequency",
+			"type": "int32",
+			"description": "Frequency at which the entries of the catalog topic update log are garbage collected. An entry may survive for (2 * TOPIC_UPDATE_LOG_GC_FREQUENCY) - 1 topic updates.",
+			"default": "1000",
+			"current": "1000",
+			"experimental": false
+		}, {
+			"name": "topic_update_tbl_max_wait_time_ms",
+			"type": "int64",
+			"description": "Maximum time (in milliseconds) catalog's topic update thread will wait to acquire lock on table. If the topic update thread cannot acquire a table lock it skips the table from that topic update and processes the table in the next update. However to prevent starvation it only skips the table catalog_max_lock_skipped_topic_updates many times. After that limit is hit, topic thread block until it acquires the table lock. A value of 0 disables the timeout based locking which means topic update thread will always block until table lock is acquired.",
+			"default": "120000",
+			"current": "120000",
+			"experimental": false
+		}, {
+			"name": "enable_reading_puffin_stats",
+			"type": "bool",
+			"description": "Impala will only read Iceberg Puffin stats files if this flag is set to true.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "initial_hms_cnxn_timeout_s",
+			"type": "int32",
+			"description": "Number of seconds catalogd will wait to establish an initial connection to the HMS before exiting.",
+			"default": "120",
+			"current": "120",
+			"experimental": false
+		}, {
+			"name": "load_catalog_in_background",
+			"type": "bool",
+			"description": "If true, loads catalog metadata in the background. If false, metadata is loaded lazily (on access).",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "max_hdfs_partitions_parallel_load",
+			"type": "int32",
+			"description": "(Advanced) Number of threads used to load block metadata for HDFS based partitioned tables. Due to HDFS architectural limitations, it is unlikely to get a linear speed up beyond 5 threads.",
+			"default": "5",
+			"current": "5",
+			"experimental": false
+		}, {
+			"name": "max_nonhdfs_partitions_parallel_load",
+			"type": "int32",
+			"description": "(Advanced) Number of threads used to load block metadata for tables that do not support the notion of blocks/storage IDs. Currently supported for S3/ADLS.",
+			"default": "20",
+			"current": "20",
+			"experimental": false
+		}, {
+			"name": "num_metadata_loading_threads",
+			"type": "int32",
+			"description": "(Advanced) The number of metadata loading threads (degree of parallelism) to use when loading catalog metadata.",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "asm_module_dir",
+			"type": "string",
+			"description": "if set, saves disassembly for generated IR modules to the specified directory.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "disable_optimization_passes",
+			"type": "bool",
+			"description": "if true, disables llvm optimization passes (used for testing)",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "dump_ir",
+			"type": "bool",
+			"description": "if true, output IR after optimization passes",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "opt_module_dir",
+			"type": "string",
+			"description": "if set, saves optimized generated IR modules to the specified directory.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "perf_map",
+			"type": "bool",
+			"description": "if true, generate /tmp/perf-<pid>.map file for linux perf symbols. This is not recommended for production use because it may affect performance.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "print_llvm_ir_instruction_count",
+			"type": "bool",
+			"description": "if true, prints the instruction counts of all JIT'd functions",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "unopt_module_dir",
+			"type": "string",
+			"description": "if set, saves unoptimized generated IR modules to the specified directory.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "abort_on_config_error",
+			"type": "bool",
+			"description": "Abort Impala startup if there are improper configs or running on unsupported hardware.",
+			"default": "true",
+			"current": "false",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "active_catalogd_designation_monitoring_interval_ms",
+			"type": "int64",
+			"description": "(Advanced) Interval (in ms) with which the statestore monitors if active catalogd is designated.",
+			"default": "100",
+			"current": "100",
+			"experimental": false
+		}, {
+			"name": "anonymous_user_name",
+			"type": "string",
+			"description": "Default username used when a client connects to an unsecured impala daemon and does not specify a username.",
+			"default": "anonymous",
+			"current": "anonymous",
+			"experimental": false
+		}, {
+			"name": "be_principal",
+			"type": "string",
+			"description": "Kerberos principal for backend network connections only,overriding --principal if set. Must not be set if --principal is not set.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "blacklisted_dbs",
+			"type": "string",
+			"description": "Comma separated list for blacklisted databases. Configure which databases to be skipped for loading (in startup and global INVALIDATE METADATA). Users can't access, create, or drop databases which are blacklisted.",
+			"default": "sys,information_schema",
+			"current": "sys,information_schema",
+			"experimental": false
+		}, {
+			"name": "blacklisted_tables",
+			"type": "string",
+			"description": "Comma separated full names (in format: <db>.<table>) of blacklisted tables. Configure which tables to be skipped for loading (in startup and resetting metadata of the table). Users can't access, create, or drop tables which are blacklisted",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "buffer_pool_clean_pages_limit",
+			"type": "string",
+			"description": "(Advanced) Limit on bytes of clean pages that will be accumulated in the buffer pool. Specified as number of bytes ('<int>[bB]?'), megabytes ('<float>[mM]'), gigabytes ('<float>[gG]'), or percentage of the buffer pool limit ('<int>%'). Defaults to bytes if no unit is given..",
+			"default": "10%",
+			"current": "10%",
+			"experimental": false
+		}, {
+			"name": "buffer_pool_limit",
+			"type": "string",
+			"description": "(Advanced) Limit on buffer pool size. Specified as number of bytes ('<int>[bB]?'), megabytes ('<float>[mM]'), gigabytes ('<float>[gG]'), or percentage of the process memory limit (minus the JVM heap if --mem_limit_includes_jvm is true) ('<int>%'). Defaults to bytes if no unit is given. The default value and behaviour of this flag may change between releases.",
+			"default": "85%",
+			"current": "85%",
+			"experimental": false
+		}, {
+			"name": "catalogd_ha_preemption_wait_period_ms",
+			"type": "int64",
+			"description": "(Advanced) The time after which statestore designates the first registered catalogd as active if statestore does not receive registration request from the second catalogd.",
+			"default": "10000",
+			"current": "10000",
+			"experimental": false
+		}, {
+			"name": "compact_catalog_topic",
+			"type": "bool",
+			"description": "If true, catalog updates sent via the statestore are compacted before transmission. This saves network bandwidth at the cost of a small quantity of CPU time. Enable this option in cluster with large catalogs. It must be enabled on both the catalog service, and all Impala demons.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "debug_actions",
+			"type": "string",
+			"description": "For testing only. Uses the same format as the debug action query options, but allows for injection of debug actions in code paths where query options are not available.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "disable_kudu",
+			"type": "bool",
+			"description": "If true, Kudu features will be disabled.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "enable_catalogd_ha",
+			"type": "bool",
+			"description": "Set to true to enable CatalogD HA",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "enable_catalogd_hms_cache",
+			"type": "bool",
+			"description": "If true, response for the HMS APIs that are implemented in catalogd will be served from catalogd. If this flag is false or a given API is not implemented in catalogd, it will be redirected to HMS.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "enable_incremental_metadata_updates",
+			"type": "bool",
+			"description": "If true, Catalog Server will send incremental table updates in partition level in the statestore topic updates. Legacy coordinators will apply the partition updates incrementally, i.e. reuse unchanged partition metadata. Disable this feature by setting this to false in the Catalog Server. Then metadata of each table will be propagated as a whole object in the statestore topic updates. Note that legacy coordinators can apply incremental or full table updates so don't need this flag.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "enable_insert_events",
+			"type": "bool",
+			"description": "Enables insert events in the events processor. When this configuration is set to true Impala will generate INSERT event types which when received by other Impala clusters can be used to automatically refresh the tables or partitions. Event processing must be turned on for this flag to have any effect.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "enable_legacy_avx_support",
+			"type": "bool",
+			"description": "If true, Impala relaxes its x86_64 CPU feature requirement to allow running on machines with AVX but no AVX2. This allows running Impala on older machines without AVX2 support. This is a legacy mode that will be removed in a future release.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "enable_minidumps",
+			"type": "bool",
+			"description": "Whether to enable minidump generation upon process crash or SIGUSR1.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "enable_process_lifetime_heap_profiling",
+			"type": "bool",
+			"description": "(Advanced) Enables heap profiling for the lifetime of the process. Profile output will be stored in the directory specified by -heap_profile_dir. Enabling this option will disable the on-demand/remote server profile handlers.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "enable_stats_extrapolation",
+			"type": "bool",
+			"description": "If true, uses table statistics computed with COMPUTE STATS to extrapolate the row counts of partitions.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "force_catalogd_active",
+			"type": "bool",
+			"description": "Set to true to force this catalogd instance to take active role. It's used to perform manual fail over for catalog service.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "geospatial_library",
+			"type": "string",
+			"description": "Specifies which implementation of geospatial functions should be included as builtins. Possible values: [\"NONE\", \"HIVE_ESRI\"]",
+			"default": "NONE",
+			"current": "NONE",
+			"experimental": false
+		}, {
+			"name": "heap_profile_dir",
+			"type": "string",
+			"description": "Output directory to store heap profiles. If not set profiles are stored in the current working directory.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "hms_event_polling_interval_s",
+			"type": "int32",
+			"description": "Configure catalogd to refresh cached table metadata based on metastore events. These metastore events could be generated by external systems like Apache Hive or a different Impala cluster using the same Hive metastore server as this one. A non-zero value of this flag sets the polling interval of catalogd in seconds to fetch new metastore events. A value of zero disables this feature. When enabled, this flag has the same effect as \"REFRESH\" statement on the table for certain metastore event types. Additionally, in case of events which detect creation or removal of objects from metastore, catalogd adds or removes such objects from its cached metadata. This feature is independent of time and memory based automatic invalidation of tables.",
+			"default": "1",
+			"current": "1",
+			"experimental": false
+		}, {
+			"name": "hostname",
+			"type": "string",
+			"description": "Hostname to use for this daemon, also used as part of the Kerberos principal, if enabled. If not set, the system default will be used",
+			"default": "",
+			"current": "172.24.0.5",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "iceberg_allow_datafiles_in_table_location_only",
+			"type": "bool",
+			"description": "If true, Impala does not allow Iceberg data file locations outside of the table directory during reads",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "iceberg_always_allow_merge_on_read_operations",
+			"type": "bool",
+			"description": "Impala can only write delete files with 'merge-on-read'. If this flag is true, Impala allows executing DELETE, UPDATE and MERGE operations on Iceberg tables even if the table property is 'copy-on-write'.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "iceberg_reload_new_files_threshold",
+			"type": "int32",
+			"description": "(Advanced) If during a table refresh the number of new files are greater than this, catalogd will use a recursive file listing to load file metadata. If number of new files are less or equal to this, catalogd will load the file metadata one by one.",
+			"default": "100",
+			"current": "100",
+			"experimental": false
+		}, {
+			"name": "impala_slow_rpc_threshold_ms",
+			"type": "int64",
+			"description": "(Advanced) Threshold for considering Impala internal RPCs to be unusually slow. Slow RPCs trigger additional logging and other diagnostics. Lowering this value may result in false positivesThis overrides KRPC's --rpc_duration_too_long_ms setting.",
+			"default": "120000",
+			"current": "120000",
+			"experimental": false
+		}, {
+			"name": "inc_stats_size_limit_bytes",
+			"type": "int64",
+			"description": "Maximum size of incremental stats the catalog is allowed to serialize per table. This limit is set as a safety check, to prevent the JVM from hitting a maximum array limit of 1GB (or OOM) while building the thrift objects to send to impalads. By default, it's set to 200MB",
+			"default": "209715200",
+			"current": "209715200",
+			"experimental": false
+		}, {
+			"name": "invalidate_tables_on_memory_pressure",
+			"type": "bool",
+			"description": "Configure catalogd to invalidate recently unused tables when the old GC generation is almost full. This is independent from time-based invalidation configured by invalidate_table_timeout_s. To enable this feature, a true flag must be applied to both catalogd and impalad.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "invalidate_tables_timeout_s",
+			"type": "int32",
+			"description": "If a table has not been referenced in a SQL statement for more than the configured amount of time, the catalog server will automatically evict its cached metadata about this table. This has the same effect as a user-initiated \"INVALIDATE METADATA\" statement on the table. Configuring this to 0 disables time-based automatic invalidation of tables. This is independent from memory-based invalidation configured by invalidate_tables_on_memory_pressure. To enable this feature, a non-zero flag must be applied to both catalogd and impalad.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "keytab_file",
+			"type": "string",
+			"description": "Absolute path to Kerberos keytab file",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "krb5_ccname",
+			"type": "string",
+			"description": "Absolute path to the file based credentials cache that we pass to the KRB5CCNAME environment variable.",
+			"default": "/tmp/krb5cc_impala_internal",
+			"current": "/tmp/krb5cc_impala_internal",
+			"experimental": false
+		}, {
+			"name": "krb5_conf",
+			"type": "string",
+			"description": "Absolute path to Kerberos krb5.conf if in a non-standard location. Does not normally need to be set.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "krb5_debug_file",
+			"type": "string",
+			"description": "Turn on Kerberos debugging and output to this file",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "krpc_port",
+			"type": "int32",
+			"description": "port on which KRPC based ImpalaInternalService is exported",
+			"default": "27000",
+			"current": "27000",
+			"experimental": false
+		}, {
+			"name": "kudu_client_connection_negotiation_timeout_ms",
+			"type": "int32",
+			"description": "(Advanced) Timeout for connection negotiation between Kudu client and Kudu masters and tablet servers, in milliseconds",
+			"default": "3000",
+			"current": "3000",
+			"experimental": false
+		}, {
+			"name": "kudu_client_rpc_timeout_ms",
+			"type": "int32",
+			"description": "(Advanced) Timeout (milliseconds) set for individual Kudu client rpcs. An operation may consist of several rpcs, so this is expected to be less than kudu_operation_timeout_ms. This must be a positive value or it will be ignored and Kudu's default of 10s will be used. There is no way to disable timeouts.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "kudu_operation_timeout_ms",
+			"type": "int32",
+			"description": "Timeout (milliseconds) set for all Kudu operations. This must be a positive value, and there is no way to disable timeouts.",
+			"default": "180000",
+			"current": "180000",
+			"experimental": false
+		}, {
+			"name": "kudu_sasl_protocol_name",
+			"type": "string",
+			"description": "SASL protocol name for Kudu",
+			"default": "kudu",
+			"current": "kudu",
+			"experimental": false
+		}, {
+			"name": "load_auth_to_local_rules",
+			"type": "bool",
+			"description": "If true, load auth_to_local configuration from hdfs' core-site.xml. When enabled, impalad reads the rules from the property hadoop.security.auth_to_local and applies them to translate the Kerberos principal to its corresponding local user name for authorization.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "log_filename",
+			"type": "string",
+			"description": "Prefix of log filename - full path is <log_dir>/<log_filename>.[INFO|WARN|ERROR|FATAL]",
+			"default": "",
+			"current": "impalad",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "log_rotation_match_pid",
+			"type": "bool",
+			"description": "If set to True, Impala log rotation will only consider log files that match with PID of currently running service. Otherwise, log rotation will ignore the PID in log file names and may remove older log files from previous PID run. Set to True if log files from prior run must be retained or when running multiple instances of same service with common log directory. Default to False.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "max_log_files",
+			"type": "int32",
+			"description": "Maximum number of log files to retain per severity level. The most recent log files are retained. If set to 0, all log files are retained.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "max_minidumps",
+			"type": "int32",
+			"description": "Maximum number of minidump files to keep per daemon. Older files are removed first. Set to 0 to keep all minidump files.",
+			"default": "9",
+			"current": "9",
+			"experimental": false
+		}, {
+			"name": "mem_limit",
+			"type": "string",
+			"description": "Limit on process memory consumption. Includes the JVM's memory consumption only if --mem_limit_includes_jvm is true. Specified as number of bytes ('<int>[bB]?'), megabytes ('<float>[mM]'), gigabytes ('<float>[gG]'), or percentage of the physical memory ('<int>%'). Defaults to bytes if no unit is given.",
+			"default": "80%",
+			"current": "1gb",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "mem_limit_includes_jvm",
+			"type": "bool",
+			"description": "If true, --mem_limit will include the JVM's max heap size and committed memory in the process memory limit.",
+			"default": "false",
+			"current": "true",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "min_buffer_size",
+			"type": "int64",
+			"description": "(Advanced) The minimum buffer size to use in the buffer pool",
+			"default": "8192",
+			"current": "8192",
+			"experimental": false
+		}, {
+			"name": "min_privilege_set_for_show_stmts",
+			"type": "string",
+			"description": "Comma separated list of privileges. Any one of them is required to show a database or table. Defaults to \"any\" which means if the user has any privilege (CREATE, SELECT, INSERT, etc) on a database or table, the database/table is visible in the results of SHOW DATABASES/TABLES. If set to \"select\", only dbs/tables on which the user has SELECT privilege will be shown. If set to \"select,insert\", only dbs/tables on which the user has SELECT or INSERT privilege will be shown. In practice, this flag can be set to \"select\" or \"select,insert\" to improve performance of SHOW DATABASES/TABLES and GET_SCHEMAS/GET_TABLES, especially when using Sentry and having thousands of candidate dbs/tables to be checked with a user with large scale of privileges. No significant performance gain when using Ranger",
+			"default": "any",
+			"current": "any",
+			"experimental": false
+		}, {
+			"name": "minidump_path",
+			"type": "string",
+			"description": "Directory to write minidump files to. This can be either an absolute path or a path relative to log_dir. Each daemon will create an additional sub-directory to prevent naming conflicts and to make it easier to identify a crashing daemon. Minidump files contain crash-related information in a compressed format and will be written when a daemon exits unexpectedly, for example on an unhandled exception or signal. It is also possible to create minidumps on demand without exiting the process by sending SIGUSR1. Set to empty to disable writing minidump files.",
+			"default": "minidumps",
+			"current": "/opt/impala/logs/minidumps/impalad",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "minidump_size_limit_hint_kb",
+			"type": "int32",
+			"description": "Size limit hint for minidump files in KB. If a minidump exceeds this value, then breakpad will reduce the stack memory it collects for each thread from 8KB to 2KB. However it will always include the full stack memory for the first 20 threads, including the thread that crashed.",
+			"default": "20480",
+			"current": "20480",
+			"experimental": false
+		}, {
+			"name": "mt_dop_auto_fallback",
+			"type": "string",
+			"description": "Removed",
+			"default": "__UNSET__",
+			"current": "true",
+			"experimental": true,
+			"value_changed": 1
+		}, {
+			"name": "num_check_authorization_threads",
+			"type": "int32",
+			"description": "The number of threads used to check authorization for the user when executing show tables/databases. This configuration is applicable only when authorization is enabled. A value of 1 disables multi-threaded execution for checking authorization.However, a small value of larger than 1 may limit the parallelism of FE requests when checking authorization with a high concurrency. The value must be in the range of 1 to 128.",
+			"default": "1",
+			"current": "1",
+			"experimental": false
+		}, {
+			"name": "principal",
+			"type": "string",
+			"description": "Kerberos principal. If set, both client and backend network connections will use Kerberos encryption and authentication and the daemon will acquire a Kerberos TGT (i.e. do the equivalent of the kinit command) and keep it refreshed for the lifetime of the daemon.  If this is not set the TGT ticket will not be acquired and incoming connections will not be authenticated or encrypted using Kerberos. However, the TGT and other settings may be inherited from the environment and used by client libraries in certain cases.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "pull_table_types_and_comments",
+			"type": "bool",
+			"description": "When set, catalogd will always load the table types and comments at startup and in executing INVALIDATE METADATA commands. In other words, unloaded tables will not just contain the table names, but also the table types and comments. This is a catalogd-only flag. Required if users want GET_TABLES requests return correct table types or comments.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "re2_mem_limit",
+			"type": "string",
+			"description": "Maximum bytes of memory to be used by re2's regex engine to hold the compiled form of the regexp. For more memory-consuming patterns, this can be set to be a higher number.Specified as number of bytes ('<int>[bB]?'), megabytes ('<float>[mM]'), gigabytes ('<float>[gG]'), or percentage of memory limit for RE2 max_mem opt ('<int>%'). Defaults to bytes if no unit is given.Default to 8MB. Using percentage is discouraged.",
+			"default": "8MB",
+			"current": "8MB",
+			"experimental": false
+		}, {
+			"name": "read_size",
+			"type": "int32",
+			"description": "(Advanced) The preferred I/O request size in bytes to issue to HDFS or the local filesystem. Increasing the read size will increase memory requirements. Decreasing the read size may decrease I/O throughput.",
+			"default": "8388608",
+			"current": "8388608",
+			"experimental": false
+		}, {
+			"name": "redaction_rules_file",
+			"type": "string",
+			"description": "Absolute path to sensitive data redaction rules. The rules will be applied to all log messages and query text shown in the Web UI and audit records. Query results will not be affected. Refer to the documentation for the rule file format.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "redirect_stdout_stderr",
+			"type": "bool",
+			"description": "If true, redirects stdout/stderr to INFO/ERROR log.",
+			"default": "true",
+			"current": "false",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "reserved_words_version",
+			"type": "string",
+			"description": "Reserved words compatibility version. Reserved words cannot be used as identifiers in SQL. This flag determines the impala version from which the reserved word list is taken. The value must be one of [\"2.11.0\", \"3.0.0\"].",
+			"default": "3.0.0",
+			"current": "3.0.0",
+			"experimental": false
+		}, {
+			"name": "skip_external_kerberos_auth",
+			"type": "bool",
+			"description": "(Advanced) skip kerberos authentication for incoming external connections to this daemon, e.g. clients connecting to the HS2 interface. Only has an effect if --principal is set, i.e. Kerberos is enabled.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "skip_internal_kerberos_auth",
+			"type": "bool",
+			"description": "(Advanced) skip kerberos authentication for incoming internal connections from other daemons within the Impala cluster (i.e. impalads, statestored, catalogd). Must be set to the same value across all daemons. Only has an effect if --principal is set, i.e. Kerberos is enabled.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "spnego_keytab_file",
+			"type": "string",
+			"description": "Absolute path to Kerberos keytab file for HTTP spnego. If it is empty, --keytab_file flag will be used.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "state_store_2_host",
+			"type": "string",
+			"description": "hostname where second StatestoreService instance is running",
+			"default": "localhost",
+			"current": "localhost",
+			"experimental": false
+		}, {
+			"name": "state_store_2_port",
+			"type": "int32",
+			"description": "port where second StatestoreService instance is running",
+			"default": "24001",
+			"current": "24001",
+			"experimental": false
+		}, {
+			"name": "state_store_ha_port",
+			"type": "int32",
+			"description": "port where StatestoreHaService is running",
+			"default": "24020",
+			"current": "24020",
+			"experimental": false
+		}, {
+			"name": "state_store_host",
+			"type": "string",
+			"description": "hostname where StatestoreService is running",
+			"default": "localhost",
+			"current": "statestored",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "state_store_port",
+			"type": "int32",
+			"description": "port where StatestoreService is running",
+			"default": "24000",
+			"current": "24000",
+			"experimental": false
+		}, {
+			"name": "tcmalloc_max_total_thread_cache_bytes",
+			"type": "int64",
+			"description": "(Advanced) Bound on the total amount of bytes allocated to TCMalloc thread caches. If left at 0 (default), use the default value in TCMalloc library.",
+			"default": "0",
+			"current": "1073741824",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "tolerate_statestore_startup_delay",
+			"type": "bool",
+			"description": "If set to true, the subscriber is able to tolerate the delay of the statestore's availability. The subscriber's process will not exit if it cannot register with the specified statestore on startup. But instead it enters into Recovery mode, it will loop, sleep and retry till it successfully registers with the statestore.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "unlock_zorder_sort",
+			"type": "bool",
+			"description": "If true, enables using ZORDER option for SORT BY.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "update_catalogd_rpc_resend_interval_ms",
+			"type": "int64",
+			"description": "(Advanced) Interval (in ms) with which the statestore resends the update catalogd RPC to a subscriber if the statestore has failed to send the RPC to the subscriber.",
+			"default": "100",
+			"current": "100",
+			"experimental": false
+		}, {
+			"name": "use_resolved_hostname",
+			"type": "bool",
+			"description": "If true, --hostname is resolved before use, so that the IP address will be used everywhere instead of the hostname.",
+			"default": "false",
+			"current": "true",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "use_subscriber_id_as_catalogd_priority",
+			"type": "bool",
+			"description": "Subscriber-id is used as priority value of catalogd instance if this is set as true. Otherwise, registration_id which is generated as random number will be used as priority value of catalogd instance.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "jvm_automatic_add_opens",
+			"type": "bool",
+			"description": "Adds necessary --add-opens options for core Java modules necessary to correctly calculate catalog metadata cache object sizes.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "local_library_dir",
+			"type": "string",
+			"description": "Scratch space for local fs operations. Currently used for copying UDF binaries locally from HDFS and also for initializing the timezone db",
+			"default": "/tmp",
+			"current": "/tmp",
+			"experimental": false
+		}, {
+			"name": "memory_maintenance_sleep_time_ms",
+			"type": "int32",
+			"description": "Sleep time in milliseconds between memory maintenance iterations",
+			"default": "10000",
+			"current": "10000",
+			"experimental": false
+		}, {
+			"name": "pause_monitor_sleep_time_ms",
+			"type": "int64",
+			"description": "Sleep time in milliseconds for pause monitor thread.",
+			"default": "500",
+			"current": "500",
+			"experimental": false
+		}, {
+			"name": "pause_monitor_warn_threshold_ms",
+			"type": "int64",
+			"description": "If the pause monitor sleeps more than this time period, a warning is logged. If set to 0 or less, pause monitor is disabled.",
+			"default": "10000",
+			"current": "10000",
+			"experimental": false
+		}, {
+			"name": "data_source_batch_size",
+			"type": "int32",
+			"description": "Batch size for calls to GetNext() on external data sources.",
+			"default": "1024",
+			"current": "1024",
+			"experimental": false
+		}, {
+			"name": "exchg_node_buffer_size_bytes",
+			"type": "int64",
+			"description": "(Advanced) Maximum size of per-query receive-side buffer",
+			"default": "10485760",
+			"current": "10485760",
+			"experimental": false
+		}, {
+			"name": "enable_quadratic_probing",
+			"type": "bool",
+			"description": "Enable quadratic probing hash table",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "always_use_data_cache",
+			"type": "bool",
+			"description": "(Advanced) Always uses the IO data cache for all reads, regardless of whether the read is local or remote. By default, the IO data cache is only used if the data is expected to be remote. Used by tests.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "max_row_batches",
+			"type": "int32",
+			"description": "the maximum number of batches to queue in multithreaded HDFS scans",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "min_filter_reject_ratio",
+			"type": "double",
+			"description": "(Advanced) If the percentage of rows rejected by a runtime filter drops below this value, the filter is disabled.",
+			"default": "0.10000000000000001",
+			"current": "0.10000000000000001",
+			"experimental": false
+		}, {
+			"name": "enable_json_scanner",
+			"type": "bool",
+			"description": "If set false, disable reading from json format tables.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "kudu_max_row_batches",
+			"type": "int32",
+			"description": "The maximum size of the row batch queue,  for Kudu scanners.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "kudu_read_mode",
+			"type": "string",
+			"description": "(Advanced) Sets the Kudu scan ReadMode. Supported Kudu read modes are READ_LATEST and READ_AT_SNAPSHOT. Can be overridden with the query option of the same name.",
+			"default": "READ_LATEST",
+			"current": "READ_LATEST",
+			"experimental": false
+		}, {
+			"name": "kudu_scanner_keep_alive_period_sec",
+			"type": "int32",
+			"description": "The period at which Kudu Scanners should send keep-alive requests to the tablet server to ensure that scanners do not time out.",
+			"default": "15",
+			"current": "15",
+			"experimental": false
+		}, {
+			"name": "kudu_error_buffer_size",
+			"type": "int32",
+			"description": "The size (bytes) of the Kudu client buffer for returning errors, with a min of 1KB.If the actual errors exceed this size the query will fail.",
+			"default": "10485760",
+			"current": "10485760",
+			"experimental": false
+		}, {
+			"name": "kudu_ignore_conflicts",
+			"type": "bool",
+			"description": "Control whether Impala should ignore Kudu conflict error on duplicate and absent primary keys during write operations. If this flag is set to true and Kudu cluster supports ignore operations, Impala will use {INSERT,UPDATE,DELETE}_IGNORE operations of Kudu API. Otherwise, Impala will use regular {INSERT,UPDATE,DELETE} operations and logs any occurrences of such conflict error. See also kudu_ignore_conflicts_in_transaction flag.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "kudu_ignore_conflicts_in_transaction",
+			"type": "bool",
+			"description": "Control whether Kudu transaction should ignore conflict error on duplicate and absent primary keys during write operations. If set to true, the Kudu transaction will not be aborted for hitting such a conflict error. This flag is only considered if kudu_ignore_conflicts flag is true.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "kudu_mutation_buffer_size",
+			"type": "int32",
+			"description": "The size (bytes) of the Kudu client buffer for mutations.",
+			"default": "10485760",
+			"current": "10485760",
+			"experimental": false
+		}, {
+			"name": "kudu_client_num_reactor_threads",
+			"type": "int32",
+			"description": "Number of threads the Kudu client can use to send rpcs to Kudu. Must be > 0.",
+			"default": "4",
+			"current": "4",
+			"experimental": false
+		}, {
+			"name": "kudu_client_v",
+			"type": "int32",
+			"description": "If >= 0, used to set the verbose logging level on the Kudu client instead of using the value of -v",
+			"default": "-1",
+			"current": "-1",
+			"experimental": false
+		}, {
+			"name": "max_page_header_size",
+			"type": "int32",
+			"description": "max parquet page header size in bytes",
+			"default": "8388608",
+			"current": "8388608",
+			"experimental": false
+		}, {
+			"name": "max_queued_row_batch_bytes",
+			"type": "int64",
+			"description": "(Advanced) the maximum bytes of queued rows per multithreaded scan node.",
+			"default": "16777216",
+			"current": "16777216",
+			"experimental": false
+		}, {
+			"name": "runtime_filter_wait_time_ms",
+			"type": "int32",
+			"description": "(Advanced) the maximum time, in ms, that a scan node will wait for expected runtime filters to arrive.",
+			"default": "1000",
+			"current": "1000",
+			"experimental": false
+		}, {
+			"name": "enabled_hdfs_text_scanner_plugins",
+			"type": "string",
+			"description": "(Advanced) whitelist of HDFS text scanner plugins that Impala will try to dynamically load. Must be a comma-separated list of upper-case compression codec names. Each plugin implements support for decompression and hands off the decompressed bytes to Impala's builtin text parser for further processing (e.g. parsing delimited text).",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "partitioned_topn_in_mem_partitions_limit",
+			"type": "int32",
+			"description": "(Experimental) Soft limit on the number of in-memory partitions in an instance of the partitioned top-n operator.",
+			"default": "1000",
+			"current": "1000",
+			"experimental": false
+		}, {
+			"name": "partitioned_topn_soft_limit_bytes",
+			"type": "int64",
+			"description": "(Experimental) Soft limit on the number of in-memory partitions in an instance of the partitioned top-n operator.",
+			"default": "67108864",
+			"current": "67108864",
+			"experimental": false
+		}, {
+			"name": "ai_additional_platforms",
+			"type": "string",
+			"description": "A comma-separated list of additional platforms allowed for Impala to access via the AI api, formatted as 'site1,site2'.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ai_api_key_jceks_secret",
+			"type": "string",
+			"description": "The jceks secret key used for extracting the api key from configured keystores. 'hadoop.security.credential.provider.path' in core-site must be configured to include the keystore storing the corresponding secret.",
+			"default": "",
+			"current": "<redacted>",
+			"experimental": false
+		}, {
+			"name": "ai_connection_timeout_s",
+			"type": "int32",
+			"description": "(Advanced) The time in seconds for connection timed out when communicating with an external AI engine",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "ai_endpoint",
+			"type": "string",
+			"description": "The default API endpoint for an external AI engine.",
+			"default": "https://api.openai.com/v1/chat/completions",
+			"current": "https://api.openai.com/v1/chat/completions",
+			"experimental": false
+		}, {
+			"name": "ai_model",
+			"type": "string",
+			"description": "The default AI model used by an external AI engine.",
+			"default": "gpt-4",
+			"current": "gpt-4",
+			"experimental": false
+		}, {
+			"name": "hdfs_zone_alias_conf",
+			"type": "string",
+			"description": "HDFS/S3A/ADLS path to config file defining non-standard time-zone aliases.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "hdfs_zone_info_zip",
+			"type": "string",
+			"description": "HDFS/S3A/ADLS path to a zip archive of the IANA time-zone database to use.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "rpc_acceptor_listen_backlog",
+			"type": "int32",
+			"description": "Socket backlog parameter used when listening for RPC connections. This defines the maximum length to which the queue of pending TCP connections inbound to the RPC server may grow. If a connection request arrives when the queue is full, the client may receive an error. Higher values may help the server ride over bursts of new inbound connection requests.",
+			"default": "128",
+			"current": "128",
+			"experimental": false
+		}, {
+			"name": "rpc_encrypt_loopback_connections",
+			"type": "bool",
+			"description": "Whether to encrypt data transfer on RPC connections that stay within a single host. Encryption here is likely to offer no additional security benefit since only a local 'root' user could intercept the traffic, and wire encryption does not suitably protect against such an attacker.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "rpc_negotiation_inject_delay_ms",
+			"type": "int32",
+			"description": "If enabled, injects the given number of milliseconds delay into the RPC negotiation process on the server side.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "rpc_trace_negotiation",
+			"type": "bool",
+			"description": "If enabled, dump traces of all RPC negotiations to the log",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "rpc_callback_max_cycles",
+			"type": "int64",
+			"description": "The maximum number of cycles for which an RPC callback should be allowed to run without emitting a warning. (Advanced debugging option)",
+			"default": "100000000",
+			"current": "100000000",
+			"experimental": false
+		}, {
+			"name": "rpc_inject_cancellation_state",
+			"type": "int32",
+			"description": "If this flag is not -1, it is the state in which a cancellation request will be injected. Should use values in OutboundCall::State only",
+			"default": "-1",
+			"current": "-1",
+			"experimental": false
+		}, {
+			"name": "rpc_reopen_outbound_connections",
+			"type": "bool",
+			"description": "Open a new connection to the server for every RPC call. If not enabled, an already existing connection to a server is reused upon making another call to the same server. When this flag is enabled, an already existing _idle_ connection to the server is closed upon making another RPC call which would reuse the connection otherwise. Used by tests only.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "tcp_keepalive_probe_period_s",
+			"type": "int32",
+			"description": "The duration in seconds after an outbound connection has gone idle before a TCP keepalive probe is sent to the peer. Set to 0 to disable TCP keepalive probes from being sent.",
+			"default": "60",
+			"current": "60",
+			"experimental": false
+		}, {
+			"name": "tcp_keepalive_retry_count",
+			"type": "int32",
+			"description": "The maximum number of keepalive probes sent before declaring the remote end as dead. Effective only if --tcp_keepalive_probe_period_s is not 0.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "tcp_keepalive_retry_period_s",
+			"type": "int32",
+			"description": "The duration in seconds between successive keepalive probes from an outbound connection if the previous probes are not acknowledged. Effective only if --tcp_keepalive_probe_period_s is not 0.",
+			"default": "3",
+			"current": "3",
+			"experimental": false
+		}, {
+			"name": "remember_clients_ttl_ms",
+			"type": "int64",
+			"description": "Maximum amount of time, in milliseconds, the server \"remembers\" a client for the purpose of caching its responses. After this period without hearing from it, the client is no longer remembered and the memory occupied by its responses is reclaimed. Retries of requests older than 'remember_clients_ttl_ms' are treated as new ones.",
+			"default": "3600000",
+			"current": "3600000",
+			"experimental": false
+		}, {
+			"name": "remember_responses_ttl_ms",
+			"type": "int64",
+			"description": "Maximum amount of time, in milliseconds, the server \"remembers\" a response to a specific request for a client. After this period has elapsed, the response may have been garbage collected and the client might get a response indicating the request is STALE.",
+			"default": "600000",
+			"current": "600000",
+			"experimental": false
+		}, {
+			"name": "result_tracker_gc_interval_ms",
+			"type": "int64",
+			"description": "Interval at which the result tracker will look for entries to GC.",
+			"default": "1000",
+			"current": "1000",
+			"experimental": false
+		}, {
+			"name": "rpc_dump_all_traces",
+			"type": "bool",
+			"description": "If true, dump all RPC traces at INFO level",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "rpc_duration_too_long_ms",
+			"type": "int32",
+			"description": "Threshold (in milliseconds) above which a RPC is considered too long and its duration and method name are logged at INFO level. The time measured is between when a RPC is accepted and when its call handler completes.",
+			"default": "1000",
+			"current": "120000",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "rpc_inject_invalid_authn_token_ratio",
+			"type": "double",
+			"description": "If set higher than 0, AuthenticateByToken() randomly injects errors replying with FATAL_INVALID_AUTHENTICATION_TOKEN code. The flag's value corresponds to the probability of the fault injection event. Used for only for tests.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "rpc_inject_invalid_channel_bindings_ratio",
+			"type": "double",
+			"description": "The ratio of injection of invalid channel bindings during connection negotiation. This is a test-only flag.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "rpc_send_channel_bindings",
+			"type": "bool",
+			"description": "Whether to send channel bindings in NegotiatePB response as prescribed by RFC 5929. This is a test-only flag.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "trusted_subnets",
+			"type": "string",
+			"description": "A trusted subnet whitelist. If set explicitly, all unauthenticated or unencrypted connections are prohibited except the ones from the specified address blocks. Otherwise, private network (127.0.0.0/8, etc.) and local subnets of all local network interfaces will be used. Set it to '0.0.0.0/0' to allow unauthenticated/unencrypted connections from all remote IP addresses. However, if network access is not otherwise restricted by a firewall, malicious users may be able to gain unauthorized access.",
+			"default": "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16",
+			"current": "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16",
+			"experimental": false
+		}, {
+			"name": "enable_exactly_once",
+			"type": "bool",
+			"description": "Whether to enable exactly once semantics.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "rpc_max_message_size_enable_validation",
+			"type": "bool",
+			"description": "Whether to turn off validation for --rpc_max_message_size flag. This is a test-only flag.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "use_system_auth_to_local",
+			"type": "bool",
+			"description": "When enabled, use the system krb5 library to map Kerberos principal names to local (short) usernames. If not enabled, the first component of the principal will be used as the short name. For example, 'kudu/foo.example.com@EXAMPLE' will map to 'kudu'.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "ipki_server_key_size",
+			"type": "int32",
+			"description": "the number of bits for server cert's private key. The server cert is used for TLS connections to and from clients and other servers.",
+			"default": "2048",
+			"current": "2048",
+			"experimental": false
+		}, {
+			"name": "openssl_security_level_override",
+			"type": "int32",
+			"description": "if set to 0 or greater, overrides the security level for OpenSSL library of versions 1.1.0 and newer; for test purposes only",
+			"default": "-1",
+			"current": "-1",
+			"experimental": false
+		}, {
+			"name": "disable_blockbloomfilter_avx2",
+			"type": "bool",
+			"description": "Disable AVX2 operations in BlockBloomFilter. This flag has no effect if the target CPU doesn't support AVX2 at run-time or BlockBloomFilter was built with a compiler that doesn't support AVX2.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "cache_force_single_shard",
+			"type": "bool",
+			"description": "Override all cache implementations to use just one shard",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "cache_memtracker_approximation_ratio",
+			"type": "double",
+			"description": "The MemTracker associated with a cache can accumulate error up to this ratio to improve performance. For tests.",
+			"default": "0.01",
+			"current": "0.01",
+			"experimental": false
+		}, {
+			"name": "trace_to_console",
+			"type": "string",
+			"description": "Trace pattern specifying which trace events should be dumped directly to the console",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "crash_on_eio",
+			"type": "bool",
+			"description": "Kill the process if an I/O operation results in EIO. If false, I/O resulting in EIOs will return the status IOError and leave error-handling up to the caller.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "encrypt_data_at_rest",
+			"type": "bool",
+			"description": "Whether sensitive files should be encrypted on the file system.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "encryption_key_length",
+			"type": "int32",
+			"description": "Encryption key length.",
+			"default": "128",
+			"current": "128",
+			"experimental": false
+		}, {
+			"name": "env_inject_eio",
+			"type": "double",
+			"description": "Fraction of the time that operations on certain files will fail with the posix code EIO.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "env_inject_eio_globs",
+			"type": "string",
+			"description": "Comma-separated list of glob patterns specifying files on which I/O will fail. By default, all files may cause a failure.",
+			"default": "*",
+			"current": "*",
+			"experimental": false
+		}, {
+			"name": "env_inject_lock_failure_globs",
+			"type": "string",
+			"description": "Comma-separated list of glob patterns specifying files on which attempts to obtain a file lock will fail. By default, no files will fail.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "env_inject_short_read_bytes",
+			"type": "int32",
+			"description": "The number of bytes less than the requested bytes to read",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "env_inject_short_write_bytes",
+			"type": "int32",
+			"description": "The number of bytes less than the requested bytes to write",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "env_use_fsync",
+			"type": "bool",
+			"description": "Use fsync(2) instead of fdatasync(2) for synchronizing dirty data to disk.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "env_use_ioctl_hole_punch_on_xfs",
+			"type": "bool",
+			"description": "Use the XFS_IOC_UNRESVSP64 ioctl instead of fallocate(2) to punch holes on XFS filesystems.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "never_fsync",
+			"type": "bool",
+			"description": "Never fsync() anything to disk. This is used by certain test cases to speed up runtime. This is very unsafe to use in production.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "disk_reserved_bytes_free_for_testing",
+			"type": "int64",
+			"description": "For testing only! Set to number of bytes free on each filesystem. Set to -1 to disable this test-specific override",
+			"default": "-1",
+			"current": "-1",
+			"experimental": false
+		}, {
+			"name": "disk_reserved_override_prefix_1_bytes_free_for_testing",
+			"type": "int64",
+			"description": "For testing only! Set number of bytes free on the path prefix specified by --disk_reserved_override_prefix_1_path_for_testing. Set to -1 to disable.",
+			"default": "-1",
+			"current": "-1",
+			"experimental": false
+		}, {
+			"name": "disk_reserved_override_prefix_1_path_for_testing",
+			"type": "string",
+			"description": "For testing only! Specifies a prefix to override the visible 'bytes free' on. Use --disk_reserved_override_prefix_1_bytes_free_for_testing to set the number of bytes free for this path prefix. Set to empty string to disable.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "disk_reserved_override_prefix_2_bytes_free_for_testing",
+			"type": "int64",
+			"description": "For testing only! Set number of bytes free on the path prefix specified by --disk_reserved_override_prefix_2_path_for_testing. Set to -1 to disable.",
+			"default": "-1",
+			"current": "-1",
+			"experimental": false
+		}, {
+			"name": "disk_reserved_override_prefix_2_path_for_testing",
+			"type": "string",
+			"description": "For testing only! Specifies a prefix to override the visible 'bytes free' on. Use --disk_reserved_override_prefix_2_bytes_free_for_testing to set the number of bytes free for this path prefix. Set to empty string to disable.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "env_inject_full",
+			"type": "double",
+			"description": "Fraction of the time that space checks on certain paths will yield the posix code ENOSPC.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "env_inject_full_globs",
+			"type": "string",
+			"description": "Comma-separated list of glob patterns specifying which paths return with space errors.",
+			"default": "*",
+			"current": "*",
+			"experimental": false
+		}, {
+			"name": "disable_core_dumps",
+			"type": "bool",
+			"description": "Disable core dumps when this process crashes.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "dump_metrics_json",
+			"type": "bool",
+			"description": "Dump a JSON document describing all of the metrics which may be emitted by this binary.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "dump_metrics_xml",
+			"type": "bool",
+			"description": "Dump an XML document describing all of the metrics which may be emitted by this binary.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "redact",
+			"type": "string",
+			"description": "Comma-separated list that controls redaction context. Supported options are 'all','log', and 'none'. If 'all' is specified, sensitive data (sensitive configuration flags and row data) will be redacted from the web UI as well as glog and error messages. If 'log' is specified, sensitive data will only be redacted from glog and error messages. If 'none' is specified, no redaction will occur.",
+			"default": "all",
+			"current": "all",
+			"experimental": false
+		}, {
+			"name": "umask",
+			"type": "string",
+			"description": "The umask that will be used when creating files and directories. Permissions of top-level data directories will also be modified at start-up to conform to the given umask. Changing this value may enable unauthorized local users to read or modify data stored by Kudu.",
+			"default": "077",
+			"current": "077",
+			"experimental": false
+		}, {
+			"name": "unlock_experimental_flags",
+			"type": "bool",
+			"description": "Unlock flags marked as 'experimental'. These flags are not guaranteed to be maintained across releases of Kudu, and may enable features or behavior known to be unstable. Use at your own risk.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "unlock_unsafe_flags",
+			"type": "bool",
+			"description": "Unlock flags marked as 'unsafe'. These flags are not guaranteed to be maintained across releases of Kudu, and enable features or behavior known to be unsafe. Use at your own risk.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "hung_task_check_interval_ms",
+			"type": "int32",
+			"description": "Number of milliseconds in between checks for hung threads",
+			"default": "200",
+			"current": "200",
+			"experimental": false
+		}, {
+			"name": "inject_latency_on_kernel_stack_lookup_ms",
+			"type": "int32",
+			"description": "Number of milliseconds of latency to inject when reading a thread's kernel stack",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "log_async",
+			"type": "bool",
+			"description": "Enable asynchronous writing to log files. This improves latency and stability.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "log_async_buffer_bytes_per_level",
+			"type": "int32",
+			"description": "The number of bytes of buffer space used by each log level. Only relevant when --log_async is enabled.",
+			"default": "2097152",
+			"current": "2097152",
+			"experimental": false
+		}, {
+			"name": "allocator_aligned_mode",
+			"type": "bool",
+			"description": "Use 16-byte alignment instead of 8-byte, unless explicitly specified otherwise - to boost SIMD",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "metrics_retirement_age_ms",
+			"type": "int32",
+			"description": "The minimum number of milliseconds a metric will be kept for after it is no longer active. (Advanced option)",
+			"default": "120000",
+			"current": "120000",
+			"experimental": false
+		}, {
+			"name": "dns_resolver_cache_capacity_mb",
+			"type": "uint32",
+			"description": "Capacity of DNS resolver cache, in MiBytes. For each key, the cache stores records returned by getaddrinfo(). A value of 0 means the results of DNS name resolution are not cached.",
+			"default": "1",
+			"current": "1",
+			"experimental": false
+		}, {
+			"name": "dns_resolver_cache_ttl_sec",
+			"type": "uint32",
+			"description": "TTL of records in the DNS resolver cache, in seconds.",
+			"default": "15",
+			"current": "15",
+			"experimental": false
+		}, {
+			"name": "dns_resolver_max_threads_num",
+			"type": "int32",
+			"description": "The maximum number of threads to use for async DNS resolution",
+			"default": "1",
+			"current": "1",
+			"experimental": false
+		}, {
+			"name": "dns_addr_resolution_override",
+			"type": "string",
+			"description": "Comma-separated list of '='-separated pairs of hosts to addresses. The left-hand side of the '=' is taken as a host, and will resolve to the right-hand side which is expected to be a socket address with no port.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "fail_dns_resolution",
+			"type": "bool",
+			"description": "Whether to fail dns resolution, for tests.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "fail_dns_resolution_hostports",
+			"type": "string",
+			"description": "Comma-separated list of hostports that fail dns resolution. If empty, fails all dns resolution attempts. Only takes effect if --fail_dns_resolution is 'true'.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "host_for_tests",
+			"type": "string",
+			"description": "Host to use when resolving a given server's locally bound or advertised addresses.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "local_ip_for_outbound_sockets",
+			"type": "string",
+			"description": "IP to bind to when making outgoing socket connections. This must be an IP address of the form A.B.C.D, not a hostname. Advanced parameter, subject to change.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "socket_inject_short_recvs",
+			"type": "bool",
+			"description": "Inject short recv() responses which return less data than requested",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "memory_limit_hard_bytes",
+			"type": "int64",
+			"description": "Maximum amount of memory this daemon should use, in bytes. A value of 0 autosizes based on the total system memory. A value of -1 disables all memory limiting.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "memory_limit_soft_percentage",
+			"type": "int32",
+			"description": "Percentage of the hard memory limit that this daemon may consume before memory throttling of writes begins. The greater the excess, the higher the chance of throttling. In general, a lower soft limit leads to smoother write latencies but decreased throughput, and vice versa for a higher soft limit.",
+			"default": "80",
+			"current": "80",
+			"experimental": false
+		}, {
+			"name": "memory_limit_warn_threshold_percentage",
+			"type": "int32",
+			"description": "Percentage of the hard memory limit that this daemon may consume before WARNING level messages are periodically logged.",
+			"default": "98",
+			"current": "98",
+			"experimental": false
+		}, {
+			"name": "memory_pressure_percentage",
+			"type": "int32",
+			"description": "Percentage of the hard memory limit that this daemon may consume before flushing of in-memory data becomes prioritized.",
+			"default": "60",
+			"current": "60",
+			"experimental": false
+		}, {
+			"name": "thread_inject_start_latency_ms",
+			"type": "int32",
+			"description": "Number of ms to sleep when starting a new thread. (For tests).",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "accepted_cnxn_queue_depth",
+			"type": "int32",
+			"description": "(Advanced) The size of the post-accept, pre-setup connection queue in each thrift server set up to service Impala internal and external connections.",
+			"default": "10000",
+			"current": "10000",
+			"experimental": false
+		}, {
+			"name": "accepted_cnxn_setup_thread_pool_size",
+			"type": "int32",
+			"description": "(Advanced) The size of the thread pool that is used to process the post-accept, pre-setup connection queue in each thrift server set up to service Impala internal and external connections.",
+			"default": "2",
+			"current": "2",
+			"experimental": false
+		}, {
+			"name": "cookie_require_secure",
+			"type": "bool",
+			"description": "(Advanced) If true, authentication cookies will include the 'Secure' attribute, indicating to clients that they should only be returned over SSL connections. For testing only.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "max_cookie_lifetime_s",
+			"type": "int64",
+			"description": "Maximum amount of time in seconds that an authentication cookie will remain valid. Setting to 0 disables use of cookies. Defaults to 1 day.",
+			"default": "86400",
+			"current": "86400",
+			"experimental": false
+		}, {
+			"name": "samesite_strict",
+			"type": "bool",
+			"description": "(Advanced) If true, authentication cookies will include SameSite=Strict.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "enable_group_filter_check_for_authenticated_kerberos_user",
+			"type": "bool",
+			"description": "If this configuration is set to true, Impala checks the provided LDAP group filter, if any, with the authenticated Kerberos user. This should be only enabled if both Kerberos and LDAP authentication are enabled and the users in KDC and LDAP are synchronized (e.g. when the KDC and the LDAP is the same Active Directory server). The default value is false, which provides backwards-compatible behavior.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "enable_ldap_auth",
+			"type": "bool",
+			"description": "If true, use LDAP authentication for client connections",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "internal_principals_whitelist",
+			"type": "string",
+			"description": "(Advanced) Comma-separated list of  additional usernames authorized to access Impala's internal APIs. Defaults to 'hdfs' which is the system user that in certain deployments must access catalog server APIs.",
+			"default": "hdfs",
+			"current": "hdfs",
+			"experimental": false
+		}, {
+			"name": "jwks_ca_certificate",
+			"type": "string",
+			"description": "File path of a pem bundle of root ca certificates that will be trusted when retrieving the JWKS from the specified JWKS URL.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "jwks_file_path",
+			"type": "string",
+			"description": "File path of the pre-installed JSON Web Key Set (JWKS) for JWT verification",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "jwks_pulling_timeout_s",
+			"type": "int32",
+			"description": "(Advanced) The time in seconds for connection timed out when pulling JWKS from the specified URL.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "jwks_update_frequency_s",
+			"type": "int32",
+			"description": "(Advanced) The time in seconds to wait between downloading JWKS from the specified URL.",
+			"default": "60",
+			"current": "60",
+			"experimental": false
+		}, {
+			"name": "jwks_url",
+			"type": "string",
+			"description": "URL of the JSON Web Key Set (JWKS) for JWT verification",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "jwks_verify_server_certificate",
+			"type": "bool",
+			"description": "Specifies if the TLS certificate of the JWKS server is verified when retrieving the JWKS from the specified JWKS URL.  A certificate is considered valid if a trust chain can be established for it, and if the certificate has a common name or SAN that matches the server's hostname. This should only be set to false for development / testing.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "jwt_custom_claim_username",
+			"type": "string",
+			"description": "Custom claim 'username'",
+			"default": "username",
+			"current": "username",
+			"experimental": false
+		}, {
+			"name": "jwt_token_auth",
+			"type": "bool",
+			"description": "When true, read the JWT token out of the HTTP Header and extract user name from the token payload.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "jwt_validate_signature",
+			"type": "bool",
+			"description": "When true, validate the signature of JWT token with pre-installed JWKS.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "ldap_ca_certificate",
+			"type": "string",
+			"description": "The full path to the certificate file used to authenticate the LDAP server's certificate for SSL / TLS connections.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ldap_group_filter",
+			"type": "string",
+			"description": "Used as filter for both simple and search bind mechanisms. For simple bind it is a comma separated list of groups. If specified, users must belong to one of these groups for authentication to succeed. For search bind it is an LDAP filter that will be used during LDAP group search, it can contain '{0}' pattern which will be replaced with the user name and/or '{1}' which will be replace with the user dn.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ldap_user_filter",
+			"type": "string",
+			"description": "Used as filter for both simple and search bind mechanisms. For simple bind it is a comma separated list of user names. If specified, users must be on this list for authentication to succeed. For search bind it is an LDAP filter that will be used during LDAP search, it can contain '{0}' pattern which will be replaced with the user name.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "oauth_jwks_ca_certificate",
+			"type": "string",
+			"description": "File path of a pem bundle of root ca certificates that will be trusted when retrieving the JWKS from the specified JWKS URL.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "oauth_jwks_file_path",
+			"type": "string",
+			"description": "File path of the pre-installed JSON Web Key Set (JWKS) for OAuth verification",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "oauth_jwks_pulling_timeout_s",
+			"type": "int32",
+			"description": "(Advanced) The time in seconds for connection timed out when verifying OAuth token from the specified OAuth server.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "oauth_jwks_update_frequency_s",
+			"type": "int32",
+			"description": "(Advanced) The time in seconds to wait for refreshing the OAuth token from the OAuth URL.",
+			"default": "60",
+			"current": "60",
+			"experimental": false
+		}, {
+			"name": "oauth_jwks_url",
+			"type": "string",
+			"description": "URL of the OAuth Endpoint for token verification",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "oauth_jwks_verify_server_certificate",
+			"type": "bool",
+			"description": "Specifies if the TLS certificate of the JWKS server is verified when retrieving the JWKS from the specified JWKS URL.  A certificate is considered valid if a trust chain can be established for it, and if the certificate has a common name or SAN that matches the server's hostname. This should only be set to false for development / testing.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "oauth_jwt_custom_claim_username",
+			"type": "string",
+			"description": "Custom claim of the token that contains the username",
+			"default": "username",
+			"current": "username",
+			"experimental": false
+		}, {
+			"name": "oauth_jwt_validate_signature",
+			"type": "bool",
+			"description": "When true, validate the signature of OAuth token with pre-installed JWKS.This should only be set to false for development / testing",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "oauth_token_auth",
+			"type": "bool",
+			"description": "When true, read the OAuth token out of the HTTP Header and extract user name from the token payload.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "sasl_path",
+			"type": "string",
+			"description": "Colon separated list of paths to look for SASL security library plugins.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "trusted_auth_header",
+			"type": "string",
+			"description": "If set as non empty string, Impala will look for this header in the HTTP headers. If the header is present, Impala will skip authentication and extract the username directly from the authorization header. Currently, only connections over HTTP support this. Note: It still requires the client to specify a username via the Basic Authorization header in the format <username>:<password> where the password is not used and can be left blank. Warning: Only use this flag if the connections are authenticated before the requests land on Impala so that Impala can avoid the authentication again. The system must remove the trusted HTTP headers from any requests that come from outside the system.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "trusted_domain",
+			"type": "string",
+			"description": "If set, Impala will skip authentication for connections originating from this domain. Currently, only connections over HTTP support this. Note: It still requires the client to specify a username via the Basic Authorization header in the format <username>:<password> where the password is not used and can be left blank.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "trusted_domain_empty_xff_header_use_origin",
+			"type": "bool",
+			"description": "If set to true and the 'X-Forwarded-For' HTTP header value is empty in the request, then the origin of the the underlying transport is used while attempting to verify if the connection request originated from a trusted domain. Only used if '--trusted_domain' and '--trusted_domain_use_xff_header' flags are specified. Warning: In case the 'X-Forwarded-For' HTTP header is empty or not in the request, this flag allows a fallback to the default behavior in trusted domain check (where '--trusted_domain' flag is specified, but '--trusted_domain_use_xff_header' flag is not set).",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "trusted_domain_strict_localhost",
+			"type": "bool",
+			"description": "If set to true and trusted_domain='localhost', this will not use reverse DNS to determine if something is from localhost. It will only match 127.0.0.1. This is important for security, because reverse DNS can resolve other non-local addresses to localhost.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "trusted_domain_use_xff_header",
+			"type": "bool",
+			"description": "If set to true, this uses the 'X-Forwarded-For' HTTP header to check for origin while attempting to verify if the connection request originated from a trusted domain. Only used if '--trusted_domain' is specified. Warning: Only use this if you trust the incoming connection to have this set correctly.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "use_xff_address_as_origin",
+			"type": "bool",
+			"description": "If set to true use the address in 'X-Forwarded-For' HTTP header as origin of the connection. If XFF header is not set then the Peer Address on the underlying socket is used as the origin. If XFF header has multiple addresses corresponding to the various intermediate proxies, then the first address is used as the origin. XFF header with multiple IP addresses must be comma separated. Only use this if you trust the incoming connection to have the XFF header set correctly.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "num_acceptor_threads",
+			"type": "int32",
+			"description": "Number of threads dedicated to accepting connection requests for RPC services",
+			"default": "2",
+			"current": "2",
+			"experimental": false
+		}, {
+			"name": "num_reactor_threads",
+			"type": "int32",
+			"description": "Number of threads dedicated to managing network IO for RPC services. If left at default value 0, it will be set to number of CPU cores.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "rpc_negotiation_thread_count",
+			"type": "int32",
+			"description": "Maximum number of threads dedicated to handling RPC connection negotiations.",
+			"default": "64",
+			"current": "64",
+			"experimental": false
+		}, {
+			"name": "rpc_negotiation_timeout_ms",
+			"type": "int32",
+			"description": "Time in milliseconds of waiting for a negotiation to complete before timing out.",
+			"default": "300000",
+			"current": "300000",
+			"experimental": false
+		}, {
+			"name": "rpc_retry_interval_ms",
+			"type": "int32",
+			"description": "Time in millisecond of waiting before retrying an RPC when remote is busy",
+			"default": "5",
+			"current": "5",
+			"experimental": false
+		}, {
+			"name": "rpc_use_loopback",
+			"type": "bool",
+			"description": "Always use loopback for local connections. This requires binding to all addresses, not just the KRPC address.",
+			"default": "false",
+			"current": "true",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "rpc_use_unix_domain_socket",
+			"type": "bool",
+			"description": "Whether the KRPC client and server should use Unix domain socket. If enabled, each daemon is identified with Unix Domain Socket address in the unique name in \"Abstract Namespace\", in format @impala-krpc:<BackendId>. The KRPC server bind to a Unix domain socket. KRPC Client attempt to connect to KRPC server via a Unix domain socket.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "uds_address_unique_id",
+			"type": "string",
+			"description": "Specify unique Id for UDS address. It could be \"ip_address\", \"backend_id\", or \"none\"",
+			"default": "ip_address",
+			"current": "ip_address",
+			"experimental": false
+		}, {
+			"name": "thrift_external_rpc_max_message_size",
+			"type": "int64",
+			"description": "The maximum size of a message for external client RPC communication. This defaults to 2GB to limit the impact of untrusted payloads. This must be set to at least the default defined in Thrift (100MB). Setting 0 or a negative value will use the default defined in Thrift.",
+			"default": "2147483648",
+			"current": "2147483648",
+			"experimental": false
+		}, {
+			"name": "thrift_rpc_max_message_size",
+			"type": "int64",
+			"description": "The maximum size of a message for intra-cluster RPC communication between Impala components. Default to a high limit of 64GB. This must be set to at least the default defined in Thrift (100MB). Setting 0 or a negative value will use the default defined in Thrift.",
+			"default": "68719476736",
+			"current": "68719476736",
+			"experimental": false
+		}, {
+			"name": "concurrent_scratch_ios_per_device",
+			"type": "int32",
+			"description": "Set this to influence the number of concurrent write I/Os issues to write data to scratch files. This is multiplied by the number of active scratch directories to obtain the target number of scratch write I/Os per query.",
+			"default": "2",
+			"current": "2",
+			"experimental": false
+		}, {
+			"name": "madvise_huge_pages",
+			"type": "bool",
+			"description": "(Advanced) If true, advise operating system to back large memory buffers with huge pages",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "mmap_buffers",
+			"type": "bool",
+			"description": "(Experimental) If true, allocate buffers directly from the operating system instead of with TCMalloc.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "insert_inherit_permissions",
+			"type": "bool",
+			"description": "If true, new directories created by INSERTs will inherit the permissions of their parent directories",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "admission_control_slots",
+			"type": "int32",
+			"description": "(Advanced) The maximum degree of parallelism to run queries with on this backend. This determines the number of slots available to queries in admission control for this backend. The degree of parallelism of the query determines the number of slots that it needs. Defaults to number of cores / -num_cores for executors, and 8x that value for dedicated coordinators).",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "backend_client_connection_num_retries",
+			"type": "int32",
+			"description": "Retry backend connections.",
+			"default": "3",
+			"current": "3",
+			"experimental": false
+		}, {
+			"name": "backend_client_rpc_timeout_ms",
+			"type": "int32",
+			"description": "(Advanced) The underlying TSocket send/recv timeout in milliseconds for a backend client RPC. ",
+			"default": "300000",
+			"current": "300000",
+			"experimental": false
+		}, {
+			"name": "catalog_client_connection_num_retries",
+			"type": "int32",
+			"description": "The number of times connections or RPCs to the catalog should be retried.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "catalog_client_rpc_retry_interval_ms",
+			"type": "int32",
+			"description": "(Advanced) The time to wait before retrying when the catalog RPC client fails to connect to catalogd or when RPCs to the catalogd fail.",
+			"default": "3000",
+			"current": "3000",
+			"experimental": false
+		}, {
+			"name": "catalog_client_rpc_timeout_ms",
+			"type": "int32",
+			"description": "(Advanced) The underlying TSocket send/recv timeout in milliseconds for a catalog client RPC. The default is 10 hours. Operations take longer than this are usually abnormal and hanging.",
+			"default": "36000000",
+			"current": "36000000",
+			"experimental": false
+		}, {
+			"name": "catalog_lightweight_rpc_timeout_ms",
+			"type": "int32",
+			"description": "(Advanced) The underlying TSocket send/recv timeout in milliseconds for a lightweight catalog RPC which shouldn't take long in catalogd, e.g. fetching db/table list. The default is 30 minutes which is long enough to tolerate TCP timeout due to retransmission.",
+			"default": "1800000",
+			"current": "1800000",
+			"experimental": false
+		}, {
+			"name": "catalog_service_host",
+			"type": "string",
+			"description": "hostname where CatalogService is running",
+			"default": "localhost",
+			"current": "catalogd",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "codegen_cache_capacity",
+			"type": "string",
+			"description": "Specify the capacity of the codegen cache. If set to 0, codegen cache is disabled.",
+			"default": "1GB",
+			"current": "1GB",
+			"experimental": false
+		}, {
+			"name": "enable_webserver",
+			"type": "bool",
+			"description": "If true, debug webserver is enabled",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "local_catalog_cache_concurrency_level",
+			"type": "int32",
+			"description": "If --use_local_catalog is enabled, configures the local cache's concurrency level to avoid lock contention, the default value 4 is consistent with the default value of the original cache.",
+			"default": "4",
+			"current": "4",
+			"experimental": false
+		}, {
+			"name": "local_catalog_cache_expiration_s",
+			"type": "int32",
+			"description": "If --use_local_catalog is enabled, configures the expiration time of the catalog cache within each impalad. Even if the configured cache capacity has not been reached, items are removed from the cache if they have not been accessed in this amount of time.",
+			"default": "3600",
+			"current": "3600",
+			"experimental": false
+		}, {
+			"name": "local_catalog_cache_mb",
+			"type": "int32",
+			"description": "If --use_local_catalog is enabled, configures the size of the catalog cache within each impalad. If this is set to -1, the cache is auto-configured to 60% of the configured Java heap size. Note that the Java heap size is distinct from and typically smaller than the overall Impala memory limit.",
+			"default": "-1",
+			"current": "-1",
+			"experimental": false
+		}, {
+			"name": "local_catalog_max_fetch_retries",
+			"type": "int32",
+			"description": "If --use_local_catalog is enabled, configures the maximum number of times the frontend retries when fetching a metadata object from the impalad coordinator's local catalog cache.",
+			"default": "40",
+			"current": "40",
+			"experimental": false
+		}, {
+			"name": "max_concurrent_queries",
+			"type": "int32",
+			"description": "(Deprecated) This has been replaced with --admission_control_slots, which better accounts for the higher parallelism of queries with mt_dop > 1. If --admission_control_slots is not set, the value of --max_concurrent_queries is used instead for backward compatibility.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "metrics_webserver_interface",
+			"type": "string",
+			"description": "Interface to start metrics webserver on. If blank, webserver binds to 0.0.0.0",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "metrics_webserver_port",
+			"type": "int32",
+			"description": "If non-zero, the port to run the metrics webserver on, which exposes the /metrics, /jsonmetrics, /metrics_prometheus, and /healthz endpoints without authentication enabled.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "num_hdfs_worker_threads",
+			"type": "int32",
+			"description": "(Advanced) The number of threads in the global HDFS operation pool",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "ping_expose_webserver_url",
+			"type": "bool",
+			"description": "If true, debug webserver url is exposed via PingImpalaService/PingImpalaHS2Service RPC calls",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "state_store_subscriber_port",
+			"type": "int32",
+			"description": "port where StatestoreSubscriberService should be exported",
+			"default": "23000",
+			"current": "23000",
+			"experimental": false
+		}, {
+			"name": "use_local_catalog",
+			"type": "bool",
+			"description": "Use the on-demand metadata feature in coordinators. If this is set, coordinators pull metadata as needed from catalogd and cache it locally. The cached metadata gets evicted automatically under memory pressure or after an expiration time.",
+			"default": "false",
+			"current": "true",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "s3a_access_key_cmd",
+			"type": "string",
+			"description": "A Unix command whose output returns the access key to S3, i.e. \"fs.s3a.access.key\".",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "s3a_secret_key_cmd",
+			"type": "string",
+			"description": "A Unix command whose output returns the secret key to S3, i.e. \"fs.s3a.secret.key\".",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "data_cache_anonymize_trace",
+			"type": "bool",
+			"description": "(Advanced) Use hashes of filenames rather than file paths in the data cache access trace.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "data_cache_async_write_buffer_limit",
+			"type": "string",
+			"description": "(Experimental) Limit of the total buffer size used by asynchronous store tasks.",
+			"default": "1GB",
+			"current": "1GB",
+			"experimental": false
+		}, {
+			"name": "data_cache_checksum",
+			"type": "bool",
+			"description": "(Advanced) Enable checksumming for the cached buffer.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "data_cache_enable_tracing",
+			"type": "bool",
+			"description": "(Advanced) Collect a trace of all lookups in the data cache.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "data_cache_eviction_policy",
+			"type": "string",
+			"description": "(Advanced) The cache eviction policy to use for the data cache. Either 'LRU' (default) or 'LIRS' (experimental)",
+			"default": "LRU",
+			"current": "LRU",
+			"experimental": false
+		}, {
+			"name": "data_cache_file_max_size_bytes",
+			"type": "int64",
+			"description": "(Advanced) The maximum size which a cache file can grow to before data stops being appended to it.",
+			"default": "1099511627776",
+			"current": "1099511627776",
+			"experimental": false
+		}, {
+			"name": "data_cache_max_opened_files",
+			"type": "int32",
+			"description": "(Advanced) The maximum number of allowed opened files. This must be at least the number of specified partitions.",
+			"default": "1000",
+			"current": "1000",
+			"experimental": false
+		}, {
+			"name": "data_cache_trace_dir",
+			"type": "string",
+			"description": "The base directory for data cache tracing. The data cache trace files for each cache directory are placed in separate subdirectories underneath this base directory. If blank, defaults to <log_file_dir>/data_cache_trace/",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "data_cache_trace_percentage",
+			"type": "int32",
+			"description": "The percentage of cache lookups that should be emitted to the trace file.",
+			"default": "100",
+			"current": "100",
+			"experimental": false
+		}, {
+			"name": "data_cache_write_concurrency",
+			"type": "int32",
+			"description": "(Advanced) Number of concurrent threads allowed to insert into the cache per partition; unset uses 1 for rotational disks and 8 for solid state disks.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "max_data_cache_trace_file_size",
+			"type": "int32",
+			"description": "The maximum size (in log entries) of the data cache trace file before a new one is created.",
+			"default": "100000",
+			"current": "100000",
+			"experimental": false
+		}, {
+			"name": "max_data_cache_trace_files",
+			"type": "int32",
+			"description": "Maximum number of data cache trace files to retain for each cache directory specified by the data_cache startup parameter. The most recent trace files are retained. If set to 0, all trace files are retained.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "cache_abfs_file_handles",
+			"type": "bool",
+			"description": "Enable the file handle cache for ABFS files.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "cache_ozone_file_handles",
+			"type": "bool",
+			"description": "Enable the file handle cache for Ozone files.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "cache_remote_file_handles",
+			"type": "bool",
+			"description": "Enable the file handle cache for remote HDFS files.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "cache_s3_file_handles",
+			"type": "bool",
+			"description": "Enable the file handle cache for S3 files.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "data_cache",
+			"type": "string",
+			"description": "The configuration string for IO data cache. Default to be an empty string so it's disabled. The configuration string is expected to be a list of directories, separated by ',', followed by a ':' and a capacity quota per directory. For example /data/0,/data/1:1TB means the cache may use up to 2TB, with 1TB max in /data/0 and /data/1 respectively. Please note that each Impala daemon on a host must have a unique caching directory.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "data_cache_keep_across_restarts",
+			"type": "bool",
+			"description": "(Experimental) If this is true, the data cache metadata is dumped to the same directory as the cached files on disk when the process gracefully shutdowns. The metadata will be reloaded the next time the process starts, so that the previous cached data can be reused as if the process had never shutdown. If loading fails, it will proceed with regular initialization.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "data_cache_num_async_write_threads",
+			"type": "int32",
+			"description": "(Experimental) Number of data cache async write threads. Write threads will write the cache asynchronously after IO thread read data, so IO thread will return more quickly. The extra memory for temporary buffers is limited by --data_cache_async_write_buffer_limit. If this's 0, then write will be synchronous.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "max_cached_file_handles",
+			"type": "uint64",
+			"description": "Maximum number of HDFS file handles that will be cached. Disabled if set to 0.",
+			"default": "20000",
+			"current": "20000",
+			"experimental": false
+		}, {
+			"name": "num_abfs_io_threads",
+			"type": "int32",
+			"description": "Number of ABFS I/O threads",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "num_adls_io_threads",
+			"type": "int32",
+			"description": "Number of ADLS I/O threads",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "num_cos_io_threads",
+			"type": "int32",
+			"description": "Number of COS I/O threads",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "num_disks",
+			"type": "int32",
+			"description": "Number of disks on data node.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "num_file_handle_cache_partitions",
+			"type": "uint64",
+			"description": "Number of partitions used by the file handle cache.",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "num_gcs_io_threads",
+			"type": "int32",
+			"description": "Number of GCS I/O threads",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "num_io_threads_per_rotational_disk",
+			"type": "int32",
+			"description": "Number of I/O threads per rotational disk. Has priority over num_threads_per_disk. If neither is set, defaults to 1 thread(s) per rotational disk",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "num_io_threads_per_solid_state_disk",
+			"type": "int32",
+			"description": "Number of I/O threads per solid state disk. Has priority over num_threads_per_disk. If neither is set, defaults to 8 thread(s) per solid state disk",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "num_obs_io_threads",
+			"type": "int32",
+			"description": "Number of OBS I/O threads",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "num_oss_io_threads",
+			"type": "int32",
+			"description": "Number of OSS/JindoFS I/O threads",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "num_ozone_io_threads",
+			"type": "int32",
+			"description": "Number of Ozone I/O threads",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "num_remote_hdfs_file_oper_io_threads",
+			"type": "int32",
+			"description": "Number of remote HDFS file operations I/O threads",
+			"default": "8",
+			"current": "8",
+			"experimental": false
+		}, {
+			"name": "num_remote_hdfs_io_threads",
+			"type": "int32",
+			"description": "Number of remote HDFS I/O threads",
+			"default": "8",
+			"current": "8",
+			"experimental": false
+		}, {
+			"name": "num_s3_file_oper_io_threads",
+			"type": "int32",
+			"description": "Number of S3 file operations I/O threads",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "num_s3_io_threads",
+			"type": "int32",
+			"description": "Number of S3 I/O threads",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "num_sfs_io_threads",
+			"type": "int32",
+			"description": "Number of SFS I/O threads",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "num_threads_per_disk",
+			"type": "int32",
+			"description": "Number of I/O threads per disk",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "unused_file_handle_timeout_sec",
+			"type": "uint64",
+			"description": "Maximum time, in seconds, that an unused HDFS file handle will remain in the file handle cache. Disabled if set to 0.",
+			"default": "21600",
+			"current": "21600",
+			"experimental": false
+		}, {
+			"name": "fs_slow_read_log_threshold_ms",
+			"type": "int64",
+			"description": "Log diagnostics about I/Os issued via the HDFS client that take longer than this threshold.",
+			"default": "10000",
+			"current": "10000",
+			"experimental": false
+		}, {
+			"name": "fs_trace_remote_reads",
+			"type": "bool",
+			"description": "(Advanced) Log block locations for remote reads.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "use_hdfs_pread",
+			"type": "bool",
+			"description": "Enables using hdfsPread() instead of hdfsRead() when performing HDFS read operations. This is necessary to use HDFS hedged reads (assuming the HDFS client is configured to do so). Preads are always enabled for S3A and ABFS reads.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "hdfs_operation_timeout_sec",
+			"type": "uint64",
+			"description": "Maximum time, in seconds, that an HDFS operation should wait before timing out and failing.",
+			"default": "300",
+			"current": "300",
+			"experimental": false
+		}, {
+			"name": "datastream_sender_timeout_ms",
+			"type": "int32",
+			"description": "(Advanced) The time, in ms, that can elapse  before a plan fragment will time-out trying to send the initial row batch.",
+			"default": "120000",
+			"current": "120000",
+			"experimental": false
+		}, {
+			"name": "datastream_service_deserialization_queue_size",
+			"type": "int32",
+			"description": "Number of deferred RPC requests that can be enqueued before being processed by a deserialization thread.",
+			"default": "10000",
+			"current": "10000",
+			"experimental": false
+		}, {
+			"name": "datastream_service_num_deserialization_threads",
+			"type": "int32",
+			"description": "Number of threads for deserializing RPC requests deferred due to the receiver not ready or the soft limit of the receiver is reached.",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "data_stream_sender_buffer_size",
+			"type": "int64",
+			"description": "(Advanced) Max size in bytes which a row batch in a data stream sender's channel can accumulate before the row batch is sent over the wire.",
+			"default": "16384",
+			"current": "16384",
+			"experimental": false
+		}, {
+			"name": "dump_exec_request_path",
+			"type": "string",
+			"description": "If set, dump TExecRequest structures to {dump_exec_request_path}/TExecRequest-{internal|external}.{query_id.hi}-{query_id.lo}",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "log_mem_usage_interval",
+			"type": "int32",
+			"description": "If non-zero, impalad will output memory usage every log_mem_usage_interval'th fragment completion.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "query_exec_mgr_cancellation_thread_pool_size",
+			"type": "int32",
+			"description": "(Advanced) Size of the QueryExecMgr thread-pool processing cancellations due to coordinator failure",
+			"default": "1",
+			"current": "1",
+			"experimental": false
+		}, {
+			"name": "max_filter_error_rate",
+			"type": "double",
+			"description": "(Advanced) The target false positive probability used to determine the ideal size for each bloom filter size. This value can be overriden by the RUNTIME_FILTER_ERROR_RATE query option.",
+			"default": "0.10000000000000001",
+			"current": "0.10000000000000001",
+			"experimental": false
+		}, {
+			"name": "max_error_logs_per_instance",
+			"type": "int32",
+			"description": "Maximum number of non-fatal error to be logged in log level 1 (INFO). Once this number exceeded, further non-fatal error will be logged at log level 2 (DEBUG) severity. This flag is ignored if user set negative max_errors query option. Default to 2000",
+			"default": "2000",
+			"current": "2000",
+			"experimental": false
+		}, {
+			"name": "num_threads_per_core",
+			"type": "int32",
+			"description": "Number of threads per core.",
+			"default": "3",
+			"current": "3",
+			"experimental": false
+		}, {
+			"name": "allow_multiple_scratch_dirs_per_device",
+			"type": "bool",
+			"description": "If false and --scratch_dirs contains multiple directories on the same device, then only the first writable directory is used",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "disk_spill_compression_buffer_limit_bytes",
+			"type": "int64",
+			"description": "(Advanced) Limit on the total bytes of compression buffers that will be used for spill-to-disk compression across all queries. If this limit is exceeded, some data may be spilled to disk in uncompressed form.",
+			"default": "536870912",
+			"current": "536870912",
+			"experimental": false
+		}, {
+			"name": "disk_spill_compression_codec",
+			"type": "string",
+			"description": "(Advanced) If set, data will be compressed using the specified compression codec before spilling to disk. This can substantially reduce scratch disk usage, at the cost of requiring more CPU and memory resources to compress the data. Uses the same syntax as the COMPRESSION_CODEC query option, e.g. 'lz4', 'zstd', 'zstd:6'. If this is set, then --disk_spill_punch_holes must be enabled.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "disk_spill_encryption",
+			"type": "bool",
+			"description": "Set this to encrypt and perform an integrity check on all data spilled to disk during a query",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "disk_spill_punch_holes",
+			"type": "bool",
+			"description": "(Advanced) changes the free space management strategy for files created in --scratch_dirs to punch holes in the file when space is unused. This can reduce the amount of scratch space used by queries, particularly in conjunction with disk spill compression. This option requires the filesystems of the directories in --scratch_dirs to support hole punching.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "remote_batch_read",
+			"type": "bool",
+			"description": "Set if the system uses batch reading for the remote temporary files. Batch readingallows reading a block asynchronously when the buffer pool is trying to pin onepage of that block.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "remote_read_memory_buffer_size",
+			"type": "string",
+			"description": "Specify the maximum size of read memory buffers for the remote temporary files. Only valid when --remote_batch_read is true.",
+			"default": "1G",
+			"current": "1G",
+			"experimental": false
+		}, {
+			"name": "remote_tmp_file_block_size",
+			"type": "string",
+			"description": "Specify the size of the block for doing file uploading and fetching. The block size should be power of 2 and less than the size of remote temporary file.",
+			"default": "1M",
+			"current": "1M",
+			"experimental": false
+		}, {
+			"name": "remote_tmp_file_size",
+			"type": "string",
+			"description": "Specify the size of a remote temporary file. Upper bound is 256MB. Lower bound is the block size. The size should be power of 2 and integer times of the block size.",
+			"default": "16M",
+			"current": "16M",
+			"experimental": false
+		}, {
+			"name": "remote_tmp_files_avail_pool_lifo",
+			"type": "bool",
+			"description": "If true, lifo is the algo to evict the local buffer files during spilling to the remote. Otherwise, fifo would be used.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "scratch_dirs",
+			"type": "string",
+			"description": "Writable scratch directories. This is a comma-separated list of directories. Each directory is specified as the directory path, an optional limit on the bytes that will be allocated in that directory, and an optional priority for the directory. If the optional limit is provided, the path and the limit are separated by a colon. E.g. '/dir1:10G,/dir2:5GB,/dir3' will allow allocating up to 10GB of scratch in /dir1, 5GB of scratch in /dir2 and an unlimited amount in /dir3. If the optional priority is provided, the path and the limit and priority are separated by colon. Priority based spilling will result in directories getting selected as a spill target based on their priority. The lower the numerical value the higher the priority. E.g. '/dir1:10G:0,/dir2:5GB:1,/dir3::1', will cause spilling to first fill up '/dir1' followed by using '/dir2' and '/dir3' in a round robin manner.",
+			"default": "/tmp",
+			"current": "/tmp",
+			"experimental": false
+		}, {
+			"name": "wait_for_spill_buffer_timeout_s",
+			"type": "int32",
+			"description": "Specify the timeout duration waiting for the buffer to write (second). If a spillingopertion fails to get a buffer from the pool within the duration, the operationfails.",
+			"default": "60",
+			"current": "60",
+			"experimental": false
+		}, {
+			"name": "allow_tuple_caching",
+			"type": "bool",
+			"description": "If false, tuple caching cannot be used.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "tuple_cache",
+			"type": "string",
+			"description": "The configuration string for the tuple cache. The default is the empty string, which disables the tuple cache. The configuration string is expected to be a directory followed by a ':' and a capacity quota. For example, /data/0:1TB means the cache may use 1TB in /data/0. Please note that each Impala daemon on a host must have a unique cache directory.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "tuple_cache_debug_dump_dir",
+			"type": "string",
+			"description": "Directory for dumping the intermediate query result tuples for debugging purpose.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "tuple_cache_eviction_policy",
+			"type": "string",
+			"description": "(Advanced) The cache eviction policy to use for the tuple cache. Either 'LRU' (default) or 'LIRS' (experimental)",
+			"default": "LRU",
+			"current": "LRU",
+			"experimental": false
+		}, {
+			"name": "admission_control_service_num_svc_threads",
+			"type": "int32",
+			"description": "Number of threads for processing admission control service's RPCs. if left at default value 0, it will be set to number of CPU cores. Set it to a positive value to change from the default.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "admission_control_service_queue_mem_limit",
+			"type": "string",
+			"description": "(Advanced) Limit on RPC payloads consumption for AdmissionControlService. Specified as number of bytes ('<int>[bB]?'), megabytes ('<float>[mM]'), gigabytes ('<float>[gG]'), or percentage of the process memory limit ('<int>%'). Defaults to bytes if no unit is given.",
+			"default": "50MB",
+			"current": "50MB",
+			"experimental": false
+		}, {
+			"name": "admission_service_host",
+			"type": "string",
+			"description": "If provided, queries submitted to this impalad will be scheduled and admitted by contacting the admission control service at the specified address and --admission_service_port.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "admission_status_wait_time_ms",
+			"type": "int32",
+			"description": "(Advanced) The number of milliseconds the GetQueryStatus() rpc in the admission control service will wait for admission to complete before returning.",
+			"default": "100",
+			"current": "100",
+			"experimental": false
+		}, {
+			"name": "admission_thread_pool_size",
+			"type": "int32",
+			"description": "(Advanced) Size of the thread-pool processing AdmitQuery requests.",
+			"default": "5",
+			"current": "5",
+			"experimental": false
+		}, {
+			"name": "max_admission_queue_size",
+			"type": "int32",
+			"description": "(Advanced) Max size of the queue for the AdmitQuery thread pool.",
+			"default": "50",
+			"current": "50",
+			"experimental": false
+		}, {
+			"name": "balance_queries_across_executor_groups",
+			"type": "bool",
+			"description": "If true, balance queries across multiple groups that belonging to the same request pool based on available memory and slots in each executor group. If false, admission is attempted to groups in alphanumerically sorted order.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "clamp_query_mem_limit_backend_mem_limit",
+			"type": "bool",
+			"description": "Caps query memory limit to memory limit for admission on the backends. The coordinator memory limit is capped to the coordinator backend's memory limit, while executor memory limit is capped to the effective or minimum memory limit for admission on executor backends. If the flag is not set, a query requesting more than backend's memory limit for admission gets rejected during admission. However, if this flag is set, such a query gets admitted with backend's memory limit and could succeed if the memory request was over estimated and could fail if query really needs more memory.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "cluster_membership_topic_id",
+			"type": "string",
+			"description": "Specifies an identifier string that will be used as a prefix to Statestore topic ids used for grouping Impala backends and Admission Daemons into sub-groups within an Impala cluster defined by the Statestore service.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "queue_wait_timeout_ms",
+			"type": "int64",
+			"description": "Maximum amount of time (in milliseconds) that a request will wait to be admitted before timing out.",
+			"default": "60000",
+			"current": "60000",
+			"experimental": false
+		}, {
+			"name": "admission_service_port",
+			"type": "int32",
+			"description": "The port where the admission control service runs",
+			"default": "29500",
+			"current": "29500",
+			"experimental": false
+		}, {
+			"name": "blacklisting_enabled",
+			"type": "bool",
+			"description": "(Advanced) If false, disables local blacklisting of executors by coordinators, which temporarily removes executors that appear to be problematic from scheduling decisions.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "admission_max_retry_time_s",
+			"type": "int32",
+			"description": "(Advanced) The amount of time in seconds the coordinator will spend attempting to retry admission if the admissiond is unreachable.",
+			"default": "60",
+			"current": "60",
+			"experimental": false
+		}, {
+			"name": "admission_status_retry_time_ms",
+			"type": "int32",
+			"description": "(Advanced) The number of milliseconds coordinators will wait before retrying the GetQueryStatus rpc.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "default_pool_max_queued",
+			"type": "int64",
+			"description": "Maximum number of requests allowed to be queued before rejecting requests. A negative value or 0 indicates requests will always be rejected once the maximum number of concurrent requests are executing. Ignored if fair_scheduler_config_path and llama_site_path are set.",
+			"default": "200",
+			"current": "200",
+			"experimental": false
+		}, {
+			"name": "default_pool_max_requests",
+			"type": "int64",
+			"description": "Maximum number of concurrent outstanding requests allowed to run before queueing incoming requests. A negative value indicates no limit. 0 indicates no requests will be admitted. Ignored if fair_scheduler_config_path and llama_site_path are set.",
+			"default": "-1",
+			"current": "-1",
+			"experimental": false
+		}, {
+			"name": "default_pool_mem_limit",
+			"type": "string",
+			"description": "Maximum amount of memory that all outstanding requests in this pool may use before new requests to this pool are queued. Specified as number of bytes ('<int>[bB]?'), megabytes ('<float>[mM]'), gigabytes ('<float>[gG]'), or percentage of the physical memory ('<int>%'). Defaults to bytes if no unit is given. Ignored if fair_scheduler_config_path and llama_site_path are set.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "disable_pool_max_requests",
+			"type": "bool",
+			"description": "Disables all per-pool limits on the maximum number of running requests.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "disable_pool_mem_limits",
+			"type": "bool",
+			"description": "Disables all per-pool mem limits.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "fair_scheduler_allocation_path",
+			"type": "string",
+			"description": "Path to the fair scheduler allocation file (fair-scheduler.xml).",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "llama_site_path",
+			"type": "string",
+			"description": "Path to the Llama configuration file (llama-site.xml). If set, fair_scheduler_allocation_path must also be set.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "require_username",
+			"type": "bool",
+			"description": "Requires that a user be provided in order to schedule requests. If enabled and a user is not provided, requests will be rejected, otherwise requests without a username will be submitted with the username 'default'.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "control_service_num_svc_threads",
+			"type": "int32",
+			"description": "Number of threads for processing control service's RPCs. if left at default value 0, it will be set to number of CPU cores. Set it to a positive value to change from the default.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "control_service_queue_mem_limit",
+			"type": "string",
+			"description": "(Advanced) Limit on RPC payloads consumption for ControlService. Specified as number of bytes ('<int>[bB]?'), megabytes ('<float>[mM]'), gigabytes ('<float>[gG]'), or percentage of the process memory limit ('<int>%'). Defaults to bytes if no unit is given.",
+			"default": "1%",
+			"current": "1%",
+			"experimental": false
+		}, {
+			"name": "control_service_queue_mem_limit_floor_bytes",
+			"type": "int64",
+			"description": "Lower bound on --control_service_queue_mem_limit in bytes. If --control_service_queue_mem_limit works out to be less than this amount, this value is used instead",
+			"default": "52428800",
+			"current": "52428800",
+			"experimental": false
+		}, {
+			"name": "datastream_service_num_svc_threads",
+			"type": "int32",
+			"description": "Number of threads for processing datastream services' RPCs. If left at default value 0, it will be set to number of CPU cores.  Set it to a positive value to change from the default.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "datastream_service_queue_mem_limit",
+			"type": "string",
+			"description": "(Advanced) Limit on RPC payloads consumption for DataStreamService. Specified as number of bytes ('<int>[bB]?'), megabytes ('<float>[mM]'), gigabytes ('<float>[gG]'), or percentage of the process memory limit ('<int>%'). Defaults to bytes if no unit is given.",
+			"default": "5%",
+			"current": "5%",
+			"experimental": false
+		}, {
+			"name": "allow_catalog_cache_op_from_masked_users",
+			"type": "bool",
+			"description": "Whether to allow table level catalog-cache operations, i.e. REFRESH/INVALIDATE METADATA <table>, from users that have associate Ranger masking policies on the table. By default, such operations are blocked since such users are considered read-only users. Note that checking column masking policies requires loading column info of the table, which could slow down simple commands like INVALIDATE METADATA <table>",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "authorization_factory_class",
+			"type": "string",
+			"description": "Specifies the class name that implements the authorization provider. This will override the authorization_provider flag if both are specified.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "authorization_provider",
+			"type": "string",
+			"description": "Specifies the type of internally-provided authorization provider to use. Defaults to unset, which disables authorization. To enable authorization, set to one of the following: ['ranger']",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "authorized_proxy_group_config",
+			"type": "string",
+			"description": "Specifies the set of authorized proxy groups (users who can delegate to other users belonging to the specified groups during authorization) and whom they are allowed to delegate. Input is a semicolon-separated list of key=value pairs of authorized proxy users to the group(s) they can delegate to. These groups are specified as a list of groups separated by a delimiter (which defaults to comma and may be changed via --authorized_proxy_group_config_delimiter), or '*' to indicate all users. For example: hue=group1,group2;admin=*",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "authorized_proxy_group_config_delimiter",
+			"type": "string",
+			"description": "Specifies the delimiter used in authorized_proxy_group_config. ",
+			"default": ",",
+			"current": ",",
+			"experimental": false
+		}, {
+			"name": "authorized_proxy_user_config",
+			"type": "string",
+			"description": "Specifies the set of authorized proxy users (users who can delegate to other users during authorization) and whom they are allowed to delegate. Input is a semicolon-separated list of key=value pairs of authorized proxy users to the user(s) they can delegate to. These users are specified as a list of short usernames separated by a delimiter (which defaults to comma and may be changed via --authorized_proxy_user_config_delimiter), or '*' to indicate all users. For example: hue=user1,user2;admin=*",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "authorized_proxy_user_config_delimiter",
+			"type": "string",
+			"description": "Specifies the delimiter used in authorized_proxy_user_config. ",
+			"default": ",",
+			"current": ",",
+			"experimental": false
+		}, {
+			"name": "dbcp_data_source_idle_timeout_s",
+			"type": "int32",
+			"description": "Timeout value in seconds for idle DBCP DataSource objects in cache. It only takes effect when query option 'clean_dbcp_ds_cache' is set as false.",
+			"default": "300",
+			"current": "300",
+			"experimental": false
+		}, {
+			"name": "dbcp_max_conn_pool_size",
+			"type": "int32",
+			"description": "The maximum number of active connections that can be allocated from a DBCP connection pool at the same time, or -1 for no limit. DBCP connection pools are created when accessing remote RDBMS for external JDBC tables. This setting applies to all DBCP connection pools created on the coordinator.",
+			"default": "8",
+			"current": "8",
+			"experimental": false
+		}, {
+			"name": "dbcp_max_wait_millis_for_conn",
+			"type": "int32",
+			"description": "The maximum number of milliseconds that DBCP connection pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or -1 to wait indefinitely. 0 means immediately throwing exception if there are no available connections in the pool.",
+			"default": "-1",
+			"current": "-1",
+			"experimental": false
+		}, {
+			"name": "enable_kudu_impala_hms_check",
+			"type": "bool",
+			"description": "By default this flag is true. If enabled checks that Kudu and Impala are using the same HMS instance(s).",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "enable_shell_based_groups_mapping_support",
+			"type": "bool",
+			"description": "Enables support for Hadoop groups mapping org.apache.hadoop.security.ShellBasedUnixGroupsMapping. By default this support is not enabled as it can lead to many process getting spawned to fetch groups for user using shell command.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "jni_frontend_class",
+			"type": "string",
+			"description": "By default the JniFrontend class included in the repository is used as the frontend interface. This option allows the class to be overridden by a third party module. The overridden class needs to contain all the methods in the methods[] variable, so most implementations should make their class a child of JniFrontend and override only relevant methods.",
+			"default": "org/apache/impala/service/JniFrontend",
+			"current": "org/apache/impala/service/JniFrontend",
+			"experimental": false
+		}, {
+			"name": "kudu_master_hosts",
+			"type": "string",
+			"description": "Specifies the default Kudu master(s). The given value should be a comma separated list of hostnames or IP addresses; ports are optional.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ranger_app_id",
+			"type": "string",
+			"description": "Specifies the Ranger application ID. Ranger application ID is an ID to uniquely identify the application that communicates with Ranger. This flag is required when authorization with Ranger is enabled.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ranger_service_type",
+			"type": "string",
+			"description": "Specifies the Ranger service type.",
+			"default": "hive",
+			"current": "hive",
+			"experimental": false
+		}, {
+			"name": "server_name",
+			"type": "string",
+			"description": "The name to use for securing this impalad server during authorization. Set to enable authorization.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "trusted_jar_paths",
+			"type": "string",
+			"description": "Comma-separated list of URI/path prefixes that are considered safe locations from which Impala may download and load jar files. When a 'driver.url' table property for JDBC data source tables, or the LOCATION for external data source tables, starts with one of these prefixes the jar is downloaded and loaded. An empty value (the default) disables jar loading entirely. Example: 'hdfs://namenode/trusted/jars/,s3://my-bucket/allowed-jars/'",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "abort_on_failed_audit_event",
+			"type": "bool",
+			"description": "Shutdown Impala if there is a problem recording an audit event.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "abort_on_failed_lineage_event",
+			"type": "bool",
+			"description": "Shutdown Impala if there is a problem recording a lineage record.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "accepted_client_cnxn_timeout",
+			"type": "int64",
+			"description": "(Advanced) The amount of time in milliseconds an accepted connection will wait in the post-accept, pre-setup connection queue before it is timed out and the connection request is rejected. A value of 0 means there is no timeout.",
+			"default": "300000",
+			"current": "300000",
+			"experimental": false
+		}, {
+			"name": "admission_heartbeat_frequency_ms",
+			"type": "int32",
+			"description": "(Advanced) The time in milliseconds to wait between sending heartbeats to the admission service, if enabled. Heartbeats are used to ensure resources are properly accounted for even if rpcs to the admission service occasionally fail.",
+			"default": "1000",
+			"current": "1000",
+			"experimental": false
+		}, {
+			"name": "audit_event_log_dir",
+			"type": "string",
+			"description": "The directory in which audit event log files are written. Setting this flag will enable audit event logging.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "auto_check_compaction",
+			"type": "bool",
+			"description": "When true, compaction checking will be conducted for each query in local catalog mode. Note that this checking introduces additional overhead because Impala makes additional RPCs to hive metastore for each table in a query during the query compilation.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "beeswax_port",
+			"type": "int32",
+			"description": "port on which Beeswax client requests are served.If 0 or less, the Beeswax server is not started. This interface is deprecated and will be removed in a future version.",
+			"default": "21000",
+			"current": "21000",
+			"experimental": false
+		}, {
+			"name": "cancellation_thread_pool_size",
+			"type": "int32",
+			"description": "(Advanced) Size of the thread-pool processing cancellations due to node failure",
+			"default": "5",
+			"current": "5",
+			"experimental": false
+		}, {
+			"name": "client_keepalive_probe_period_s",
+			"type": "int32",
+			"description": "The duration in seconds after a client connection has gone idle before a TCP keepalive probe is sent to the client. Set to 0 to disable TCP keepalive probes from being sent.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "client_keepalive_retry_count",
+			"type": "int32",
+			"description": "The maximum number of keepalive probes sent before declaring the client as dead. Effective only if --client_keepalive_probe_period_s is not 0.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "client_keepalive_retry_period_s",
+			"type": "int32",
+			"description": "The duration in second between successive keepalive probes from a client connection if the previous probes are not acknowledged. Effective only if --client_keepalive_probe_period_s is not 0.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "convert_legacy_hive_parquet_utc_timestamps",
+			"type": "bool",
+			"description": "When true, TIMESTAMPs read from files written by Parquet-MR (used by Hive) will be converted from UTC to local time. Writes are unaffected. Can be overriden with the query option with the same name.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "default_query_options",
+			"type": "string",
+			"description": "key=value pair of default query options for impalad, separated by ','",
+			"default": "",
+			"current": "mt_dop=4,default_file_format=parquet,default_transactional_type=insert_only",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "disconnected_session_timeout",
+			"type": "int32",
+			"description": "The time, in seconds, that a hiveserver2 session will be maintained after the last connection that it has been used over is disconnected.",
+			"default": "900",
+			"current": "900",
+			"experimental": false
+		}, {
+			"name": "enable_external_fe_http",
+			"type": "bool",
+			"description": "if true enables http transport for external_fe_port otherwise binary transport is used",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "executor_groups",
+			"type": "string",
+			"description": "List of executor groups, separated by comma. Each executor group specification can optionally contain a minimum size, separated by a ':', e.g. --executor_groups default-pool-1:3. Default minimum size is 1. Only when the cluster membership contains at least that number of executors for the group will it be considered healthy for admission. Currently only a single group may be specified.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "expected_executor_group_sets",
+			"type": "string",
+			"description": "Only used by the coordinator. List of expected executor group sets, separated by comma in the following format: <executor_group_name_prefix>:<expected_group_size> . For eg. “prefix1:10”, this set will include executor groups named like prefix1-group1, prefix1-group2, etc. The expected group size (number of executors in each group) is used during planning when no healthy executor group is available. If this flag is used then any executor groups that do not map to the specified group sets will never be used to schedule queries.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "external_fe_port",
+			"type": "int32",
+			"description": "port on which External Frontend requests are served. If 0 or less, the External Frontend server is not started. Careful consideration must be taken when enabling due to the fact that this port is currently always unauthenticated.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "fe_service_threads",
+			"type": "int32",
+			"description": "number of threads available to serve client requests",
+			"default": "64",
+			"current": "64",
+			"experimental": false
+		}, {
+			"name": "hs2_http_port",
+			"type": "int32",
+			"description": "port on which HiveServer2 HTTP(s) client requests are served. If 0 or less, the HiveServer2 http server is not started.",
+			"default": "28000",
+			"current": "28000",
+			"experimental": false
+		}, {
+			"name": "hs2_port",
+			"type": "int32",
+			"description": "port on which HiveServer2 client requests are served.If 0 or less, the HiveServer2 server is not started.",
+			"default": "21050",
+			"current": "21050",
+			"experimental": false
+		}, {
+			"name": "idle_client_poll_period_s",
+			"type": "int32",
+			"description": "The poll period, in seconds, after no activity from an Impala client which an Impala service thread (beeswax and HS2) wakes up to check if the connection should be closed. If --idle_session_timeout is also set, a client connection will be closed if all the sessions associated with it have become idle. Set this to 0 to disable the polling behavior and clients' connection will remain opened until they are explicitly closed.",
+			"default": "30",
+			"current": "30",
+			"experimental": false
+		}, {
+			"name": "idle_query_timeout",
+			"type": "int32",
+			"description": "The time, in seconds, that a query may be idle for (i.e. no processing work is done and no updates are received from the client) before it is cancelled. If 0, idle queries are never expired. The query option QUERY_TIMEOUT_S overrides this setting, but, if set, --idle_query_timeout represents the maximum allowable timeout.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "idle_session_timeout",
+			"type": "int32",
+			"description": "The time, in seconds, that a session may be idle for before it is closed (and all running queries cancelled) by Impala. If 0, idle sessions are never expired. It can be overridden by the query option 'idle_session_timeout' for specific sessions",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "is_coordinator",
+			"type": "bool",
+			"description": "If true, this Impala daemon can accept and coordinate queries from clients. If false, it will refuse client connections.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "is_executor",
+			"type": "bool",
+			"description": "If true, this Impala daemon will execute query fragments.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "lineage_event_log_dir",
+			"type": "string",
+			"description": "The directory in which lineage event log files are written. Setting this flag with enable lineage logging.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "log_query_to_file",
+			"type": "bool",
+			"description": "if true, logs completed query profiles to file.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "max_audit_event_log_file_size",
+			"type": "int32",
+			"description": "The maximum size (in queries) of the audit event log file before a new one is created (if event logging is enabled)",
+			"default": "5000",
+			"current": "5000",
+			"experimental": false
+		}, {
+			"name": "max_audit_event_log_files",
+			"type": "int32",
+			"description": "Maximum number of audit event log files to retain. The most recent audit event log files are retained. If set to 0, all audit event log files are retained.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "max_hs2_sessions_per_user",
+			"type": "int32",
+			"description": "The maximum allowed number of HiveServer2 sessions that can be opened by any single connected user on a coordinator. If set to -1 or 0 then this check is not performed. If set to a positive value then the per-user session count is viewable in the webui under /sessions.",
+			"default": "-1",
+			"current": "-1",
+			"experimental": false
+		}, {
+			"name": "max_lineage_log_file_size",
+			"type": "int32",
+			"description": "The maximum size (in queries) of the lineage event log file before a new one is created (if lineage logging is enabled)",
+			"default": "5000",
+			"current": "5000",
+			"experimental": false
+		}, {
+			"name": "max_profile_log_file_size",
+			"type": "int32",
+			"description": "The maximum size (in queries) of the profile log file before a new one is created",
+			"default": "5000",
+			"current": "5000",
+			"experimental": false
+		}, {
+			"name": "max_profile_log_files",
+			"type": "int32",
+			"description": "Maximum number of profile log files to retain. The most recent log files are retained. If set to 0, all log files are retained.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "max_result_cache_size",
+			"type": "int64",
+			"description": "Maximum number of query results a client may request to be cached on a per-query basis to support restarting fetches. This option guards against unreasonably large result caches requested by clients. Requests exceeding this maximum will be rejected.",
+			"default": "100000",
+			"current": "100000",
+			"experimental": false
+		}, {
+			"name": "num_expected_executors",
+			"type": "int32",
+			"description": "The number of executors that are expected to be available for the execution of a single query. This value is used during planning if no executors have started yet. Once a healthy executor group has started, its size is used instead. NOTE: This flag is overridden by 'expected_executor_group_sets' which is a more expressive way of specifying multiple executor group sets",
+			"default": "20",
+			"current": "20",
+			"experimental": false
+		}, {
+			"name": "profile_log_dir",
+			"type": "string",
+			"description": "The directory in which profile log files are written. If blank, defaults to <log_file_dir>/profiles",
+			"default": "",
+			"current": "/opt/impala/logs/profiles/",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "query_event_hook_classes",
+			"type": "string",
+			"description": "Comma-separated list of java QueryEventHook implementation classes to load and register at Impala startup. Class names should be fully-qualified and on the classpath. Whitespace acceptable around delimiters.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "query_event_hook_nthreads",
+			"type": "int32",
+			"description": "Number of threads to use for QueryEventHook execution. If this number is >1 then hooks will execute concurrently.",
+			"default": "1",
+			"current": "1",
+			"experimental": false
+		}, {
+			"name": "query_log_size",
+			"type": "int32",
+			"description": "Number of queries to retain in the query log. If -1, the query log has unbounded size. Used in combination with query_log_size_in_bytes, whichever is less.",
+			"default": "200",
+			"current": "200",
+			"experimental": false
+		}, {
+			"name": "query_log_size_in_bytes",
+			"type": "int64",
+			"description": "Total maximum bytes of queries to retain in the query log. If -1, the query log has unbounded size. Used in combination with query_log_size, whichever is less",
+			"default": "2147483648",
+			"current": "2147483648",
+			"experimental": false
+		}, {
+			"name": "query_stmt_size",
+			"type": "int32",
+			"description": "length of the statements in the query log. If <=0, the full statement is displayed in the query log without trimming.",
+			"default": "250",
+			"current": "250",
+			"experimental": false
+		}, {
+			"name": "shutdown_deadline_s",
+			"type": "int64",
+			"description": "Default time limit in seconds for the shut down process. If this duration elapses after the shut down process is started, the daemon shuts down regardless of any running queries.",
+			"default": "3600",
+			"current": "3600",
+			"experimental": false
+		}, {
+			"name": "shutdown_grace_period_s",
+			"type": "int64",
+			"description": "Shutdown startup grace period in seconds. When the shutdown process is started for this daemon, it will wait for at least the startup grace period before shutting down. This gives time for updated cluster membership information to propagate to all coordinators and for fragment instances that were scheduled based on old cluster membership to start executing (and therefore be reflected in the metrics used to detect quiescence).",
+			"default": "120",
+			"current": "120",
+			"experimental": false
+		}, {
+			"name": "slow_profile_dump_warning_threshold_ms",
+			"type": "int64",
+			"description": "(Advanced) Threshold for considering dumping a profile to be unusually slow.",
+			"default": "500",
+			"current": "500",
+			"experimental": false
+		}, {
+			"name": "ssl_cipher_list",
+			"type": "string",
+			"description": "The cipher suite preferences to use for TLS-secured Thrift RPC connections. Uses the OpenSSL cipher preference list format. See man (1) ciphers for more information. If empty, the default cipher list for your platform is used",
+			"default": "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA",
+			"current": "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA",
+			"experimental": false
+		}, {
+			"name": "ssl_client_ca_certificate",
+			"type": "string",
+			"description": "(Advanced) The full path to a certificate used by Thrift clients to check the validity of a server certificate. May either be a certificate for a third-party Certificate Authority, or a copy of the certificate the client expects to receive from the server.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ssl_minimum_version",
+			"type": "string",
+			"description": "The minimum SSL/TLS version that Thrift services should use for both client and server connections. Supported versions are TLSv1.0, TLSv1.1 and TLSv1.2 (as long as the system OpenSSL library supports them)",
+			"default": "tlsv1.2",
+			"current": "tlsv1.2",
+			"experimental": false
+		}, {
+			"name": "ssl_private_key",
+			"type": "string",
+			"description": "The full path to the private key used as a counterpart to the public key contained in --ssl_server_certificate. If --ssl_server_certificate is set, this option must be set as well.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ssl_private_key_password_cmd",
+			"type": "string",
+			"description": "A Unix command whose output returns the password used to decrypt the certificate private key file specified in --ssl_private_key. If the .PEM key file is not password-protected, this command will not be invoked. The output of the command will be truncated to 1024 bytes, and then all trailing whitespace will be trimmed before it is used to decrypt the private key",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ssl_server_certificate",
+			"type": "string",
+			"description": "The full path to the SSL certificate file used to authenticate Impala to clients. If set, both Beeswax and HiveServer2 ports will only accept SSL connections",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "status_report_cancellation_padding",
+			"type": "int32",
+			"description": "(Advanced) The coordinator will wait --status_report_max_retry_s * (1 + --status_report_cancellation_padding / 100) without receiving a status report before deciding that a backend is unresponsive and the query should be cancelled. This must be > 0.",
+			"default": "20",
+			"current": "20",
+			"experimental": false
+		}, {
+			"name": "status_report_interval_ms",
+			"type": "int32",
+			"description": "(Advanced) Interval between profile reports in milliseconds. If set to <= 0, periodic reporting is disabled and only the final report is sent.",
+			"default": "5000",
+			"current": "5000",
+			"experimental": false
+		}, {
+			"name": "status_report_max_retry_s",
+			"type": "int32",
+			"description": "(Advanced) Max amount of time in seconds for a backend to attempt to send a status report before cancelling. This must be > --status_report_interval_ms. Effective only if --status_report_interval_ms > 0.",
+			"default": "600",
+			"current": "600",
+			"experimental": false
+		}, {
+			"name": "tls_ciphersuites",
+			"type": "string",
+			"description": "The TLSv1.3 cipher suites to use for TLS-secured Thrift RPC and KRPC connections. TLSv1.3 uses a new way to specify ciper suites that is independent of the older TLSv1.2 and below cipher lists. See 'man (1) ciphers' for more information. This flag is only effective if Impala is built with OpenSSL v1.1.1 or newer.",
+			"default": "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
+			"current": "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
+			"experimental": false
+		}, {
+			"name": "unregistration_thread_pool_queue_depth",
+			"type": "int32",
+			"description": "(Advanced) Max number of queries that can be queued for unregistration.",
+			"default": "16",
+			"current": "16",
+			"experimental": false
+		}, {
+			"name": "unregistration_thread_pool_size",
+			"type": "int32",
+			"description": "(Advanced) Size of the thread-pool for unregistering queries, including finalizing runtime profiles",
+			"default": "4",
+			"current": "4",
+			"experimental": false
+		}, {
+			"name": "use_local_tz_for_unix_timestamp_conversions",
+			"type": "bool",
+			"description": "When true, TIMESTAMPs are interpreted in the local time zone when converting to and from Unix times. When false, TIMESTAMPs are interpreted in the UTC time zone. Set to true for Hive compatibility. Can be overriden with the query option with the same name.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "wait_for_new_catalog_service_id_max_iterations",
+			"type": "int32",
+			"description": "This flag is used in the same situation as described at the '--wait_for_new_catalog_service_id_timeout_sec' flag. Instead of limiting the waiting time, the effect of this flag is that the coordinator gives up waiting after receiving the set number of valid catalog updates that do not change the catalog service ID. Negative values and zero have no effect. If both this flag and '--wait_for_new_catalog_service_id_timeout_sec' are set, the coordinator stops waiting when the stop condition of either of them is met. Note that it is possible that the coordinator does not receive any catalog update from the statestore and in this case it will wait indefinitely if '--wait_for_new_catalog_service_id_timeout_sec' is not set.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "wait_for_new_catalog_service_id_timeout_sec",
+			"type": "int32",
+			"description": "During DDL/DML queries, if there is a mismatch between the catalog service ID thatthe coordinator knows of and the one in the RPC response from the catalogd, the coordinator waits for a statestore update with a new catalog service ID in order to catch up with the one in the RPC response. However, in rare cases the service ID the coordinator knows of is the more recent one, in which case it could wait infinitely - to avoid this, this flag can be set to a positive value (in seconds) to limit the waiting time. Negative values and zero have no effect. See also '--wait_for_new_catalog_service_id_max_iterations,'.",
+			"default": "300",
+			"current": "300",
+			"experimental": false
+		}, {
+			"name": "statestore_client_rpc_timeout_ms",
+			"type": "int32",
+			"description": "(Advanced) The underlying TSocket send/recv timeout in milliseconds for a catalog client RPC.",
+			"default": "300000",
+			"current": "300000",
+			"experimental": false
+		}, {
+			"name": "statestore_subscriber_cnxn_attempts",
+			"type": "int32",
+			"description": "The number of times to retry an RPC connection to the statestore. A setting of 0 means retry indefinitely",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "statestore_subscriber_cnxn_retry_interval_ms",
+			"type": "int32",
+			"description": "The interval, in ms, to wait between attempts to make an RPC connection to the statestore.",
+			"default": "3000",
+			"current": "3000",
+			"experimental": false
+		}, {
+			"name": "statestore_subscriber_timeout_seconds",
+			"type": "int32",
+			"description": "The amount of time (in seconds) that may elapse before the connection with the statestore is considered lost.",
+			"default": "30",
+			"current": "30",
+			"experimental": false
+		}, {
+			"name": "statestore_subscriber_use_resolved_address",
+			"type": "bool",
+			"description": "If set to true, the subscriber will register with statestore using its resolved IP address. Note that using resolved IP address may cause mismatch with the TLS certificate.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "enable_statestored_ha",
+			"type": "bool",
+			"description": "Set to true to enable Statestore HA",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "state_store_peer_ha_port",
+			"type": "int32",
+			"description": "port where peer's StatestoreHaService is running",
+			"default": "24021",
+			"current": "24021",
+			"experimental": false
+		}, {
+			"name": "state_store_peer_host",
+			"type": "string",
+			"description": "hostname where peer's StatestoreHaService is running",
+			"default": "localhost",
+			"current": "localhost",
+			"experimental": false
+		}, {
+			"name": "statestore_force_active",
+			"type": "bool",
+			"description": "Set to true to force this statestored instance to take active role. It's used to perform manual fail over for statestore service.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "statestore_ha_client_rpc_conn_timeout_ms",
+			"type": "int32",
+			"description": "(Advanced) The underlying TSocket conn timeout in milliseconds for a client RPC of Statestore HA service.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "statestore_ha_client_rpc_timeout_ms",
+			"type": "int32",
+			"description": "(Advanced) The underlying TSocket send/recv timeout in milliseconds for a client RPC of Statestore HA service.",
+			"default": "300000",
+			"current": "300000",
+			"experimental": false
+		}, {
+			"name": "statestore_ha_preemption_wait_period_ms",
+			"type": "int64",
+			"description": "(Advanced) The time after which statestored designates itself as active role if the statestore does not receive HA handshake request/response from peer statestored.",
+			"default": "10000",
+			"current": "10000",
+			"experimental": false
+		}, {
+			"name": "statestore_heartbeat_frequency_ms",
+			"type": "int32",
+			"description": "(Advanced) Frequency (in ms) with which the statestore sends heartbeat heartbeats to subscribers.",
+			"default": "1000",
+			"current": "1000",
+			"experimental": false
+		}, {
+			"name": "statestore_heartbeat_tcp_timeout_seconds",
+			"type": "int32",
+			"description": "(Advanced) The time after which a heartbeat RPC to a subscriber will timeout. This setting protects against badly hung machines that are not able to respond to the heartbeat RPC in short order",
+			"default": "3",
+			"current": "3",
+			"experimental": false
+		}, {
+			"name": "statestore_max_missed_heartbeats",
+			"type": "int32",
+			"description": "Maximum number of consecutive heartbeat messages an impalad can miss before being declared failed by the statestore.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "statestore_max_subscribers",
+			"type": "int32",
+			"description": "Used to control the maximum size of the pending topic-update queue. There is at most one entry per subscriber.",
+			"default": "10000",
+			"current": "10000",
+			"experimental": false
+		}, {
+			"name": "statestore_num_heartbeat_threads",
+			"type": "int32",
+			"description": "(Advanced) Number of threads used to  send heartbeats in parallel to all registered subscribers.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "statestore_num_priority_update_threads",
+			"type": "int32",
+			"description": "(Advanced) Number of threads used to send prioritized topic updates in parallel to all registered subscribers.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "statestore_num_update_threads",
+			"type": "int32",
+			"description": "(Advanced) Number of threads used to  send topic updates in parallel to all registered subscribers.",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "statestore_peer_cnxn_attempts",
+			"type": "int32",
+			"description": "The number of times to retry an RPC connection to the peer statestore. A setting of 0 means retry indefinitely",
+			"default": "10",
+			"current": "10",
+			"experimental": false
+		}, {
+			"name": "statestore_peer_cnxn_retry_interval_ms",
+			"type": "int32",
+			"description": "The interval, in ms, to wait between attempts to make an RPC connection to the peer statestore. It's set as statestore_ha_preemption_wait_period_ms/statestore_peer_cnxn_attempts if statestore_peer_cnxn_attempts > 0, default value if statestore_peer_cnxn_attempts == 0.",
+			"default": "1000",
+			"current": "1000",
+			"experimental": false
+		}, {
+			"name": "statestore_peer_timeout_seconds",
+			"type": "int32",
+			"description": "The amount of time (in seconds) that may elapse before the connection with the peer statestore is considered lost.",
+			"default": "30",
+			"current": "30",
+			"experimental": false
+		}, {
+			"name": "statestore_priority_update_frequency_ms",
+			"type": "int32",
+			"description": "(Advanced) Frequency (in ms) with which the statestore sends prioritized topic updates to subscribers.",
+			"default": "100",
+			"current": "100",
+			"experimental": false
+		}, {
+			"name": "statestore_update_catalogd_tcp_timeout_seconds",
+			"type": "int32",
+			"description": "(Advanced) The time after which a UpdateCatalogd RPC to a subscriber will timeout. This setting protects against badly hung machines that are not able to respond to the UpdateCatalogd RPC in short order",
+			"default": "3",
+			"current": "3",
+			"experimental": false
+		}, {
+			"name": "statestore_update_frequency_ms",
+			"type": "int32",
+			"description": "(Advanced) Frequency (in ms) with which the statestore sends topic updates to subscribers.",
+			"default": "2000",
+			"current": "2000",
+			"experimental": false
+		}, {
+			"name": "statestore_update_statestore_tcp_timeout_seconds",
+			"type": "int32",
+			"description": "(Advanced) The time after which a UpdateStatestoredRole RPC to a subscriber will timeout. This setting protects against badly hung machines that are not able to respond to the UpdateStatestoredRole RPC in short order.",
+			"default": "3",
+			"current": "3",
+			"experimental": false
+		}, {
+			"name": "statestore_update_tcp_timeout_seconds",
+			"type": "int32",
+			"description": "(Advanced) The time after which an update RPC to a subscriber will timeout. This setting protects against badly hung machines that are not able to respond to the update RPC in short order.",
+			"default": "300",
+			"current": "300",
+			"experimental": false
+		}, {
+			"name": "update_statestore_rpc_resend_interval_ms",
+			"type": "int64",
+			"description": "(Advanced) Interval (in ms) with which the statestore resends the RPCs of updating statestored's role to subscribers if the statestore has failed to send the RPCs to the subscribers.",
+			"default": "100",
+			"current": "100",
+			"experimental": false
+		}, {
+			"name": "use_network_address_as_statestore_priority",
+			"type": "bool",
+			"description": "Network address is used as priority value of statestored instance if this is set as true. Otherwise, statestored_id which is generated as random number will be used as priority value of statestored instance.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "force_lowercase_usernames",
+			"type": "bool",
+			"description": "If true, all principals and usernames are mapped to lowercase shortnames before being passed to any components (Ranger, admission control) for authorization",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "sasl_connect_tcp_timeout_ms",
+			"type": "int32",
+			"description": "(Advanced) The underlying TSocket send/recv timeout in milliseconds for the initial SASL handeshake.",
+			"default": "300000",
+			"current": "300000",
+			"experimental": false
+		}, {
+			"name": "allow_ordinals_in_having",
+			"type": "bool",
+			"description": "If true, allow using ordinals in HAVING clause. This non-standard feature is supported in Impala 3.x and earlier. We intend to disable it since 4.0. So it defaults to be false. See IMPALA-7844.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "avro_schema_url_allowed_schemes",
+			"type": "string",
+			"description": "Comma-separated list of URI schemes permitted for avro.schema.url when loading schemas from a remote location. HTTP is never allowed via this setting. A URI with no scheme is resolved against the default filesystem.",
+			"default": "hdfs,s3a,abfs,abfss,gs,o3fs,ofs",
+			"current": "hdfs,s3a,abfs,abfss,gs,o3fs,ofs",
+			"experimental": false
+		}, {
+			"name": "avro_schema_url_http_allowed_hosts",
+			"type": "string",
+			"description": "Comma-separated list of hosts permitted for avro.schema.url when avro_schema_url_remote_http_enabled is true. HTTP schema fetch is rejected when this list is empty.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "avro_schema_url_remote_http_enabled",
+			"type": "bool",
+			"description": "Whether to allow avro.schema.url values that use http. When enabled, the host must also appear in avro_schema_url_http_allowed_hosts. Disabled by default to prevent server-side request forgery.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "enable_column_masking",
+			"type": "bool",
+			"description": "If false, disable the column masking feature. Defaults to be true.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "enable_row_filtering",
+			"type": "bool",
+			"description": "If false, disable the row filtering feature. Defaults to be true. Enabling this flag requires enable_column_masking to be true.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "ignored_dir_prefix_list",
+			"type": "string",
+			"description": "Comma separated list to specify the prefix for tmp/staging dirs that catalogd should skip in loading file metadata.",
+			"default": ".,_tmp.,_spark_metadata",
+			"current": ".,_tmp.,_spark_metadata",
+			"experimental": false
+		}, {
+			"name": "saml2_callback_token_ttl",
+			"type": "int32",
+			"description": "Time (in milliseconds) for which the token issued by service provider is valid.",
+			"default": "30000",
+			"current": "30000",
+			"experimental": false
+		}, {
+			"name": "saml2_group_attribute_name",
+			"type": "string",
+			"description": "The attribute name in the SAML assertion which would be used to compare for the group name matching. By default it is empty which would allow any authenticated user. If this value is set then saml2_group_filter must be set to a non-empty value.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "saml2_group_filter",
+			"type": "string",
+			"description": "Comma separated list of group names which will be allowed when SAML authentication is enabled.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "saml2_idp_metadata",
+			"type": "string",
+			"description": "IDP metadata file for the SAML configuration. This metadata file must be exported from the external identity provider. This is used to validate the SAML assertions received. Setting this is required for SAML authentication",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "saml2_keystore_password_cmd",
+			"type": "string",
+			"description": "Command that outputs the password to the keystore used to sign the authentication requests. Setting this is required for SAML authentication.",
+			"default": "",
+			"current": "<redacted>",
+			"experimental": false
+		}, {
+			"name": "saml2_keystore_path",
+			"type": "string",
+			"description": "Keystore path to the saml2 client. This keystore is used to store the key pair used to sign the authentication requests when saml2_sign_requests is set to true. If the path doesn't exist, HiveServer2 will attempt to create a keystore using the default configurations otherwise it will use the one provided. Setting this is required for SAML authentication.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "saml2_private_key_password_cmd",
+			"type": "string",
+			"description": "Command that outputs the password for the private key which is stored in the keystore pointed by saml2_keystore_path. This key is used to sign the authentication request if saml2_sign_requests is set to true.",
+			"default": "",
+			"current": "<redacted>",
+			"experimental": false
+		}, {
+			"name": "saml2_sign_requests",
+			"type": "bool",
+			"description": "When this configuration is set to true, Impala will sign the SAML requests which can be validated by the IDP provider.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "saml2_sp_callback_url",
+			"type": "string",
+			"description": "Callback URL where SAML responses should be posted. Currently this must be configured at the same port number as the --hs2_http_port flag.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "saml2_sp_entity_id",
+			"type": "string",
+			"description": "Service provider entity id for this impalad. This must match with the SP id on the external identity provider. If this is not set, saml2_sp_callback_url will be used as the SP id.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "saml2_want_assertations_signed",
+			"type": "bool",
+			"description": "When this configuration is set to true, Impala will validate the signature of the assertions received at the callback url. 'False' should be only used for testing as it makes the protocol unsecure.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "startup_filesystem_check_directories",
+			"type": "string",
+			"description": "Comma separated list of directories to list on startup to verify access to the filesystem. The default is to list the root of the filesytem. This can be specified to a subdirectory to avoid accesses to the root of the filesystem. To disable the startup check, specify the empty string.",
+			"default": "/",
+			"current": "/",
+			"experimental": false
+		}, {
+			"name": "use_hms_column_order_for_hbase_tables",
+			"type": "bool",
+			"description": "Use the column order in HMS for HBase tables instead of ordering the columns by family/qualifier. Keeping the default as false for backward compatibility.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "warn_catalog_response_duration_s",
+			"type": "int32",
+			"description": "Threshold in seconds to log a warning for slow catalogd response.",
+			"default": "60",
+			"current": "60",
+			"experimental": false
+		}, {
+			"name": "warn_catalog_response_size_mb",
+			"type": "int32",
+			"description": "Threshold in MB to log a warning for large catalogd response size.",
+			"default": "50",
+			"current": "50",
+			"experimental": false
+		}, {
+			"name": "num_cores",
+			"type": "int32",
+			"description": "(Advanced) If > 0, it sets the number of cores available to Impala. Setting it to 0 means Impala will use all available cores on the machine according to /proc/cpuinfo.",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "web_log_bytes",
+			"type": "int64",
+			"description": "The maximum number of bytes to display on the debug webserver's log page",
+			"default": "1048576",
+			"current": "1048576",
+			"experimental": false
+		}, {
+			"name": "jvm_deadlock_detector_interval_s",
+			"type": "int64",
+			"description": "(Advanced) Interval between JVM deadlock checks. If set to 0 or a negative value, deadlock checks are disabled.",
+			"default": "60",
+			"current": "60",
+			"experimental": false
+		}, {
+			"name": "ldap_group_search_basedn",
+			"type": "string",
+			"description": "The 'distinguished name' DN that will be used to search for the authenticating group. If left empty, group checks will not be performed.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ldap_user_search_basedn",
+			"type": "string",
+			"description": "The 'distinguished name' DN that will be used to search for the authenticating user, this field is required for search bind authentication.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ldap_baseDN",
+			"type": "string",
+			"description": "If set, Impala will try to bind to LDAP with a name of the form uid=<userid>,<ldap_baseDN>",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ldap_bind_pattern",
+			"type": "string",
+			"description": "If set, Impala will try to bind to LDAP with a name of <ldap_bind_pattern>, but where the string #UID is replaced by the user ID. Use to control the bind name precisely; do not set --ldap_domain or --ldap_baseDN with this option",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ldap_domain",
+			"type": "string",
+			"description": "If set, Impala will try to bind to LDAP with a name of the form <userid>@<ldap_domain>",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ldap_group_class_key",
+			"type": "string",
+			"description": "The LDAP objectClass each of the groups in --ldap_group_filter implements in LDAP.",
+			"default": "groupOfNames",
+			"current": "groupOfNames",
+			"experimental": false
+		}, {
+			"name": "ldap_group_dn_pattern",
+			"type": "string",
+			"description": "Colon separated list of patterns for the 'distinguished name' used to search for groups in the directory. Each pattern may contain a '%s' which will be substituted with each group name from --ldap_group_filter when doing group searches.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ldap_group_membership_key",
+			"type": "string",
+			"description": "The LDAP attribute on group entries that indicates its members.",
+			"default": "member",
+			"current": "member",
+			"experimental": false
+		}, {
+			"name": "allow_custom_ldap_filters_with_kerberos_auth",
+			"type": "bool",
+			"description": "If set, will allow custom LDAP user and group filters even if Kerberos authentication is enabled. Disabled by default.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "ldap_allow_anonymous_binds",
+			"type": "bool",
+			"description": "(Advanced) If true, LDAP authentication with a blank password (an 'anonymous bind') is allowed by Impala.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "ldap_bind_dn",
+			"type": "string",
+			"description": "Distinguished name of the user to bind as when doing user or group searches. Only required if user or group filters are being used and the LDAP server is not configured to allow anonymous searches.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "ldap_bind_password_cmd",
+			"type": "string",
+			"description": "A Unix command whose output returns the password to use with --ldap_bind_dn. The output of the command will be truncated to 1024 bytes and trimmed of trailing whitespace.",
+			"default": "",
+			"current": "<redacted>",
+			"experimental": false
+		}, {
+			"name": "ldap_passwords_in_clear_ok",
+			"type": "bool",
+			"description": "If set, will allow LDAP passwords to be sent in the clear (without TLS/SSL) over the network.  This option should not be used in production environments",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "ldap_search_bind_authentication",
+			"type": "bool",
+			"description": "If set to true, LDAP search bind authentication will be used instead of the default simple bind.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "ldap_tls",
+			"type": "bool",
+			"description": "If true, use the secure TLS protocol to connect to the LDAP server",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "ldap_uri",
+			"type": "string",
+			"description": "The URI of the LDAP server to authenticate users against",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "non_impala_java_vlog",
+			"type": "int32",
+			"description": "(Advanced) The log level (equivalent to --v) for non-Impala Java classes (0: INFO, 1 and 2: DEBUG, 3: TRACE)",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "disable_parquetbloomfilter_avx2",
+			"type": "bool",
+			"description": "Disable AVX2 operations in ParquetBloomFilter. This flag has no effect if the target CPU doesn't support AVX2 at run-time or ParquetBloomFilter was built with a compiler that doesn't support AVX2.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "periodic_counter_update_period_ms",
+			"type": "int32",
+			"description": "Period to update query profile rate counters and sampling counters in ms",
+			"default": "50",
+			"current": "50",
+			"experimental": false
+		}, {
+			"name": "periodic_system_counter_update_period_ms",
+			"type": "int32",
+			"description": "Period to update system-level rate counters and sampling counters in ms",
+			"default": "500",
+			"current": "500",
+			"experimental": false
+		}, {
+			"name": "disable_content_security_policy_header",
+			"type": "bool",
+			"description": "If true then the webserver will not add the Content-Security-Policy HTTP header to HTTP responses",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "enable_webserver_doc_root",
+			"type": "bool",
+			"description": "If true, webserver may serve static files from the webserver_doc_root",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "slow_http_response_warning_threshold_ms",
+			"type": "int64",
+			"description": "(Advanced) Threshold for considering a HTTP response to be unusually slow.",
+			"default": "500",
+			"current": "500",
+			"experimental": false
+		}, {
+			"name": "webserver_authentication_domain",
+			"type": "string",
+			"description": "Domain used for debug webserver authentication",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "webserver_certificate_file",
+			"type": "string",
+			"description": "The location of the debug webserver's SSL certificate file, in .pem format. If empty, webserver SSL support is not enabled",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "webserver_doc_root",
+			"type": "string",
+			"description": "Files under <webserver_doc_root>/www are accessible via the debug webserver. Defaults to $IMPALA_HOME, or if $IMPALA_HOME is not set, disables the document root",
+			"default": "/opt/impala",
+			"current": "/opt/impala",
+			"experimental": false
+		}, {
+			"name": "webserver_interface",
+			"type": "string",
+			"description": "Interface to start debug webserver on. If blank, webserver binds to 0.0.0.0",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "webserver_ldap_group_filter",
+			"type": "string",
+			"description": "Used as filter for both simple and search bind mechanisms for the webserver authentication. For simple bind it is a comma separated list of groups. If specified, users must belong to one of these groups for authentication to succeed. For search bind it is an LDAP filter that will be used during LDAP group search, it can contain '{0}' pattern which will be replaced with the user name and/or '{1}' which will be replace with the user dn.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "webserver_ldap_passwords_in_clear_ok",
+			"type": "bool",
+			"description": "(Advanced) If true, allows the webserver to start with LDAP authentication even if SSL is not enabled, a potentially insecure configuration.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "webserver_ldap_user_filter",
+			"type": "string",
+			"description": "Used as filter for both simple and search bind mechanisms for the webserver authentication. For simple bind it is a comma separated list of user names. If specified, users must be on this list for authentication to succeed. For search bind it is an LDAP filter that will be used during LDAP search, it can contain '{0}' pattern which will be replaced with the user name.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "webserver_max_post_length_bytes",
+			"type": "int32",
+			"description": "The maximum length of a POST request that will be accepted by the embedded web server.",
+			"default": "1048576",
+			"current": "1048576",
+			"experimental": false
+		}, {
+			"name": "webserver_password_file",
+			"type": "string",
+			"description": "(Optional) Location of .htpasswd file containing user names and hashed passwords for debug webserver authentication. Cannot be used with --webserver_require_ldap or --webserver_require_spnego.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "webserver_port",
+			"type": "int32",
+			"description": "Port to start debug webserver on",
+			"default": "25000",
+			"current": "25000",
+			"experimental": false
+		}, {
+			"name": "webserver_private_key_file",
+			"type": "string",
+			"description": "The full path to the private key used as a counterpart to the public key contained in --webserver_certificate_file. If --webserver_certificate_file is set, this option must be set as well.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "webserver_private_key_password_cmd",
+			"type": "string",
+			"description": "A Unix command whose output returns the password used to decrypt the Webserver's certificate private key file specified in --webserver_private_key_file. If the .PEM key file is not password-protected, this command will not be invoked. The output of the command will be truncated to 1024 bytes, and then all trailing whitespace will be trimmed before it is used to decrypt the private key",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "webserver_require_ldap",
+			"type": "bool",
+			"description": "Require connections to the web server to authenticate via LDAP using HTTP Basic authentication. Cannot be used with --webserver_require_spnego or --webserver_password_file.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "webserver_require_spnego",
+			"type": "bool",
+			"description": "Require connections to the web server to authenticate via Kerberos using SPNEGO. Cannot be used with --webserver_require_ldap or --webserver_password_file.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "webserver_x_frame_options",
+			"type": "string",
+			"description": "webserver will add X-Frame-Options HTTP header with this value",
+			"default": "DENY",
+			"current": "DENY",
+			"experimental": false
+		}, {
+			"name": "cluster_id",
+			"type": "string",
+			"description": "Specifies an identifier string that uniquely represents this cluster. This identifier is included in the query log table if enabled.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "enable_workload_mgmt",
+			"type": "bool",
+			"description": "Specifies if Impala will automatically write completed queries in the query log table. If this value is set to true and then later removed, the query log table will remain intact and accessible.",
+			"default": "false",
+			"current": "true",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "query_log_max_plan_length",
+			"type": "int32",
+			"description": "Maximum length of the sql plan that will be recorded in the completed queries table. If a plan has a length longer than this value, the plan inserted into the completed queries table will be trimmed to this length. Any characters that need escaping will have their backslash character counted towards this limit.",
+			"default": "16777216",
+			"current": "16777216",
+			"experimental": false
+		}, {
+			"name": "query_log_max_queued",
+			"type": "int32",
+			"description": "Maximum number of records that can be queued before they are written to the impala query log table. This flag operates independently of the 'query_log_write_interval_s' flag. If the number of queued records reaches this value, the records will be written to the query log table no matter how much time has passed since the last write. The countdown to the next write (based on the time period defined in the 'query_log_write_interval_s' flag) is not restarted.",
+			"default": "5000",
+			"current": "5000",
+			"experimental": false
+		}, {
+			"name": "query_log_max_sql_length",
+			"type": "int32",
+			"description": "Maximum length of a sql statement that will be recorded in the completed queries table. If a sql statement with a length longer than this value is executed, the sql inserted into the completed queries table will be trimmed to this length. Any characters that need escaping will have their backslash character counted towards this limit.",
+			"default": "16777216",
+			"current": "16777216",
+			"experimental": false
+		}, {
+			"name": "query_log_request_pool",
+			"type": "string",
+			"description": "Specifies a pool or queue used by the queries that insert into the query log table. Empty value causes no pool to be set.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "query_log_write_interval_s",
+			"type": "int32",
+			"description": "Number of seconds to wait between batches of inserts to the query log table. The countdown to the next write starts immediately when a write begins, but a new write will not start until the prior write has completed. Min value is 1. Max value is 14400.",
+			"default": "300",
+			"current": "300",
+			"experimental": false
+		}, {
+			"name": "alsologtoemail",
+			"type": "string",
+			"description": "log messages go to these email addresses in addition to logfiles",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "alsologtostderr",
+			"type": "bool",
+			"description": "log messages go to stderr in addition to logfiles",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "colorlogtostderr",
+			"type": "bool",
+			"description": "color messages logged to stderr (if supported by terminal)",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "drop_log_memory",
+			"type": "bool",
+			"description": "Drop in-memory buffers of log contents. Logs can grow very quickly and they are rarely read before they need to be evicted from memory. Instead, drop them from memory as soon as they are flushed to disk.",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "log_backtrace_at",
+			"type": "string",
+			"description": "Emit a backtrace when logging at file:linenum.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "log_dir",
+			"type": "string",
+			"description": "If specified, logfiles are written into this directory instead of the default logging directory.",
+			"default": "",
+			"current": "/opt/impala/logs",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "log_link",
+			"type": "string",
+			"description": "Put additional links to the log files in this directory",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}, {
+			"name": "log_prefix",
+			"type": "bool",
+			"description": "Prepend the log prefix to the start of each log line",
+			"default": "true",
+			"current": "true",
+			"experimental": false
+		}, {
+			"name": "logbuflevel",
+			"type": "int32",
+			"description": "Buffer log messages logged at this level or lower (-1 means don't buffer; 0 means buffer INFO only; ...)",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "logbufsecs",
+			"type": "int32",
+			"description": "Buffer log messages for at most this many seconds",
+			"default": "30",
+			"current": "30",
+			"experimental": false
+		}, {
+			"name": "logemaillevel",
+			"type": "int32",
+			"description": "Email log messages logged at this level or higher (0 means email all; 3 means email FATAL only; ...)",
+			"default": "999",
+			"current": "999",
+			"experimental": false
+		}, {
+			"name": "logfile_mode",
+			"type": "int32",
+			"description": "Log file mode/permissions.",
+			"default": "436",
+			"current": "436",
+			"experimental": false
+		}, {
+			"name": "logmailer",
+			"type": "string",
+			"description": "Mailer used to send logging email",
+			"default": "/bin/mail",
+			"current": "/bin/mail",
+			"experimental": false
+		}, {
+			"name": "logtostderr",
+			"type": "bool",
+			"description": "log messages go to stderr instead of logfiles",
+			"default": "false",
+			"current": "true",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "max_log_size",
+			"type": "int32",
+			"description": "approx. maximum log file size (in MB). A value of 0 will be silently overridden to 1.",
+			"default": "1800",
+			"current": "1800",
+			"experimental": false
+		}, {
+			"name": "minloglevel",
+			"type": "int32",
+			"description": "Messages logged at a lower level than this don't actually get logged anywhere",
+			"default": "0",
+			"current": "0",
+			"experimental": false
+		}, {
+			"name": "stderrthreshold",
+			"type": "int32",
+			"description": "log messages at or above this level are copied to stderr in addition to logfiles.  This flag obsoletes --alsologtostderr.",
+			"default": "2",
+			"current": "4",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "stop_logging_if_full_disk",
+			"type": "bool",
+			"description": "Stop attempting to log to disk if the disk is full.",
+			"default": "false",
+			"current": "false",
+			"experimental": false
+		}, {
+			"name": "symbolize_stacktrace",
+			"type": "bool",
+			"description": "Symbolize the stack trace in the tombstone",
+			"default": "true",
+			"current": "false",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "v",
+			"type": "int32",
+			"description": "Show all VLOG(m) messages for m <= this. Overridable by --vmodule.",
+			"default": "0",
+			"current": "1",
+			"experimental": false,
+			"value_changed": 1
+		}, {
+			"name": "vmodule",
+			"type": "string",
+			"description": "per-module verbose level. Argument is a comma-separated list of <module name>=<log level>. <module name> is a glob pattern, matched against the filename base (that is, name ignoring .cc/.h./-inl.h). <log level> overrides any value given by --v.",
+			"default": "",
+			"current": "",
+			"experimental": false
+		}]
+}

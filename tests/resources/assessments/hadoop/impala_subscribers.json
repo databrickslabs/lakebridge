@@ -1,0 +1,53 @@
+{
+	"__common__": {
+		"process-name": "statestored",
+		"navbar": [{
+				"link": "/",
+				"title": "/"
+			}, {
+				"link": "/log_level",
+				"title": "/log_level"
+			}, {
+				"link": "/memz",
+				"title": "/memz"
+			}, {
+				"link": "/metrics",
+				"title": "/metrics"
+			}, {
+				"link": "/profile_docs",
+				"title": "/profile_docs"
+			}, {
+				"link": "/rpcz",
+				"title": "/rpcz"
+			}, {
+				"link": "/subscribers",
+				"title": "/subscribers"
+			}, {
+				"link": "/threadz",
+				"title": "/threadz"
+			}, {
+				"link": "/topics",
+				"title": "/topics"
+			}, {
+				"link": "/varz",
+				"title": "/varz"
+			}]
+	},
+	"subscribers": [{
+			"id": "impalad@172.24.0.5:27000",
+			"address": "172.24.0.5:23000",
+			"num_topics": 3,
+			"num_priority_topics": 2,
+			"num_transient": 3,
+			"registration_id": "bd420617bb4f668a:267a1291f794b48e",
+			"secs_since_heartbeat": "0.184"
+		}, {
+			"id": "catalog-server@172.24.0.4:26000",
+			"address": "172.24.0.4:23020",
+			"num_topics": 1,
+			"num_priority_topics": 0,
+			"num_transient": 0,
+			"registration_id": "9e42da673e156db6:e9763966f241989e",
+			"secs_since_heartbeat": "0.946"
+		}]
+}

@@ -361,6 +361,8 @@ class _HadoopHandler(BaseHTTPRequestHandler):
         path = parts.path
         if path.startswith("/broken/"):
             return self._send(500, "{}")
+        if path.startswith("/cm/"):
+            return self._cloudera(path.removeprefix("/cm"), query)
         if path == "/standby/yarnui/ws/v1/cluster/info":
             return self._send(200, _fixture("cluster_info_standby.json"))
         if path == "/yarnui/ws/v1/cluster/info":
@@ -374,10 +376,27 @@ class _HadoopHandler(BaseHTTPRequestHandler):
             return self._send(200, _fixture("spark_applications_vanilla.json"))
         return self._send(404, "{}")
 
-    def _send(self, status: int, body: str) -> None:
+    def _cloudera(self, path: str, query: dict) -> None:
+        """Cloudera Manager v12 from the captured fixtures. CM 5.7 does not know the two Impala metrics below."""
+        if path == "/api/version":
+            return self._send(200, "v12\n", "text/plain")
+        if path == "/api/v12/clusters":
+            return self._send(200, json.dumps({"items": [{"name": "Cloudera QuickStart"}]}))
+        if path == "/api/v12/clusters/Cloudera%20QuickStart/services":
+            return self._send(200, _fixture("cm_services.json"))
+        if path == "/api/v12/timeseries":
+            metric_query = query.get("query", [""])[0]
+            if "impala_memory_rss" in metric_query:
+                return self._send(400, _fixture("cm_timeseries_invalid_metric.json"))
+            if "impala_memory_total_used" in metric_query:
+                return self._send(400, json.dumps({"message": "Invalid metric 'impala_memory_total_used' in 'x'"}))
+            return self._send(200, '{"items": []}')
+        return self._send(404, "{}")
+
+    def _send(self, status: int, body: str, content_type: str = "application/json") -> None:
         payload = body.encode("utf-8")
         self.send_response(status)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
@@ -460,3 +479,23 @@ def test_spark_client_is_a_plain_rest_client_with_no_discovery(monkeypatch: pyte
 
     assert client.get_text("/api/v1/applications", {"minDate": "2026-11-01"}) == "[]"
     assert seen == ["http://s:18081/api/v1/applications"]
+
+
+def test_pipeline_extracts_cloudera_manager_over_http(hadoop_server: str, tmp_path: Path) -> None:
+    """The Cloudera steps against a real HTTP server: the cluster name is URL-encoded and the Invalid-metric retry runs."""
+    creds = tmp_path / ".credentials.yml"
+    cloudera = {"url": f"{hadoop_server}/cm", "auth": "none"}
+    creds.write_text(yaml.safe_dump({"hadoop": {"distribution": "cdh", "cloudera_manager": cloudera}}))
+    db_path = tmp_path / "extract.db"
+
+    _run_script("cm_services", db_path, creds)
+    _run_script("cm_timeseries", db_path, creds)
+
+    with duckdb.connect(str(db_path), read_only=True) as conn:
+        services = _rows(conn, "SELECT COUNT(*) FROM cm_services")
+        dropped = _rows(
+            conn, "SELECT metric_name FROM cm_timeseries WHERE status = 'unsupported_by_cm' ORDER BY metric_name"
+        )
+
+    assert services == [(13,)]
+    assert dropped == [("impala_memory_rss",), ("impala_memory_total_used",)]

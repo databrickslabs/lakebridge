@@ -1,0 +1,23 @@
+CREATE TABLE cm_impala_queries (
+    query_id VARCHAR,
+    query_type VARCHAR,
+    query_state VARCHAR,
+    statement VARCHAR,
+    database_name VARCHAR,
+    user_name VARCHAR,
+    coordinator_host VARCHAR,
+    start_time TIMESTAMP,
+    end_time TIMESTAMP,
+    duration_ms BIGINT,
+    rows_produced BIGINT,
+    details_available BOOLEAN,
+    pool_name VARCHAR,
+    query_status VARCHAR,
+    admission_result VARCHAR,
+    oom BOOLEAN,
+    memory_per_node_peak_bytes BIGINT,
+    hdfs_bytes_read BIGINT,
+    memory_spilled_bytes BIGINT,
+    cm_cpu_milliseconds DOUBLE,
+    attributes VARCHAR
+)

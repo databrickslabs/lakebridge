@@ -19,12 +19,38 @@ Example::
         url: https://spark-hs.example.com:18081
         auth: none
         verify_ssl: true
+      cloudera_manager:              # optional: the CM steps are skipped when this is absent (CDH and CDP)
+        url: https://cm.example.com:7183
+        auth: basic
+        username: profiler
+        password: ...
+        verify_ssl: true
+        api_version: v12             # optional; detected from /api/version when absent
+        cluster: "Cloudera QuickStart"   # optional; detected when CM manages exactly one cluster
+        extract_impala_queries: false    # opt-in: the Impala query extract is slow on busy clusters
+        impala_service: impala       # optional; detected when the cluster has exactly one IMPALA service
+        impala_interval_minutes: 60  # 1, 2, 3, 6, 10, 20, 30 or 60
+        impala_lookback_days: 1      # optional; 1 day, like the original CM_IMPALA_NUMBER_OF_DAYS
+        impala_max_pages: 2          # pages of 1000 queries per time interval
+      ranger:                        # optional: the Ranger steps are skipped when this is absent
+        url: https://ranger.example.com:6182   # Ranger Admin; may include a path (an HDInsight gateway)
+        auth: basic
+        username: profiler
+        password: ...
+        verify_ssl: true
+      impala:                        # optional: direct read of each Impala daemon's web UI (no Cloudera Manager)
+        urls:                        # every coordinator impalad; each one knows only the queries it coordinated
+          - http://impalad1.example.com:25000
+          - http://impalad2.example.com:25000
+        auth: none                   # none | basic; the same credentials are used for every URL below
+        catalogd_url: http://catalogd.example.com:25020     # optional; enables the impala_catalog step
+        statestored_url: http://statestored.example.com:25010   # optional; enables the impala_statestore step
+        verify_ssl: true
       mask_rules:                    # optional search/replace on every REST response (the original sed.txt)
         - pattern: 'internal\.example\.com'
           replacement: 'masked.example'
 
-Other sections (for example ``cloudera_manager``, ``ambari`` or ``ranger``) are added in later phases and are
-ignored here.
+Other sections (for example ``ambari``) are added in later phases and are ignored here.
 """
 
 import re
@@ -42,7 +68,15 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import 
 DISTRIBUTIONS = ("oth", "mapr", "cdh", "hdp", "hdi")
 SUPPORTED_AUTH = ("none", "basic")
 DEFAULT_LOOKBACK_DAYS = 30
+# The original profiler's CM_IMPALA_NUMBER_OF_DAYS=1: yesterday and today. Impala query history is large.
+DEFAULT_IMPALA_LOOKBACK_DAYS = 1
 MAX_LOOKBACK_DAYS = 3650
+# The Impala interval must divide an hour, as in the original profiler (CM_IMPALA_INTERVAL_MINUTES).
+IMPALA_INTERVAL_OPTIONS = (1, 2, 3, 6, 10, 20, 30, 60)
+DEFAULT_IMPALA_INTERVAL_MINUTES = 60
+DEFAULT_IMPALA_MAX_PAGES = 2
+MAX_IMPALA_PAGES = 100
+_API_VERSION_PATTERN = re.compile(r"^v\d+$")
 
 
 class HadoopConfigError(ValueError):
@@ -59,6 +93,32 @@ class RestEndpoint:
     verify: bool | str = True
     # Extra query parameters for the YARN applications request (the original profiler's RM_APP_FILTER).
     app_filter: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
+class ClouderaManagerConfig:
+    """Connection and extract settings for Cloudera Manager (CDH and CDP)."""
+
+    endpoint: RestEndpoint
+    # Detected from /api/version when None, for example "v12".
+    api_version: str | None = None
+    # Detected when CM manages exactly one cluster when None. Cluster names may contain spaces.
+    cluster: str | None = None
+    extract_impala_queries: bool = False
+    impala_service: str | None = None
+    impala_interval_minutes: int = DEFAULT_IMPALA_INTERVAL_MINUTES
+    impala_lookback_days: int = DEFAULT_IMPALA_LOOKBACK_DAYS
+    impala_max_pages: int = DEFAULT_IMPALA_MAX_PAGES
+
+
+@dataclass(frozen=True)
+class ImpalaConfig:
+    """Impala debug web UIs: one impalad per coordinator, plus optional catalogd and statestored."""
+
+    # The impalad web UIs (port 25000 by default). Each one is read on its own and the results are unioned.
+    endpoint: RestEndpoint
+    catalogd_url: str | None = None
+    statestored_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -79,6 +139,9 @@ class HadoopConfig:
     yarn: RestEndpoint | None
     spark_history: RestEndpoint | None
     mask_rules: tuple[MaskRule, ...] = ()
+    cloudera_manager: ClouderaManagerConfig | None = None
+    ranger: RestEndpoint | None = None
+    impala: ImpalaConfig | None = None
 
     def mask(self, text: str) -> str:
         for rule in self.mask_rules:
@@ -95,12 +158,16 @@ def parse_hadoop_config(raw: Any) -> HadoopConfig:
         raise HadoopConfigError(
             f"hadoop.distribution must be one of {', '.join(DISTRIBUTIONS)}; got {raw.get('distribution')!r}"
         )
+    lookback_days = _lookback_days(raw.get("lookback_days", DEFAULT_LOOKBACK_DAYS))
     return HadoopConfig(
         distribution=distribution,
-        lookback_days=_lookback_days(raw.get("lookback_days", DEFAULT_LOOKBACK_DAYS)),
+        lookback_days=lookback_days,
         yarn=_endpoint(raw.get("yarn"), "yarn", multiple_urls=True),
         spark_history=_endpoint(raw.get("spark_history"), "spark_history", multiple_urls=False),
         mask_rules=_mask_rules(raw.get("mask_rules")),
+        cloudera_manager=_cloudera_manager(raw.get("cloudera_manager"), lookback_days),
+        ranger=_endpoint(raw.get("ranger"), "ranger", multiple_urls=False),
+        impala=_impala(raw.get("impala")),
     )
 
 
@@ -114,16 +181,104 @@ def load_hadoop_config(creds_file: Path) -> HadoopConfig:
     return parse_hadoop_config(raw)
 
 
-def _lookback_days(raw: Any) -> int:
+def _lookback_days(raw: Any, key: str = "hadoop.lookback_days") -> int:
     if isinstance(raw, bool):
-        raise HadoopConfigError("hadoop.lookback_days must be a whole number of days")
+        raise HadoopConfigError(f"{key} must be a whole number of days")
     try:
         value = int(raw)
     except (TypeError, ValueError) as e:
-        raise HadoopConfigError("hadoop.lookback_days must be a whole number of days") from e
+        raise HadoopConfigError(f"{key} must be a whole number of days") from e
     if not 1 <= value <= MAX_LOOKBACK_DAYS:
-        raise HadoopConfigError(f"hadoop.lookback_days must be between 1 and {MAX_LOOKBACK_DAYS}")
+        raise HadoopConfigError(f"{key} must be between 1 and {MAX_LOOKBACK_DAYS}")
     return value
+
+
+def _cloudera_manager(raw: Any, lookback_days: int) -> ClouderaManagerConfig | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise HadoopConfigError("hadoop.cloudera_manager must be a mapping")
+    endpoint = _endpoint(raw, "cloudera_manager", multiple_urls=False)
+    if endpoint is None:  # pragma: no cover  (raw is a mapping, so _endpoint never returns None here)
+        raise HadoopConfigError("hadoop.cloudera_manager is not configured")
+
+    api_version = _optional_text(raw.get("api_version"))
+    if api_version is not None:
+        api_version = api_version.strip().lower()
+        if not _API_VERSION_PATTERN.match(api_version):
+            raise HadoopConfigError(f"hadoop.cloudera_manager.api_version must look like v12; got {api_version!r}")
+
+    interval = raw.get("impala_interval_minutes", DEFAULT_IMPALA_INTERVAL_MINUTES)
+    if isinstance(interval, bool) or str(interval).strip() not in (str(option) for option in IMPALA_INTERVAL_OPTIONS):
+        raise HadoopConfigError(
+            "hadoop.cloudera_manager.impala_interval_minutes must be one of "
+            f"{', '.join(str(option) for option in IMPALA_INTERVAL_OPTIONS)}; got {interval!r}"
+        )
+
+    max_pages = raw.get("impala_max_pages", DEFAULT_IMPALA_MAX_PAGES)
+    if (
+        isinstance(max_pages, bool)
+        or not str(max_pages).strip().isdigit()
+        or not 1 <= int(max_pages) <= MAX_IMPALA_PAGES
+    ):
+        raise HadoopConfigError(
+            f"hadoop.cloudera_manager.impala_max_pages must be a whole number from 1 to {MAX_IMPALA_PAGES}"
+        )
+
+    impala_lookback = raw.get("impala_lookback_days")
+    return ClouderaManagerConfig(
+        endpoint=endpoint,
+        api_version=api_version,
+        cluster=_optional_text(raw.get("cluster")),
+        extract_impala_queries=_flag(
+            raw.get("extract_impala_queries", False), "hadoop.cloudera_manager.extract_impala_queries"
+        ),
+        impala_service=_optional_text(raw.get("impala_service")),
+        impala_interval_minutes=int(interval),
+        impala_lookback_days=(
+            DEFAULT_IMPALA_LOOKBACK_DAYS
+            if impala_lookback is None
+            else _lookback_days(impala_lookback, "hadoop.cloudera_manager.impala_lookback_days")
+        ),
+        impala_max_pages=int(max_pages),
+    )
+
+
+def _impala(raw: Any) -> ImpalaConfig | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise HadoopConfigError("hadoop.impala must be a mapping")
+    endpoint = _endpoint(raw, "impala", multiple_urls=True)
+    if endpoint is None:  # pragma: no cover  (raw is a mapping, so _endpoint never returns None here)
+        raise HadoopConfigError("hadoop.impala is not configured")
+    return ImpalaConfig(
+        endpoint=endpoint,
+        catalogd_url=_optional_service_url(raw.get("catalogd_url"), "hadoop.impala.catalogd_url"),
+        statestored_url=_optional_service_url(raw.get("statestored_url"), "hadoop.impala.statestored_url"),
+    )
+
+
+def _optional_service_url(raw: Any, key: str) -> str | None:
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    if not isinstance(raw, str):
+        raise HadoopConfigError(f"{key} must be a URL")
+    try:
+        return normalize_base_url(raw)
+    except ValueError as e:
+        raise HadoopConfigError(f"{key}: {e}") from e
+
+
+def _flag(raw: Any, key: str) -> bool:
+    if isinstance(raw, bool):
+        return raw
+    text = str(raw).strip().lower()
+    if text in ("true", "yes", "y"):
+        return True
+    if text in ("false", "no", "n", ""):
+        return False
+    raise HadoopConfigError(f"{key} must be true or false; got {raw!r}")
 
 
 def _endpoint(raw: Any, section: str, *, multiple_urls: bool) -> RestEndpoint | None:

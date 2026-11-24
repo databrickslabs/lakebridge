@@ -1,0 +1,106 @@
+{
+	"__common__": {
+		"process-name": "catalogd",
+		"navbar": [{
+				"link": "/",
+				"title": "/"
+			}, {
+				"link": "/catalog",
+				"title": "/catalog"
+			}, {
+				"link": "/events",
+				"title": "/events"
+			}, {
+				"link": "/hadoop-varz",
+				"title": "/hadoop-varz"
+			}, {
+				"link": "/jmx",
+				"title": "/jmx"
+			}, {
+				"link": "/log_level",
+				"title": "/log_level"
+			}, {
+				"link": "/memz",
+				"title": "/memz"
+			}, {
+				"link": "/metrics",
+				"title": "/metrics"
+			}, {
+				"link": "/operations",
+				"title": "/operations"
+			}, {
+				"link": "/profile_docs",
+				"title": "/profile_docs"
+			}, {
+				"link": "/rpcz",
+				"title": "/rpcz"
+			}, {
+				"link": "/threadz",
+				"title": "/threadz"
+			}, {
+				"link": "/varz",
+				"title": "/varz"
+			}]
+	},
+	"has_large_tables": true,
+	"large_tables": [{
+			"name": "default.sim_orders",
+			"mem_estimate": 2548
+		}, {
+			"name": "default.sim_customers",
+			"mem_estimate": 2548
+		}],
+	"num_large_tables": 2,
+	"has_frequent_tables": true,
+	"frequent_tables": [{
+			"name": "default.sim_orders",
+			"num_metadata_ops": 1
+		}, {
+			"name": "default.sim_customers",
+			"num_metadata_ops": 1
+		}],
+	"num_frequent_tables": 2,
+	"has_high_file_count_tables": true,
+	"high_file_count_tables": [{
+			"name": "default.sim_orders",
+			"num_files": 1
+		}, {
+			"name": "default.sim_customers",
+			"num_files": 1
+		}],
+	"num_high_file_count_tables": 2,
+	"has_longest_loading_tables": true,
+	"longest_loading_tables": [{
+			"name": "default.sim_customers",
+			"median_metadata_loading_time_ns": 13007458,
+			"max_metadata_loading_time_ns": 123368041,
+			"p75_loading_time_ns": 123368041,
+			"p95_loading_time_ns": 123368041,
+			"p99_loading_time_ns": 123368041,
+			"table_loading_count": 2
+		}, {
+			"name": "default.sim_orders",
+			"median_metadata_loading_time_ns": 42095958,
+			"max_metadata_loading_time_ns": 1086732334,
+			"p75_loading_time_ns": 1086732334,
+			"p95_loading_time_ns": 1086732334,
+			"p99_loading_time_ns": 1086732334,
+			"table_loading_count": 2
+		}],
+	"num_longest_loading_tables": 2,
+	"version": 8,
+	"databases": [{
+			"name": "default",
+			"num_tables": 2,
+			"tables": [{
+					"fqtn": "default.sim_customers",
+					"name": "sim_customers",
+					"has_metrics": true
+				}, {
+					"fqtn": "default.sim_orders",
+					"name": "sim_orders",
+					"has_metrics": true
+				}],
+			"has_metrics": true
+		}]
+}

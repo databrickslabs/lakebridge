@@ -1,0 +1,15 @@
+{
+  "items" : [ {
+    "hostId" : "quickstart.cloudera",
+    "ipAddress" : "172.17.0.2",
+    "hostname" : "quickstart.cloudera",
+    "rackId" : "/default",
+    "hostUrl" : "http://quickstart.cloudera:7180/cmf/hostRedirect/quickstart.cloudera",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "commissionState" : "COMMISSIONED",
+    "numCores" : 11,
+    "numPhysicalCores" : 11,
+    "totalPhysMemBytes" : 12480126976
+  } ]
+}

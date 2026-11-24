@@ -5,11 +5,16 @@ A step script fetches REST bodies, loads them into a temporary DuckDB table of J
 It prints one JSON status line last, which ``pipeline.py`` reads.
 
 Column names and types come from the DDL, so the SQL only has to produce the columns in the DDL's order.
+
+The Impala extracts are written one body at a time: their SQL must then produce rows from one document on its own. The
+direct Impala extracts (``impala_daemons``, ``impala_catalogd``, ``impala_statestored``) wrap each body in a
+``{"coordinator": <base URL>, "body": ...}`` envelope, so the rows say which daemon they came from. The Cloudera Manager
+Impala extract is large, so it is written the same way. Every other step reads all its bodies at once.
 """
 
 import json
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Literal
 
@@ -21,6 +26,7 @@ from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers impo
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
     HadoopConfig,
     HadoopConfigError,
+    ImpalaConfig,
     load_hadoop_config,
 )
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import (
@@ -30,8 +36,19 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import 
 
 logger = get_logger(__file__)
 
-Endpoint = Literal["yarn", "spark_history"]
-Fetch = Callable[[RestClient, HadoopConfig], list[str]]
+Endpoint = Literal[
+    "yarn",
+    "spark_history",
+    "cloudera_manager",
+    "impala",
+    "ranger",
+    "impala_daemons",
+    "impala_catalogd",
+    "impala_statestored",
+]
+# The Impala daemon web UIs, read directly (hadoop.impala), as opposed to the Cloudera Manager "impala" endpoint.
+IMPALA_DIRECT_ENDPOINTS: tuple[str, ...] = ("impala_daemons", "impala_catalogd", "impala_statestored")
+Fetch = Callable[[RestClient, HadoopConfig], Iterable[str]]
 
 # Session-scoped (TEMP) so they never persist into the profiler extract. Each takes a JSON value.
 HELPER_MACROS: tuple[str, ...] = (
@@ -49,6 +66,43 @@ HELPER_MACROS: tuple[str, ...] = (
             THEN hadoop_records(node, '$.queues.queue')
             ELSE hadoop_records(node, '$.childQueues')
         END)""",
+    # Impala's web UI prints a timestamp with up to nanoseconds ("2026-11-24 05:52:53.851880000"). DuckDB reads
+    # microseconds, so the extra digits are cut. Impala reports 1970-01-01 00:00:00 for a time that is not set yet.
+    r"""CREATE TEMP MACRO impala_timestamp(s) AS (
+        CASE
+            WHEN s IS NULL OR trim(s) = '' OR trim(s) LIKE '1970-01-01 00:00:00%' THEN NULL
+            ELSE TRY_CAST(regexp_replace(trim(s), '(\.[0-9]{6})[0-9]+$', '\1') AS TIMESTAMP)
+        END)""",
+    # Impala's durations are compound and use the largest units that fit: "257.995ms", "1s156ms", "7s039ms", "0.000ns",
+    # "1m5s". A bare number (Impala prints "0" for zero) is taken as milliseconds. The result is in milliseconds.
+    r"""CREATE TEMP MACRO impala_duration_ms(s) AS (
+        CASE
+            WHEN s IS NULL OR trim(s) = '' THEN NULL
+            WHEN regexp_full_match(trim(s), '[0-9]+(\.[0-9]+)?') THEN CAST(trim(s) AS DOUBLE)
+            WHEN regexp_matches(trim(s), '^(?:([0-9]+)h)?(?:([0-9]+)m)?(?:([0-9]+(?:\.[0-9]+)?)s)?(?:([0-9]+(?:\.[0-9]+)?)ms)?(?:([0-9]+(?:\.[0-9]+)?)us)?(?:([0-9]+(?:\.[0-9]+)?)ns)?$')
+            THEN
+                COALESCE(TRY_CAST(NULLIF(regexp_extract(trim(s), '^(?:([0-9]+)h)?(?:([0-9]+)m)?(?:([0-9]+(?:\.[0-9]+)?)s)?(?:([0-9]+(?:\.[0-9]+)?)ms)?(?:([0-9]+(?:\.[0-9]+)?)us)?(?:([0-9]+(?:\.[0-9]+)?)ns)?$', 1), '') AS DOUBLE), 0) * 3600000
+              + COALESCE(TRY_CAST(NULLIF(regexp_extract(trim(s), '^(?:([0-9]+)h)?(?:([0-9]+)m)?(?:([0-9]+(?:\.[0-9]+)?)s)?(?:([0-9]+(?:\.[0-9]+)?)ms)?(?:([0-9]+(?:\.[0-9]+)?)us)?(?:([0-9]+(?:\.[0-9]+)?)ns)?$', 2), '') AS DOUBLE), 0) * 60000
+              + COALESCE(TRY_CAST(NULLIF(regexp_extract(trim(s), '^(?:([0-9]+)h)?(?:([0-9]+)m)?(?:([0-9]+(?:\.[0-9]+)?)s)?(?:([0-9]+(?:\.[0-9]+)?)ms)?(?:([0-9]+(?:\.[0-9]+)?)us)?(?:([0-9]+(?:\.[0-9]+)?)ns)?$', 3), '') AS DOUBLE), 0) * 1000
+              + COALESCE(TRY_CAST(NULLIF(regexp_extract(trim(s), '^(?:([0-9]+)h)?(?:([0-9]+)m)?(?:([0-9]+(?:\.[0-9]+)?)s)?(?:([0-9]+(?:\.[0-9]+)?)ms)?(?:([0-9]+(?:\.[0-9]+)?)us)?(?:([0-9]+(?:\.[0-9]+)?)ns)?$', 4), '') AS DOUBLE), 0)
+              + COALESCE(TRY_CAST(NULLIF(regexp_extract(trim(s), '^(?:([0-9]+)h)?(?:([0-9]+)m)?(?:([0-9]+(?:\.[0-9]+)?)s)?(?:([0-9]+(?:\.[0-9]+)?)ms)?(?:([0-9]+(?:\.[0-9]+)?)us)?(?:([0-9]+(?:\.[0-9]+)?)ns)?$', 5), '') AS DOUBLE), 0) / 1000
+              + COALESCE(TRY_CAST(NULLIF(regexp_extract(trim(s), '^(?:([0-9]+)h)?(?:([0-9]+)m)?(?:([0-9]+(?:\.[0-9]+)?)s)?(?:([0-9]+(?:\.[0-9]+)?)ms)?(?:([0-9]+(?:\.[0-9]+)?)us)?(?:([0-9]+(?:\.[0-9]+)?)ns)?$', 6), '') AS DOUBLE), 0) / 1000000
+            ELSE NULL
+        END)""",
+    # Impala's sizes use binary units: "4.11 MB", "1.44 KB", "205.00 B", "0". The result is in bytes.
+    r"""CREATE TEMP MACRO impala_bytes(s) AS (
+        CASE
+            WHEN s IS NULL OR trim(s) = '' THEN NULL
+            WHEN regexp_matches(trim(s), '^[0-9]+(\.[0-9]+)?\s*(B|KB|MB|GB|TB)?$') THEN CAST(ROUND(
+                CAST(regexp_extract(trim(s), '^([0-9.]+)', 1) AS DOUBLE) * CASE regexp_extract(trim(s), '([KMGT]?B)$', 1)
+                    WHEN 'KB' THEN 1024
+                    WHEN 'MB' THEN 1048576
+                    WHEN 'GB' THEN 1073741824
+                    WHEN 'TB' THEN 1099511627776
+                    ELSE 1
+                END) AS BIGINT)
+            ELSE NULL
+        END)""",
 )
 
 
@@ -63,6 +117,25 @@ def run_step(
 ) -> str:
     """Extract one step and return its status message. Raises on failure."""
     config = load_hadoop_config(creds_file)
+    if endpoint in IMPALA_DIRECT_ENDPOINTS:
+        clients = _impala_clients(endpoint, config.impala)
+        if isinstance(clients, str):
+            return clients
+        # Each daemon's body is masked, then wrapped with the daemon's URL so the step's rows say where they came from.
+        bodies = (
+            _coordinator_envelope(client.base_url, config.mask(body))
+            for client in clients
+            for body in fetch(client, config)
+        )
+        row_count = _write_table(
+            step=step,
+            sql_dir=sql_dir,
+            db_path=db_path,
+            bodies=bodies,
+            params={"distribution": config.distribution},
+            streaming=True,
+        )
+        return f"{step} extracted {row_count} rows"
     if endpoint == "yarn":
         if config.yarn is None:
             raise HadoopConfigError("hadoop.yarn is not configured; the YARN steps need it")
@@ -72,22 +145,68 @@ def run_step(
             password=config.yarn.password,
             verify=config.yarn.verify,
         )
-    else:
+    elif endpoint == "spark_history":
         if config.spark_history is None:
             return "skipped: not configured (hadoop.spark_history is absent)"
         spark = config.spark_history
         client = RestClient(spark.urls[0], username=spark.username, password=spark.password, verify=spark.verify)
+    elif endpoint == "ranger":
+        if config.ranger is None:
+            return "skipped: not configured (hadoop.ranger is absent)"
+        ranger = config.ranger
+        client = RestClient(ranger.urls[0], username=ranger.username, password=ranger.password, verify=ranger.verify)
+    else:
+        cm = config.cloudera_manager
+        if cm is None:
+            return "skipped: not configured (hadoop.cloudera_manager is absent)"
+        if endpoint == "impala" and not cm.extract_impala_queries:
+            return "skipped: not configured (hadoop.cloudera_manager.extract_impala_queries is false)"
+        client = RestClient(
+            cm.endpoint.urls[0],
+            username=cm.endpoint.username,
+            password=cm.endpoint.password,
+            verify=cm.endpoint.verify,
+        )
 
     # Masking runs on the raw responses before parsing, like the original profiler's SEARCH_REPLACE pipe.
-    bodies = [config.mask(body) for body in fetch(client, config)]
+    bodies = (config.mask(body) for body in fetch(client, config))
     row_count = _write_table(
         step=step,
         sql_dir=sql_dir,
         db_path=db_path,
         bodies=bodies,
         params={"distribution": config.distribution},
+        streaming=endpoint == "impala",
     )
     return f"{step} extracted {row_count} rows"
+
+
+def _impala_clients(endpoint: str, impala: ImpalaConfig | None) -> list[RestClient] | str:
+    """The clients an Impala step reads, or the message that says why the step is skipped."""
+    if impala is None:
+        return "skipped: not configured (hadoop.impala is absent)"
+    if endpoint == "impala_daemons":
+        return [_impala_client(url, impala) for url in impala.endpoint.urls]
+    if endpoint == "impala_catalogd":
+        url, key = impala.catalogd_url, "catalogd_url"
+    else:
+        url, key = impala.statestored_url, "statestored_url"
+    if url is None:
+        return f"skipped: not configured (hadoop.impala.{key} is absent)"
+    return [_impala_client(url, impala)]
+
+
+def _impala_client(url: str, impala: ImpalaConfig) -> RestClient:
+    return RestClient(
+        url,
+        username=impala.endpoint.username,
+        password=impala.endpoint.password,
+        verify=impala.endpoint.verify,
+    )
+
+
+def _coordinator_envelope(base_url: str, body: str) -> str:
+    return '{"coordinator":' + json.dumps(base_url) + ',"body":' + body + "}"
 
 
 def run_step_script(*, step: str, endpoint: Endpoint, fetch: Fetch, sql_dir: Path) -> None:
@@ -109,23 +228,37 @@ def run_step_script(*, step: str, endpoint: Endpoint, fetch: Fetch, sql_dir: Pat
     print(json.dumps({"status": "success", "message": message}))
 
 
-def _write_table(*, step: str, sql_dir: Path, db_path: str, bodies: list[str], params: dict[str, str]) -> int:
+def _write_table(
+    *,
+    step: str,
+    sql_dir: Path,
+    db_path: str,
+    bodies: Iterable[str],
+    params: dict[str, str],
+    streaming: bool = False,
+) -> int:
     sql = (sql_dir / f"{step}.sql").read_text(encoding="utf-8").strip().rstrip(";")
     ddl = (sql_dir / f"{step}_ddl.sql").read_text(encoding="utf-8").strip()
+    # DuckDB rejects named parameters the statement does not use, so bind only the ones it references.
+    bound = {name: value for name, value in params.items() if f"${name}" in sql} or None
     with connect_to_profiler_db(db_path) as conn:
         conn.begin()
         try:
             for macro in HELPER_MACROS:
                 conn.execute(macro)
             conn.execute("CREATE TEMP TABLE raw_documents (doc JSON)")
-            conn.register("_bodies", pd.DataFrame({"doc": bodies}))
-            conn.execute("INSERT INTO raw_documents SELECT CAST(doc AS JSON) FROM _bodies")
-            conn.unregister("_bodies")
             conn.execute(f"DROP TABLE IF EXISTS {step}")
             conn.execute(ddl)
-            # DuckDB rejects named parameters the statement does not use, so bind only the ones it references.
-            bound = {name: value for name, value in params.items() if f"${name}" in sql}
-            conn.execute(f"INSERT INTO {step} SELECT * FROM ({sql})", bound or None)
+            if streaming:
+                for body in bodies:
+                    conn.execute("DELETE FROM raw_documents")
+                    conn.execute("INSERT INTO raw_documents VALUES (CAST(? AS JSON))", [body])
+                    conn.execute(f"INSERT INTO {step} SELECT * FROM ({sql})", bound)
+            else:
+                conn.register("_bodies", pd.DataFrame({"doc": list(bodies)}))
+                conn.execute("INSERT INTO raw_documents SELECT CAST(doc AS JSON) FROM _bodies")
+                conn.unregister("_bodies")
+                conn.execute(f"INSERT INTO {step} SELECT * FROM ({sql})", bound)
             row_count = conn.execute(f"SELECT COUNT(*) FROM {step}").fetchone()
             conn.commit()
         except Exception:

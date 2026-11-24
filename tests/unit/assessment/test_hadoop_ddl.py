@@ -16,9 +16,41 @@ from databricks.labs.lakebridge.resources.assessments.hadoop import extract
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _HADOOP = _REPO_ROOT / "src/databricks/labs/lakebridge/resources/assessments/hadoop"
 _PIPELINE_CONFIG = _HADOOP / "pipeline_config.yml"
-_NON_STEP_MODULES = {"__init__", "endpoints", "extract", "hadoop_config", "rest_client"}
+_NON_STEP_MODULES = {
+    "__init__",
+    "cloudera_manager",
+    "endpoints",
+    "extract",
+    "hadoop_config",
+    "ranger",
+    "rest_client",
+}
 
 _STEPS = [step.name for step in PipelineClass.load_config_from_yaml(_PIPELINE_CONFIG).steps]
+_CM_STEPS = {
+    "cm_clusters",
+    "cm_services",
+    "cm_hosts",
+    "cm_host_config",
+    "cm_cluster_export",
+    "cm_timeseries",
+    "cm_impala_queries",
+}
+_RANGER_STEPS = {
+    "ranger_services",
+    "ranger_service_defs",
+    "ranger_policies",
+    "ranger_policy_items",
+    "ranger_users",
+    "ranger_groups",
+}
+_IMPALA_STEPS = {
+    "impala_queries",
+    "impala_backends",
+    "impala_daemon_config",
+    "impala_catalog",
+    "impala_statestore",
+}
 
 
 def _query(step: str) -> str:
@@ -81,8 +113,8 @@ def test_pipeline_config_labels_and_optional_steps() -> None:
 
     # Like the original Hadoop profiler, nothing is redacted, so no step needs the `unredacted` label.
     assert not labelled
-    # The Spark History Server is optional; the YARN ResourceManager is the core of the profile.
-    assert optional == {"spark_applications", "spark_application_attempts"}
+    # The Spark History Server and Cloudera Manager are optional; the YARN ResourceManager is the core of the profile.
+    assert optional == {"spark_applications", "spark_application_attempts"} | _CM_STEPS | _RANGER_STEPS | _IMPALA_STEPS
 
 
 @pytest.mark.parametrize("step", ["yarn_applications", "spark_applications"])

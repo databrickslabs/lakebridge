@@ -167,3 +167,130 @@ def test_load_hadoop_config_without_a_hadoop_section_fails(tmp_path: Path) -> No
 
     with pytest.raises(HadoopConfigError, match="No 'hadoop' section"):
         load_hadoop_config(creds)
+
+
+_CM = {"url": "https://cm.example.net:7183", "username": "profiler", "password": "pw"}
+
+
+def test_cloudera_manager_defaults_leave_the_detection_and_impala_extract_off() -> None:
+    config = parse_hadoop_config(_raw(lookback_days=14, cloudera_manager=dict(_CM)))
+
+    cloudera = config.cloudera_manager
+    assert cloudera is not None
+    assert (cloudera.api_version, cloudera.cluster, cloudera.impala_service) == (None, None, None)
+    assert cloudera.extract_impala_queries is False
+    assert (cloudera.impala_interval_minutes, cloudera.impala_max_pages) == (60, 2)
+    # Like the original CM_IMPALA_NUMBER_OF_DAYS, Impala queries look back 1 day unless given their own window.
+    assert cloudera.impala_lookback_days == 1
+    assert cloudera.endpoint.urls == ("https://cm.example.net:7183",)
+    assert (cloudera.endpoint.username, cloudera.endpoint.password) == ("profiler", "pw")
+
+
+def test_cloudera_manager_is_absent_by_default() -> None:
+    assert parse_hadoop_config(_raw()).cloudera_manager is None
+
+
+def test_cloudera_manager_settings_are_normalised() -> None:
+    config = parse_hadoop_config(
+        _raw(
+            cloudera_manager={
+                **_CM,
+                "api_version": " V12 ",
+                "cluster": "Cloudera QuickStart",
+                "extract_impala_queries": "yes",
+                "impala_service": "impala",
+                "impala_interval_minutes": "10",
+                "impala_lookback_days": 3,
+                "impala_max_pages": "5",
+            }
+        )
+    )
+
+    cloudera = config.cloudera_manager
+    assert cloudera is not None
+    assert (cloudera.api_version, cloudera.cluster, cloudera.impala_service) == ("v12", "Cloudera QuickStart", "impala")
+    assert (cloudera.extract_impala_queries, cloudera.impala_interval_minutes, cloudera.impala_lookback_days) == (
+        True,
+        10,
+        3,
+    )
+    assert cloudera.impala_max_pages == 5
+
+
+def test_cloudera_manager_url_may_carry_a_gateway_path() -> None:
+    config = parse_hadoop_config(_raw(cloudera_manager={**_CM, "url": "https://gw.example.net/cm/"}))
+
+    assert config.cloudera_manager is not None
+    assert config.cloudera_manager.endpoint.urls == ("https://gw.example.net/cm",)
+
+
+@pytest.mark.parametrize(
+    ("cloudera", "message"),
+    [
+        ({"username": "u"}, "hadoop.cloudera_manager.url is required"),
+        ({**_CM, "url": "cm:7180"}, "Invalid Hadoop service URL"),
+        ({**_CM, "url": "https://u:p@cm:7183"}, "put credentials in username and password"),
+        ({**_CM, "auth": "kerberos"}, "kerberos is not supported yet"),
+        ({**_CM, "auth": "none"}, "auth 'none' takes no username or password"),
+        ({**_CM, "api_version": "twelve"}, "api_version must look like v12"),
+        ({**_CM, "impala_interval_minutes": 45}, "impala_interval_minutes must be one of 1, 2, 3, 6, 10, 20, 30, 60"),
+        ({**_CM, "impala_interval_minutes": True}, "impala_interval_minutes must be one of"),
+        ({**_CM, "impala_max_pages": 0}, "impala_max_pages must be a whole number from 1 to 100"),
+        ({**_CM, "impala_max_pages": "many"}, "impala_max_pages must be a whole number"),
+        ({**_CM, "impala_lookback_days": 0}, "hadoop.cloudera_manager.impala_lookback_days must be between 1 and 3650"),
+        ({**_CM, "extract_impala_queries": "maybe"}, "extract_impala_queries must be true or false"),
+        ("https://cm:7183", "hadoop.cloudera_manager must be a mapping"),
+    ],
+)
+def test_invalid_cloudera_manager_settings_are_rejected(cloudera: object, message: str) -> None:
+    with pytest.raises(HadoopConfigError, match=message):
+        parse_hadoop_config(_raw(cloudera_manager=cloudera))
+
+
+# ---- Apache Ranger ----------------------------------------------------------------------------------------------------
+
+
+def test_ranger_is_absent_by_default() -> None:
+    assert parse_hadoop_config(_raw()).ranger is None
+
+
+def test_ranger_block_is_parsed_with_basic_auth_and_tls_settings() -> None:
+    config = parse_hadoop_config(
+        _raw(
+            ranger={
+                "url": "https://ranger.example.com:6182/",
+                "username": "admin",
+                "password": "pw",
+                "verify_ssl": False,
+            }
+        )
+    )
+
+    assert config.ranger is not None
+    assert config.ranger.urls == ("https://ranger.example.com:6182",)
+    assert (config.ranger.username, config.ranger.password, config.ranger.verify) == ("admin", "pw", False)
+
+
+def test_ranger_url_may_carry_a_gateway_path() -> None:
+    config = parse_hadoop_config(_raw(ranger={"url": "https://c.azurehdinsight.net/ranger", "auth": "none"}))
+
+    assert config.ranger is not None
+    assert config.ranger.urls == ("https://c.azurehdinsight.net/ranger",)
+    assert config.ranger.username is None
+
+
+@pytest.mark.parametrize(
+    ("ranger", "message"),
+    [
+        ({"auth": "none"}, "hadoop.ranger.url is required"),
+        ({"url": "ftp://ranger:6182"}, "Invalid Hadoop service URL"),
+        ({"url": "https://ranger:6182", "auth": "kerberos"}, "kerberos is not supported yet"),
+        ({"url": "https://ranger:6182", "auth": "basic"}, "auth 'basic' needs a username"),
+        ({"url": "https://ranger:6182", "auth": "none", "username": "admin"}, "auth 'none' takes no username"),
+        ({"url": "https://u:p@ranger:6182"}, "not in the URL"),
+        ({"url": "https://ranger:6182", "verify_ssl": "/no/such/ca.pem"}, "CA bundle not found"),
+    ],
+)
+def test_invalid_ranger_settings_are_rejected(ranger: dict, message: str) -> None:
+    with pytest.raises(HadoopConfigError, match=message):
+        parse_hadoop_config(_raw(ranger=ranger))

@@ -9,19 +9,28 @@ import Admonition from '@theme/Admonition';
 - [Prerequisites](#prerequisites)
 - [Configure Connection to Hadoop](#configure-connection-to-hadoop)
 - [Credentials file reference](#credentials-file-reference)
+- [Cloudera Manager](#cloudera-manager)
+- [Apache Ranger](#apache-ranger)
+- [Impala (direct)](#impala-direct)
 - [Run the profiler](#run-the-profiler)
 - [Profiler output](#profiler-output)
 - [Limitations](#limitations)
 
 This profiler reads cluster and workload metadata over the Hadoop REST APIs. It needs no database driver and no
-access to the cluster's file system or Hive metastore. Phase 1 covers:
+access to the cluster's file system or Hive metastore. It covers:
 
 - **YARN**: the ResourceManager's cluster info, metrics, NodeManagers, scheduler queues and applications.
 - **Spark History Server**: applications and their attempts (optional).
+- **Cloudera Manager** (CDH and CDP clusters, optional): services, hosts, configuration, time-series utilisation, and
+  Impala queries (opt-in). See [Cloudera Manager](#cloudera-manager).
+- **Apache Ranger** (optional): services, service definitions, policies, policy items, users and groups. See
+  [Apache Ranger](#apache-ranger).
+- **Impala, read directly** (optional): the queries each Impala daemon knows about, its backends and configuration, and
+  the catalogd tables and statestore subscribers. No Cloudera Manager is needed. See [Impala (direct)](#impala-direct).
 
 Supported distributions are Apache Hadoop (`oth`), MapR (`mapr`), Cloudera CDH (`cdh`), Hortonworks HDP (`hdp`) and
-Azure HDInsight (`hdi`). In phase 1 the distribution is recorded in the extract, and every distribution uses the same
-YARN and Spark REST APIs.
+Azure HDInsight (`hdi`). The distribution is recorded in the extract. Every distribution uses the same YARN and Spark REST APIs; the
+Cloudera Manager steps apply to CDH and CDP clusters.
 
 ## Prerequisites
 
@@ -31,25 +40,28 @@ YARN and Spark REST APIs.
 
 ### 2. Network connectivity
 
-The machine running the profiler must reach each ResourceManager web address and, if used, the Spark History Server
-address. The default ports are **8088** for the ResourceManager and **18081** for the Spark History Server. Azure
+The machine running the profiler must reach each ResourceManager web address, and, if used, the Spark History Server
+and Cloudera Manager addresses. The default ports are **8088** for the ResourceManager, **18081** for the Spark History
+Server and **7180** (HTTP) or **7183** (HTTPS) for Cloudera Manager. Azure
 HDInsight is reached through its HTTPS gateway, which has no port: use the gateway URL, which includes its path (for
-example `https://<cluster>.azurehdinsight.net/yarnui`).
+example `https://<cluster>.azurehdinsight.net/yarnui`). The Ranger Admin default ports are **6080** (HTTP) and **6182**
+(HTTPS).
 
 ### 3. Authentication
 
-Phase 1 supports:
+The profiler supports:
 
 | Auth | Use |
 |------|-----|
 | `none` | The REST endpoints are open to the network, as on many development clusters |
-| `basic` | HTTP basic authentication with a username and password, for example HDInsight gateway logins or a proxy in front of the ResourceManager |
+| `basic` | HTTP basic authentication with a username and password, for example HDInsight gateway logins or a proxy in front of the ResourceManager, or a Cloudera Manager login |
 
 **Kerberos is not supported yet.** A credentials file that sets `auth: kerberos` fails with a clear message.
 
 ### 4. Permissions
 
-The account only needs read access to the REST endpoints. The profiler issues `GET` requests only.
+The account only needs read access to the REST endpoints. The profiler issues `GET` requests only. A read-only
+Cloudera Manager user is enough.
 
 <Admonition type="warning" title="Sensitive text">
 YARN application names and failure diagnostics can contain paths, query text or data values, and user, queue and
@@ -72,7 +84,15 @@ Select **`hadoop`** as the source system. The wizard asks for:
 5. The YARN authentication (`none` or `basic`) and, for `basic`, the username and password.
 6. Whether to verify the YARN TLS certificate, and an optional CA bundle path.
 7. Whether to configure a Spark History Server, and if so the same questions for its URL.
-8. Whether to test the connection. The test finds the active ResourceManager and, if configured, calls the Spark History Server.
+8. Whether to configure Cloudera Manager. If so: its URL, authentication, TLS settings, an optional cluster name, and
+   whether to extract Impala queries (and, if so, the interval and an optional Impala service name). Leave the cluster
+   and service empty to have the profiler detect them.
+9. Whether to configure Apache Ranger. If so: its Admin URL, authentication, and TLS settings.
+10. Whether to read Impala daemons directly. If so: the impalad web UI URL of every coordinator, the authentication and
+   TLS settings they share, and optionally the catalogd and statestore web UI URLs. See [Impala (direct)](#impala-direct).
+11. Whether to test the connection. The test finds the active ResourceManager and, if configured, calls the Spark History
+   Server, resolves the Cloudera Manager cluster (and Impala service, if Impala queries are extracted), reads the
+   Ranger service list, and calls each Impala daemon, catalogd and statestore.
 
 With `secret_vault_type: env`, a password answer is the name of an environment variable that holds the password.
 
@@ -99,6 +119,21 @@ hadoop:
     url: https://spark-hs.example.com:18081
     auth: none
     verify_ssl: true
+  cloudera_manager:              # optional; without this block the cm_* steps are skipped
+    url: https://cm.example.com:7183
+    auth: basic
+    username: profiler
+    password: ...
+    verify_ssl: true
+    cluster: "Cloudera QuickStart"   # optional; detected when Cloudera Manager manages one cluster
+    extract_impala_queries: false    # opt-in; the Impala query extract is slow on busy clusters
+    impala_interval_minutes: 60      # 1, 2, 3, 6, 10, 20, 30 or 60
+  ranger:                        # optional; without this block the ranger_* steps are skipped
+    url: https://ranger.example.com:6182   # Ranger Admin; may include a path (for example behind a gateway)
+    auth: basic
+    username: profiler           # a user with the Ranger admin role, for the users and groups
+    password: ...
+    verify_ssl: true
   mask_rules:                    # optional: regex search/replace on every response (the original sed.txt)
     - pattern: 'internal\.example\.com'
       replacement: 'masked.example'
@@ -113,10 +148,152 @@ hadoop:
 | `yarn.verify_ssl` | no (true) | `false` disables certificate checks and logs a warning. |
 | `yarn.app_filter` | no | Query parameters added to the YARN applications request, for example `user=etl&queue=root.prod` (a leading `?` is allowed). Same as `RM_APP_FILTER` in the original profiler; where it names a parameter the profiler also sets, your value wins. |
 | `spark_history.url` | yes, if the block is present | A single URL. |
+| `cloudera_manager.url` | yes, if the block is present | The Cloudera Manager base URL. It may include a path, for example behind a gateway. |
+| `cloudera_manager.auth` / `username` / `password` | no | As for YARN. Cloudera Manager needs `basic` in practice. |
+| `cloudera_manager.verify_ssl` | no (true) | As for YARN. |
+| `cloudera_manager.api_version` | no | For example `v12`. When absent, the profiler reads it from `/api/version`. |
+| `cloudera_manager.cluster` | no | The cluster name, which may contain spaces. When absent, the profiler uses the cluster if CM manages exactly one, and otherwise stops and lists the names. |
+| `cloudera_manager.extract_impala_queries` | no (false) | `true` to extract Impala queries (see [Cloudera Manager](#cloudera-manager)). |
+| `cloudera_manager.impala_service` | no | The Impala service name. When absent, the profiler uses the cluster's only IMPALA service. |
+| `cloudera_manager.impala_interval_minutes` | no (60) | The time slice for Impala queries: 1, 2, 3, 6, 10, 20, 30 or 60. |
+| `cloudera_manager.impala_lookback_days` | no (1) | The Impala window in days, like the original profiler's `CM_IMPALA_NUMBER_OF_DAYS`. Impala query history is large, so widen it with care. |
+| `cloudera_manager.impala_max_pages` | no (2) | Pages of 1,000 queries per time slice. A busy slice stops here and logs a warning. |
+| `impala.urls` | yes, if the block is present | The impalad web UI base URLs (port 25000 by default), one per coordinator. A comma-separated string also works. |
+| `impala.auth` / `username` / `password` | no | As for YARN. Used for every Impala URL below. Kerberos (SPNEGO) is not supported. |
+| `impala.verify_ssl` | no (true) | As for YARN. Applies to every Impala URL below. |
+| `impala.catalogd_url` | no | The catalogd web UI base URL (port 25020 by default). Enables the `impala_catalog` step. |
+| `impala.statestored_url` | no | The statestore web UI base URL (port 25010 by default). Enables the `impala_statestore` step. |
+| `ranger.url` | yes, if the block is present | The Ranger Admin base URL. It may include a path. |
+| `ranger.auth` / `username` / `password` | no | As for YARN. Ranger needs `basic` in practice. |
+| `ranger.verify_ssl` | no (true) | As for YARN. |
 | `mask_rules` | no | A list of `{pattern, replacement}` regex rules applied, in order, to every REST response before it is stored. Same role as `SEARCH_REPLACE` / `sed.txt` in the original profiler. |
 
-Other sections in the same file (for example `cloudera_manager`, `ambari` or `ranger`) are reserved for later
-phases and are ignored today.
+Other sections in the same file (for example `ambari`) are reserved for later phases and are ignored today.
+
+## Impala (direct)
+
+The `hadoop.impala` block reads each Impala daemon's own debug web UI. It needs no Cloudera Manager, so it also works
+on a cluster that Cloudera Manager does not manage. The web UI answers JSON with `?json`, and the profiler reads these
+endpoints:
+
+| Daemon | Endpoint | Steps |
+|--------|----------|-------|
+| impalad (`impala.urls`) | `/queries?json` | `impala_queries`: the completed-query log and the queries in flight. |
+| impalad | `/backends?json` | `impala_backends`: the daemon's backends, with admission and memory sizes. |
+| impalad | `/varz?json` | `impala_daemon_config`: a curated list of flags that decide query-log retention, memory and admission control. |
+| catalogd (`impala.catalogd_url`) | `/catalog?json` | `impala_catalog`: one row per table the catalog knows about. |
+| statestore (`impala.statestored_url`) | `/subscribers?json` | `impala_statestore`: one row per registered subscriber. |
+
+**Every coordinator must be listed.** Each impalad knows only the queries it coordinated. The profiler reads every URL
+in `impala.urls` and unions the results, one row per daemon and query, with the daemon's URL in `coordinator_url`. These
+URLs are not an active and standby pair: list every daemon that coordinates queries. A daemon that cannot be reached
+fails its step, which is then recorded as absent.
+
+**Retention is per daemon.** The completed-query log keeps the last `query_log_size` queries (200 by default in Impala
+4.5, and `query_log_size_in_bytes`, 2 GiB by default, applies too). A busy coordinator therefore covers minutes or hours,
+not days. The `impala_daemon_config` table records the limits in force. Schedule the profiler run often enough to see
+the queries you need, or raise `query_log_size` on the daemons before you profile. Where Cloudera Manager manages the
+cluster, prefer `cm_impala_queries` for history: Cloudera Manager stores queries itself, for the window you set.
+
+**How it differs from `cm_impala_queries`.** The Cloudera Manager extract reads Cloudera Manager's stored history for a
+time window, with the `impalaQueries` API and its paging. The direct extract reads what each daemon holds right now: a
+bounded log per daemon, plus the queries still running, which the Cloudera Manager extract does not return. The direct
+extract has no window or paging settings, and it reads no query profiles. It needs the impalad URLs, not Cloudera Manager
+credentials.
+
+**Values.** Impala prints durations (for example `1s156ms`), sizes (for example `4.11 MB`) and timestamps as text. The
+profiler converts them to milliseconds, bytes and timestamps. Times are the daemon's local times, without a time zone. An
+unset end time (the in-flight queries) is NULL. `query_json` keeps each record as Impala returned it. Query text is kept as
+Impala returns it, so use `mask_rules` to mask literals or names.
+
+**Not extracted.** Query profiles (`/query_profile`) are large and are not fetched by default; they are a possible
+future step. The `/metrics`, `/memz` and `/sessions` pages are not extracted either.
+
+## Cloudera Manager
+
+The Cloudera Manager steps follow the original profiler's Cloudera extract (`extract_cm_info`,
+`extract_cm_timeseries` and `extract_impala`). They read the Cloudera Manager REST API (`/api/<version>`).
+
+- **API version**: read from `/api/version`, which answers in plain text (for example `v12`), unless
+  `cloudera_manager.api_version` is set.
+- **Cluster and service**: each step checks the cluster name before it reads anything. A name with spaces (such as
+  `Cloudera QuickStart`) is URL-encoded. If Cloudera Manager manages several clusters, the profiler stops and lists
+  their names; set `cluster` to choose one.
+- **Errors**: an HTTP error stops the step. The profiler does not store an error page as data.
+
+What is collected:
+
+| Step | Source | Notes |
+|------|--------|-------|
+| `cm_clusters` | `/clusters`, `/cm/version` | Every cluster CM manages, with the CM version. `is_selected` marks the configured cluster. |
+| `cm_services` | `/clusters/<cluster>/services` | Service state, health summary and health checks. |
+| `cm_hosts` | `/hosts` | Hosts CM manages, with cores and memory. As in the original, hosts are not filtered by cluster. |
+| `cm_host_config` | `/cm/allHosts/config` | Configuration items of all hosts. |
+| `cm_cluster_export` | `/clusters/<cluster>/export` | Flattened into one row per service reference, role config group item, or role. Host templates are not extracted. |
+| `cm_timeseries` | `/timeseries` | Seven queries (host roles, HDFS usage, YARN utilisation, YARN memory and CPU, Impala utilisation, cluster CPU and memory), as in the original. Long format: one row per sample. |
+| `cm_impala_queries` | `/clusters/<cluster>/services/<impala>/impalaQueries` | Opt-in. One row per query. |
+
+Time-series windows match the original. The YARN, Impala and cluster queries use the hourly rollup over
+`hadoop.lookback_days`. The host roles and HDFS queries have no window, which returns Cloudera Manager's default recent
+window, as the original does.
+
+### Time-series metrics that the Cloudera Manager version does not have
+
+Cloudera Manager rejects a whole timeseries query when it names one metric it does not know, with HTTP 400 and a
+message such as `Invalid metric 'impala_memory_rss'`. Older versions, such as CM 5.7, do not have Impala daemon
+metrics that newer versions have. The profiler therefore drops that metric and sends the query again, until the
+query succeeds. Each dropped metric is recorded in `cm_timeseries` with `status = 'unsupported_by_cm'` and no
+sample, so you can see which metrics this Cloudera Manager does not report.
+
+### Impala queries (opt-in)
+
+Impala queries are not extracted unless `extract_impala_queries` is `true`. The original profiler also left them off by
+default (`CM_EXTRACT_IMPALA_QUERIES=N`). On a busy cluster, the extract makes many requests, so start with a short
+lookback and then widen it.
+
+The profiler reads the window in slices of `impala_interval_minutes`. Each slice is read in pages of 1,000 queries,
+and the pages stop at the first short page or at `impala_max_pages`. Queries are stored as CM returns them: the
+statement text and user names are not redacted. Use `mask_rules` to mask them.
+
+When Cloudera Manager reports `Impala query scan limit reached` for a slice, the profiler logs a warning. Reduce
+`impala_interval_minutes` and raise `impala_max_pages` to read every query in that slice.
+
+### Sensitive values
+
+The cluster export and the configuration steps store the values that Cloudera Manager returns. The export includes
+database and other `*_password` settings. Cloudera Manager returns those as placeholders such as `<changeme>` or
+omits them, and the profiler keeps what it receives, as the original did. Check the extract before you share it, or
+use `mask_rules` to mask values.
+
+## Apache Ranger
+
+The Ranger steps read the Ranger Admin REST API for the services, their definitions, the policies, and the users and
+groups. They run only when `hadoop.ranger` is configured. The original profiler ran them on HDP and CDP clusters, and
+an HDInsight cluster uses its gateway URL.
+
+| Step | Source | Notes |
+|------|--------|-------|
+| `ranger_services` | `/service/public/v2/api/service` | One row per service (repository). `configs` is kept as Ranger returns it. |
+| `ranger_service_defs` | `/service/public/v2/api/servicedef` | One row per plugin type, with its access types and resource names. |
+| `ranger_policies` | `/service/public/v2/api/policy` | One row per policy. Its type is `access`, `masking` or `row_filter`. |
+| `ranger_policy_items` | `/service/public/v2/api/policy` | One row per item: allow, deny, allow and deny exceptions, data masks and row filters. |
+| `ranger_users` | `/service/xusers/users` | Admin-only. Identity and metadata only. |
+| `ranger_groups` | `/service/xusers/groups` | Admin-only. Identity and metadata only. |
+
+**Why v2 and not the legacy v1 API.** The original profiler reads the v1 API (`/service/public/api/repository` and
+`/service/public/api/policy`). On Ranger 2.x the v1 calls under-report: in a Ranger 2.9.0 test, the v1 policy list
+returned 20 of the 24 policies while its own `totalCount` said 24, and the v1 repository list left out the YARN and tag
+services. This profiler therefore reads the v2 API. It falls back to v1 only when the v2 API returns 404 (very old
+Ranger releases), and then logs a warning that the result may be incomplete. There is no v1 fallback for
+`ranger_service_defs`, so that step fails on a Ranger without the v2 service-definition API.
+
+**Users and groups need an admin account.** The `xusers` endpoints return HTTP 403 to other users. That fails the
+`ranger_users` and `ranger_groups` steps and leaves the other Ranger steps unaffected.
+
+**Sensitive values.** Ranger returns the service configurations (`ranger_services.configs`) with passwords masked as
+`*****`, and the profiler stores them as Ranger returns them. The users and groups tables do not read the password,
+e-mail address or name fields. Policy descriptions, resource values and conditions are stored as they are. Check the
+extract before you share it, or use `mask_rules` to mask values.
 
 ## Run the profiler
 
@@ -136,7 +313,10 @@ application history.
 
 A failing YARN step is recorded as an error and fails the run. A failing Spark History Server step is recorded as
 absent, so the run still completes. A Spark step with no `spark_history` block is reported as skipped and writes no
-table.
+table. The same holds for the Cloudera Manager steps without a `cloudera_manager` block, for `cm_impala_queries`
+without `extract_impala_queries: true`, for the Ranger steps without a `ranger` block, and for the Impala steps without
+an `impala` block (`impala_catalog` and `impala_statestore` also need their URLs). A Cloudera Manager step that fails, for example on an ambiguous cluster
+choice or an HTTP error, is recorded as absent, so the run still completes.
 
 ## Profiler output
 
@@ -151,6 +331,24 @@ The extract is a timestamped DuckDB file in the output folder. Each step's name 
 | `yarn_applications` | application | User, queue, type, state, timings, memory and vcore seconds, preemption counts, `name` and `diagnostics`. |
 | `spark_applications` | Spark application (optional) | Attempt count, Spark user and version, first start, last end, completed, `name`. |
 | `spark_application_attempts` | Spark application attempt (optional) | Attempt start, end, last update, duration, Spark user and version. |
+| `cm_clusters` | cluster (optional, Cloudera Manager) | Name, display name, full version, API version, CM version, and whether it is the configured cluster. |
+| `cm_services` | service (optional, Cloudera Manager) | Type, state, health summary, maintenance mode, and health checks as JSON text. |
+| `cm_hosts` | host (optional, Cloudera Manager) | Hostname, IP address, rack, commission state, cores and memory. |
+| `cm_host_config` | configuration item (optional, Cloudera Manager) | Name, value and sensitive flag of the host configuration. |
+| `cm_cluster_export` | export row (optional, Cloudera Manager) | Section (`service_config`, `role_config` or `role`), service, role config group, role type, and config name and value. |
+| `cm_timeseries` | sample (optional, Cloudera Manager) | Query name, status (`returned` or `unsupported_by_cm`), metric, entity, cluster, entity attributes as JSON text, time, value, rollup and unit. |
+| `cm_impala_queries` | Impala query (optional, opt-in) | Typed core fields, a few typed attributes (pool, status, admission result, OOM, memory, HDFS bytes, CPU), and all attributes as JSON text. |
+| `ranger_services` | service (optional, Ranger) | Name, type, enabled flag, tag service, policy and tag versions, timestamps, and configs as JSON text. |
+| `ranger_service_defs` | plugin type (optional, Ranger) | Name, label, implementation class, access type count, and access types, resource names and options as JSON text. |
+| `ranger_policies` | policy (optional, Ranger) | Service, name, `policy_type` (`access`, `masking` or `row_filter`), priority, enabled and audit flags, and resources, conditions and validity schedules as JSON text. |
+| `ranger_policy_items` | policy item (optional, Ranger) | Policy id, service, policy name, `item_kind`, users, groups, roles, accesses and conditions as JSON text, delegate admin, and the mask type or row filter expression. |
+| `ranger_users` | user (optional, Ranger) | Name, status, visibility, user source, group and role names, and timestamps. |
+| `ranger_groups` | group (optional, Ranger) | Name, group type and source, visibility, and timestamps. |
+| `impala_queries` | query per daemon (optional, Impala) | Query id, the coordinator URL and host, `is_in_flight`, statement, statement type, user, default database, state, start and end time, duration, queued and waiting time (milliseconds), memory use and estimate, rows fetched, bytes read and sent (bytes), resource pool, progress, and the raw record as JSON text. |
+| `impala_backends` | backend per daemon (optional, Impala) | Address, backend id, coordinator and executor flags, admission memory and slots, executor group, start time, and version. |
+| `impala_daemon_config` | flag per daemon (optional, Impala) | Flag name, type, current value and default for the curated flags. |
+| `impala_catalog` | table (optional, Impala catalogd) | Database, table name, fully qualified name, and whether metrics are available. |
+| `impala_statestore` | subscriber (optional, Impala statestore) | Subscriber id and address, topic counts, registration id, and seconds since its last heartbeat. |
 
 Timestamps are UTC. Counters are `BIGINT` and rates are `DOUBLE`. A column is NULL when the distribution does not
 report that field. A `-1` that YARN uses for "not applicable" is stored as NULL.
@@ -182,9 +380,11 @@ makes the step fail with an error, so match values rather than syntax.
 
 ## Limitations
 
-- **Kerberos** is not supported yet. Use `none` or `basic`, or a gateway that accepts basic authentication.
-- **Scope** is phase 1 only. Cloudera Manager (services, host and time-series metrics, Impala queries), Ambari (the
-  blueprint and host metrics) and Ranger (repositories and policies) are not extracted yet.
+- **Kerberos** is not supported yet. Use `none` or `basic`, or a gateway that accepts basic authentication. This includes
+  the Impala web UIs, which can also use SPNEGO; that is not supported. Use LDAP basic authentication or leave the UIs open.
+- **Scope**. Ambari (the blueprint and host metrics) is not extracted yet. Ranger audit logs are not extracted.
+- **Cloudera Manager time series** cover every cluster the Cloudera Manager server manages, as in the original. Use
+  the `cluster_name` column to filter them.
 - **YARN filters** are not applied. The profiler reads every application in the window.
 - **Lookback** applies to finished applications, which are selected by finish time. An application that started
   before the window and is still running is included; one that finished before it is not.

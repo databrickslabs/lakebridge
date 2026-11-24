@@ -11,6 +11,7 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import 
     MAX_ATTEMPTS,
     READ_TIMEOUT_SECONDS,
     HadoopApiError,
+    HadoopHttpError,
     RestClient,
     find_active_resource_manager,
     normalize_base_url,
@@ -174,3 +175,22 @@ def test_find_active_resource_manager_reports_every_rejection(monkeypatch: pytes
         find_active_resource_manager(["http://rm1:8088", "http://rm2:8088"])
     assert "haState 'STANDBY'" in str(error.value)
     assert "timed out" in str(error.value)
+
+
+def test_plain_text_endpoint_is_returned_without_a_json_check() -> None:
+    """Cloudera Manager answers GET /api/version with plain text such as v12."""
+    client = RestClient("https://cm.example.net:7183", session=_session(_response(body="v12\n")))
+
+    assert client.get_plain_text("/api/version") == "v12\n"
+
+
+def test_http_error_keeps_its_status_and_body_for_callers_that_handle_it() -> None:
+    body = '{"message": "Invalid metric \'impala_memory_rss\' in \'select ...\'"}'
+    client = RestClient("https://cm.example.net:7183", session=_session(_response(status=400, body=body)))
+
+    with pytest.raises(HadoopHttpError) as error:
+        client.get_text("/api/v12/timeseries")
+
+    assert error.value.status_code == 400
+    assert error.value.body == body
+    assert isinstance(error.value, HadoopApiError)

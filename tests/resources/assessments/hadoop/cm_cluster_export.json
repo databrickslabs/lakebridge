@@ -1,0 +1,631 @@
+{
+  "cdhVersion" : "5.7.0",
+  "displayName" : "Cloudera QuickStart",
+  "cmVersion" : "5.7.0",
+  "services" : [ {
+    "refName" : "ks_indexer",
+    "serviceType" : "KS_INDEXER",
+    "serviceConfigs" : [ {
+      "name" : "hbase_service",
+      "ref" : "hbase"
+    }, {
+      "name" : "solr_service",
+      "ref" : "solr"
+    } ],
+    "roleConfigGroups" : [ {
+      "refName" : "ks_indexer-HBASE_INDEXER-BASE",
+      "roleType" : "HBASE_INDEXER",
+      "configs" : [ {
+        "name" : "hbase_indexer_java_heapsize",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    } ]
+  }, {
+    "refName" : "sqoop",
+    "serviceType" : "SQOOP",
+    "serviceConfigs" : [ {
+      "name" : "mapreduce_yarn_service",
+      "ref" : "yarn"
+    } ],
+    "roleConfigGroups" : [ {
+      "refName" : "sqoop-SQOOP_SERVER-BASE",
+      "roleType" : "SQOOP_SERVER",
+      "configs" : [ {
+        "name" : "sqoop_java_heapsize",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    } ]
+  }, {
+    "refName" : "zookeeper",
+    "serviceType" : "ZOOKEEPER",
+    "roleConfigGroups" : [ {
+      "refName" : "zookeeper-SERVER-BASE",
+      "roleType" : "SERVER",
+      "configs" : [ {
+        "name" : "maxSessionTimeout",
+        "value" : "60000"
+      }, {
+        "name" : "zookeeper_server_java_heapsize",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    } ]
+  }, {
+    "refName" : "hue",
+    "serviceType" : "HUE",
+    "serviceConfigs" : [ {
+      "name" : "oozie_service",
+      "ref" : "oozie"
+    }, {
+      "name" : "database_password",
+      "variable" : "hue-database_password"
+    }, {
+      "name" : "hive_service",
+      "ref" : "hive"
+    }, {
+      "name" : "hue_hbase_thrift",
+      "ref" : "hbase-HBASETHRIFTSERVER"
+    }, {
+      "name" : "solr_service",
+      "ref" : "solr"
+    }, {
+      "name" : "database_type",
+      "variable" : "hue-database_type"
+    }, {
+      "name" : "impala_service",
+      "ref" : "impala"
+    }, {
+      "name" : "hbase_service",
+      "ref" : "hbase"
+    }, {
+      "name" : "zookeeper_service",
+      "ref" : "zookeeper"
+    }, {
+      "name" : "hue_webhdfs",
+      "ref" : "hdfs-NAMENODE"
+    }, {
+      "name" : "sqoop_service",
+      "ref" : "sqoop"
+    } ],
+    "roleConfigGroups" : [ {
+      "refName" : "hue-HUE_SERVER-BASE",
+      "roleType" : "HUE_SERVER",
+      "base" : true
+    }, {
+      "refName" : "hue-KT_RENEWER-BASE",
+      "roleType" : "KT_RENEWER",
+      "base" : true
+    }, {
+      "refName" : "hue-HUE_LOAD_BALANCER-BASE",
+      "roleType" : "HUE_LOAD_BALANCER",
+      "base" : true
+    } ]
+  }, {
+    "refName" : "impala",
+    "serviceType" : "IMPALA",
+    "serviceConfigs" : [ {
+      "name" : "hive_service",
+      "ref" : "hive"
+    }, {
+      "name" : "hdfs_service",
+      "ref" : "hdfs"
+    }, {
+      "name" : "hbase_service",
+      "ref" : "hbase"
+    } ],
+    "roleConfigGroups" : [ {
+      "refName" : "impala-STATESTORE-BASE",
+      "roleType" : "STATESTORE",
+      "base" : true
+    }, {
+      "refName" : "impala-IMPALAD-BASE",
+      "roleType" : "IMPALAD",
+      "configs" : [ {
+        "name" : "impalad_memory_limit",
+        "value" : "536870912"
+      }, {
+        "name" : "scratch_dirs",
+        "variable" : "impala-IMPALAD-BASE-scratch_dirs"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "impala-CATALOGSERVER-BASE",
+      "roleType" : "CATALOGSERVER",
+      "base" : true
+    }, {
+      "refName" : "impala-LLAMA-BASE",
+      "roleType" : "LLAMA",
+      "configs" : [ {
+        "name" : "llama_bind_wildcard",
+        "value" : "true"
+      } ],
+      "base" : true
+    } ]
+  }, {
+    "refName" : "oozie",
+    "serviceType" : "OOZIE",
+    "serviceConfigs" : [ {
+      "name" : "mapreduce_yarn_service",
+      "ref" : "yarn"
+    }, {
+      "name" : "hive_service",
+      "ref" : "hive"
+    }, {
+      "name" : "zookeeper_service",
+      "ref" : "zookeeper"
+    } ],
+    "roleConfigGroups" : [ {
+      "refName" : "oozie-OOZIE_SERVER-BASE",
+      "roleType" : "OOZIE_SERVER",
+      "configs" : [ {
+        "name" : "oozie_database_password",
+        "variable" : "oozie-OOZIE_SERVER-BASE-oozie_database_password"
+      }, {
+        "name" : "oozie_database_type",
+        "variable" : "oozie-OOZIE_SERVER-BASE-oozie_database_type"
+      }, {
+        "name" : "oozie_database_user",
+        "variable" : "oozie-OOZIE_SERVER-BASE-oozie_database_user"
+      }, {
+        "name" : "oozie_database_host",
+        "variable" : "oozie-OOZIE_SERVER-BASE-oozie_database_host"
+      }, {
+        "name" : "oozie_java_heapsize",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    } ]
+  }, {
+    "refName" : "hdfs",
+    "serviceType" : "HDFS",
+    "serviceConfigs" : [ {
+      "name" : "dfs_block_local_path_access_user",
+      "value" : "impala"
+    }, {
+      "name" : "dfs_replication",
+      "value" : "1"
+    }, {
+      "name" : "zookeeper_service",
+      "ref" : "zookeeper"
+    } ],
+    "roleConfigGroups" : [ {
+      "refName" : "hdfs-DATANODE-BASE",
+      "roleType" : "DATANODE",
+      "configs" : [ {
+        "name" : "dfs_datanode_max_locked_memory",
+        "value" : "52428800"
+      }, {
+        "name" : "dfs_datanode_data_dir_perm",
+        "value" : "755"
+      }, {
+        "name" : "datanode_java_heapsize",
+        "value" : "52428800"
+      }, {
+        "name" : "dfs_datanode_du_reserved",
+        "value" : "52428800"
+      }, {
+        "name" : "dfs_data_dir_list",
+        "value" : "/var/lib/hadoop-hdfs/cache/hdfs/dfs/data"
+      }, {
+        "name" : "dfs_datanode_bind_wildcard",
+        "value" : "true"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "hdfs-FAILOVERCONTROLLER-BASE",
+      "roleType" : "FAILOVERCONTROLLER",
+      "base" : true
+    }, {
+      "refName" : "hdfs-NAMENODE-BASE",
+      "roleType" : "NAMENODE",
+      "configs" : [ {
+        "name" : "namenode_java_heapsize",
+        "value" : "52428800"
+      }, {
+        "name" : "namenode_bind_wildcard",
+        "value" : "true"
+      }, {
+        "name" : "dfs_namenode_servicerpc_address",
+        "value" : "8022"
+      }, {
+        "name" : "dfs_name_dir_list",
+        "variable" : "hdfs-NAMENODE-BASE-dfs_name_dir_list"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "hdfs-GATEWAY-BASE",
+      "roleType" : "GATEWAY",
+      "configs" : [ {
+        "name" : "dfs_client_use_trash",
+        "value" : "true"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "hdfs-BALANCER-BASE",
+      "roleType" : "BALANCER",
+      "configs" : [ {
+        "name" : "balancer_java_heapsize",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "hdfs-SECONDARYNAMENODE-BASE",
+      "roleType" : "SECONDARYNAMENODE",
+      "configs" : [ {
+        "name" : "secondary_namenode_java_heapsize",
+        "value" : "52428800"
+      }, {
+        "name" : "secondary_namenode_bind_wildcard",
+        "value" : "true"
+      }, {
+        "name" : "fs_checkpoint_dir_list",
+        "variable" : "hdfs-SECONDARYNAMENODE-BASE-fs_checkpoint_dir_list"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "hdfs-JOURNALNODE-BASE",
+      "roleType" : "JOURNALNODE",
+      "configs" : [ {
+        "name" : "journalnode_bind_wildcard",
+        "value" : "true"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "hdfs-HTTPFS-BASE",
+      "roleType" : "HTTPFS",
+      "base" : true
+    }, {
+      "refName" : "hdfs-NFSGATEWAY-BASE",
+      "roleType" : "NFSGATEWAY",
+      "base" : true
+    } ],
+    "roles" : [ {
+      "refName" : "hdfs-NAMENODE",
+      "roleType" : "NAMENODE"
+    } ]
+  }, {
+    "refName" : "solr",
+    "serviceType" : "SOLR",
+    "serviceConfigs" : [ {
+      "name" : "hdfs_service",
+      "ref" : "hdfs"
+    }, {
+      "name" : "zookeeper_service",
+      "ref" : "zookeeper"
+    } ],
+    "roleConfigGroups" : [ {
+      "refName" : "solr-GATEWAY-BASE",
+      "roleType" : "GATEWAY",
+      "base" : true
+    }, {
+      "refName" : "solr-SOLR_SERVER-BASE",
+      "roleType" : "SOLR_SERVER",
+      "configs" : [ {
+        "name" : "solr_java_direct_memory_size",
+        "value" : "268435456"
+      }, {
+        "name" : "solr_java_heapsize",
+        "value" : "209715200"
+      } ],
+      "base" : true
+    } ]
+  }, {
+    "refName" : "hbase",
+    "serviceType" : "HBASE",
+    "serviceConfigs" : [ {
+      "name" : "hdfs_service",
+      "ref" : "hdfs"
+    }, {
+      "name" : "hbase_enable_indexing",
+      "value" : "true"
+    }, {
+      "name" : "zookeeper_service",
+      "ref" : "zookeeper"
+    }, {
+      "name" : "hbase_enable_replication",
+      "value" : "true"
+    } ],
+    "roleConfigGroups" : [ {
+      "refName" : "hbase-HBASETHRIFTSERVER-BASE",
+      "roleType" : "HBASETHRIFTSERVER",
+      "configs" : [ {
+        "name" : "hbase_thriftserver_java_heapsize",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "hbase-MASTER-BASE",
+      "roleType" : "MASTER",
+      "configs" : [ {
+        "name" : "hbase_master_java_heapsize",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "hbase-GATEWAY-BASE",
+      "roleType" : "GATEWAY",
+      "base" : true
+    }, {
+      "refName" : "hbase-HBASERESTSERVER-BASE",
+      "roleType" : "HBASERESTSERVER",
+      "base" : true
+    }, {
+      "refName" : "hbase-REGIONSERVER-BASE",
+      "roleType" : "REGIONSERVER",
+      "configs" : [ {
+        "name" : "hbase_regionserver_java_heapsize",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    } ],
+    "roles" : [ {
+      "refName" : "hbase-HBASETHRIFTSERVER",
+      "roleType" : "HBASETHRIFTSERVER"
+    } ]
+  }, {
+    "refName" : "yarn",
+    "serviceType" : "YARN",
+    "serviceConfigs" : [ {
+      "name" : "hdfs_service",
+      "ref" : "hdfs"
+    }, {
+      "name" : "zookeeper_service",
+      "ref" : "zookeeper"
+    } ],
+    "roleConfigGroups" : [ {
+      "refName" : "yarn-RESOURCEMANAGER-BASE",
+      "roleType" : "RESOURCEMANAGER",
+      "configs" : [ {
+        "name" : "yarn_scheduler_maximum_allocation_vcores",
+        "value" : "2"
+      }, {
+        "name" : "resource_manager_java_heapsize",
+        "value" : "52428800"
+      }, {
+        "name" : "yarn_scheduler_minimum_allocation_mb",
+        "value" : "1"
+      }, {
+        "name" : "yarn_scheduler_maximum_allocation_mb",
+        "value" : "2816"
+      }, {
+        "name" : "yarn_rm_bind_wildcard",
+        "value" : "true"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "yarn-JOBHISTORY-BASE",
+      "roleType" : "JOBHISTORY",
+      "configs" : [ {
+        "name" : "yarn_jobhistory_bind_wildcard",
+        "value" : "true"
+      }, {
+        "name" : "mr2_jobhistory_java_heapsize",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "yarn-GATEWAY-BASE",
+      "roleType" : "GATEWAY",
+      "configs" : [ {
+        "name" : "mapred_submit_replication",
+        "value" : "1"
+      }, {
+        "name" : "io_sort_mb",
+        "value" : "16"
+      }, {
+        "name" : "mapreduce_reduce_memory_mb",
+        "value" : "128"
+      }, {
+        "name" : "mapreduce_map_memory_mb",
+        "value" : "128"
+      }, {
+        "name" : "yarn_app_mapreduce_am_resource_mb",
+        "value" : "128"
+      }, {
+        "name" : "yarn_app_mapreduce_am_max_heap",
+        "value" : "52428800"
+      }, {
+        "name" : "mapreduce_client_java_heapsize",
+        "value" : "52428800"
+      }, {
+        "name" : "mapreduce_reduce_java_opts_max_heap",
+        "value" : "52428800"
+      }, {
+        "name" : "mapreduce_map_java_opts_max_heap",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "yarn-NODEMANAGER-BASE",
+      "roleType" : "NODEMANAGER",
+      "configs" : [ {
+        "name" : "yarn_nodemanager_resource_memory_mb",
+        "value" : "3072"
+      }, {
+        "name" : "yarn_nodemanager_local_dirs",
+        "variable" : "yarn-NODEMANAGER-BASE-yarn_nodemanager_local_dirs"
+      }, {
+        "name" : "yarn_nodemanager_resource_cpu_vcores",
+        "value" : "3"
+      }, {
+        "name" : "node_manager_java_heapsize",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    } ]
+  }, {
+    "refName" : "spark_on_yarn",
+    "serviceType" : "SPARK_ON_YARN",
+    "serviceConfigs" : [ {
+      "name" : "yarn_service",
+      "ref" : "yarn"
+    } ],
+    "roleConfigGroups" : [ {
+      "refName" : "spark_on_yarn-GATEWAY-BASE",
+      "roleType" : "GATEWAY",
+      "base" : true
+    }, {
+      "refName" : "spark_on_yarn-SPARK_YARN_HISTORY_SERVER-BASE",
+      "roleType" : "SPARK_YARN_HISTORY_SERVER",
+      "configs" : [ {
+        "name" : "history_server_max_heapsize",
+        "value" : "67108864"
+      } ],
+      "base" : true
+    } ]
+  }, {
+    "refName" : "hive",
+    "serviceType" : "HIVE",
+    "serviceConfigs" : [ {
+      "name" : "hive_metastore_database_user",
+      "variable" : "hive-hive_metastore_database_user"
+    }, {
+      "name" : "mapreduce_yarn_service",
+      "ref" : "yarn"
+    }, {
+      "name" : "hive_metastore_database_name",
+      "variable" : "hive-hive_metastore_database_name"
+    }, {
+      "name" : "spark_on_yarn_service",
+      "ref" : "spark_on_yarn"
+    }, {
+      "name" : "hive_metastore_database_type",
+      "variable" : "hive-hive_metastore_database_type"
+    }, {
+      "name" : "hive_metastore_database_host",
+      "variable" : "hive-hive_metastore_database_host"
+    }, {
+      "name" : "zookeeper_service",
+      "ref" : "zookeeper"
+    }, {
+      "name" : "hive_metastore_database_password",
+      "variable" : "hive-hive_metastore_database_password"
+    }, {
+      "name" : "hive_metastore_database_port",
+      "variable" : "hive-hive_metastore_database_port"
+    } ],
+    "roleConfigGroups" : [ {
+      "refName" : "hive-WEBHCAT-BASE",
+      "roleType" : "WEBHCAT",
+      "base" : true
+    }, {
+      "refName" : "hive-GATEWAY-BASE",
+      "roleType" : "GATEWAY",
+      "configs" : [ {
+        "name" : "hive_client_java_heapsize",
+        "value" : "134217728"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "hive-HIVESERVER2-BASE",
+      "roleType" : "HIVESERVER2",
+      "configs" : [ {
+        "name" : "hiveserver2_spark_yarn_driver_memory_overhead",
+        "value" : "64"
+      }, {
+        "name" : "hiveserver2_spark_executor_memory",
+        "value" : "52428800"
+      }, {
+        "name" : "hiveserver2_spark_yarn_executor_memory_overhead",
+        "value" : "64"
+      }, {
+        "name" : "hiveserver2_java_heapsize",
+        "value" : "52428800"
+      }, {
+        "name" : "hiveserver2_spark_driver_memory",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    }, {
+      "refName" : "hive-HIVEMETASTORE-BASE",
+      "roleType" : "HIVEMETASTORE",
+      "configs" : [ {
+        "name" : "hive_metastore_java_heapsize",
+        "value" : "52428800"
+      } ],
+      "base" : true
+    } ]
+  }, {
+    "refName" : "sqoop_client",
+    "serviceType" : "SQOOP_CLIENT",
+    "roleConfigGroups" : [ {
+      "refName" : "sqoop_client-GATEWAY-BASE",
+      "roleType" : "GATEWAY",
+      "base" : true
+    } ]
+  } ],
+  "hostTemplates" : [ {
+    "refName" : "HostTemplate-0-from-quickstart.cloudera",
+    "cardinality" : 1,
+    "roleConfigGroupsRefNames" : [ "hbase-HBASETHRIFTSERVER-BASE", "hbase-MASTER-BASE", "hbase-REGIONSERVER-BASE", "hdfs-BALANCER-BASE", "hdfs-DATANODE-BASE", "hdfs-NAMENODE-BASE", "hdfs-SECONDARYNAMENODE-BASE", "hive-GATEWAY-BASE", "hive-HIVEMETASTORE-BASE", "hive-HIVESERVER2-BASE", "hue-HUE_SERVER-BASE", "impala-CATALOGSERVER-BASE", "impala-IMPALAD-BASE", "impala-STATESTORE-BASE", "ks_indexer-HBASE_INDEXER-BASE", "oozie-OOZIE_SERVER-BASE", "solr-SOLR_SERVER-BASE", "spark_on_yarn-GATEWAY-BASE", "spark_on_yarn-SPARK_YARN_HISTORY_SERVER-BASE", "sqoop-SQOOP_SERVER-BASE", "sqoop_client-GATEWAY-BASE", "yarn-JOBHISTORY-BASE", "yarn-NODEMANAGER-BASE", "yarn-RESOURCEMANAGER-BASE", "zookeeper-SERVER-BASE" ]
+  } ],
+  "instantiator" : {
+    "clusterName" : "<changeme>",
+    "hosts" : [ {
+      "hostName" : "<changeme>",
+      "hostTemplateRefName" : "<changeme>",
+      "roleRefNames" : [ "hbase-HBASETHRIFTSERVER" ]
+    }, {
+      "hostName" : "<changeme>",
+      "hostTemplateRefName" : "<changeme>",
+      "roleRefNames" : [ "hdfs-NAMENODE" ]
+    }, {
+      "hostName" : "<changeme>",
+      "hostTemplateRefName" : "<changeme>"
+    }, {
+      "hostNameRange" : "<HOST[0001-0002]>",
+      "hostTemplateRefName" : "<changeme>"
+    } ],
+    "variables" : [ {
+      "name" : "hdfs-NAMENODE-BASE-dfs_name_dir_list",
+      "value" : "/var/lib/hadoop-hdfs/cache/hdfs/dfs/name"
+    }, {
+      "name" : "hdfs-SECONDARYNAMENODE-BASE-fs_checkpoint_dir_list",
+      "value" : "/dfs/snn"
+    }, {
+      "name" : "hive-hive_metastore_database_host",
+      "value" : "quickstart.cloudera"
+    }, {
+      "name" : "hive-hive_metastore_database_name",
+      "value" : "metastore"
+    }, {
+      "name" : "hive-hive_metastore_database_password",
+      "value" : "<changeme>"
+    }, {
+      "name" : "hive-hive_metastore_database_port",
+      "value" : "3306"
+    }, {
+      "name" : "hive-hive_metastore_database_type",
+      "value" : "mysql"
+    }, {
+      "name" : "hive-hive_metastore_database_user",
+      "value" : "hive"
+    }, {
+      "name" : "hue-database_password",
+      "value" : "<changeme>"
+    }, {
+      "name" : "hue-database_type",
+      "value" : "mysql"
+    }, {
+      "name" : "impala-IMPALAD-BASE-scratch_dirs",
+      "value" : "/impala/impalad"
+    }, {
+      "name" : "oozie-OOZIE_SERVER-BASE-oozie_database_host",
+      "value" : "quickstart.cloudera"
+    }, {
+      "name" : "oozie-OOZIE_SERVER-BASE-oozie_database_password",
+      "value" : "<changeme>"
+    }, {
+      "name" : "oozie-OOZIE_SERVER-BASE-oozie_database_type",
+      "value" : "mysql"
+    }, {
+      "name" : "oozie-OOZIE_SERVER-BASE-oozie_database_user",
+      "value" : "oozie"
+    }, {
+      "name" : "yarn-NODEMANAGER-BASE-yarn_nodemanager_local_dirs",
+      "value" : "/yarn/nm"
+    } ]
+  }
+}

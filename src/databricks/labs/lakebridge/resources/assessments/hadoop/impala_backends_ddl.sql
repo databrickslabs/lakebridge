@@ -1,0 +1,20 @@
+CREATE TABLE impala_backends (
+    coordinator_url VARCHAR,
+    address VARCHAR,
+    backend_id VARCHAR,
+    webserver_url VARCHAR,
+    is_coordinator BOOLEAN,
+    is_executor BOOLEAN,
+    is_active BOOLEAN,
+    is_quiescing BOOLEAN,
+    is_blacklisted BOOLEAN,
+    executor_groups VARCHAR,
+    admit_mem_limit_bytes BIGINT,
+    mem_reserved_bytes BIGINT,
+    mem_admitted_bytes BIGINT,
+    admission_slots BIGINT,
+    admission_slots_in_use BIGINT,
+    num_admitted BIGINT,
+    process_start_time TIMESTAMP,
+    version VARCHAR
+)
