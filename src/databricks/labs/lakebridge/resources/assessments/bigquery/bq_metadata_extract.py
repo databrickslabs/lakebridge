@@ -18,10 +18,11 @@ from databricks.labs.lakebridge.resources.assessments.common.cli import argument
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import save_to_duckdb
 from databricks.labs.lakebridge.resources.assessments.common.sql_substituter import substitute
 
-# google.api_core emits a FutureWarning about Python <3.11 EOL on import; not actionable here.
-# Scope the suppression to the import so we don't mask the same warning elsewhere.
+# The google libraries emit a FutureWarning on import when the Python version is deprecated or
+# unsupported; not actionable here. Its wording changes as the version ages, so ignore the category
+# rather than the message, scoped to the import so we don't mask FutureWarnings elsewhere.
 with warnings.catch_warnings():
-    warnings.filterwarnings("ignore", message="You are using a Python version", category=FutureWarning)
+    warnings.simplefilter("ignore", FutureWarning)
     from google.cloud import bigquery
 
 logger = get_logger(__file__)

@@ -10,7 +10,7 @@ class SynapseQueries:
                    STATE,
                    STATE_DESC,
                    COLLATION_NAME
-               FROM SYS.DATABASES WHERE NAME <> 'master' ;
+               FROM sys.databases WHERE NAME <> 'master' ;
                """
 
     @staticmethod
@@ -101,7 +101,7 @@ class SynapseQueries:
                    SPECIFIC_SCHEMA,
                    SQL_DATA_ACCESS,
                    '{pool_name}' as POOL_NAME
-                   FROM information_schema.routines
+                   FROM INFORMATION_SCHEMA.ROUTINES
                    """
 
     @staticmethod
@@ -147,7 +147,7 @@ class SynapseQueries:
                       '{workspace_name}' as WORKSPACE_NAME,
                       '{pool_name}' as POOL_NAME,
                       CURRENT_TIMESTAMP as EXTRACT_TS
-                     FROM SYS.DM_PDW_EXEC_SESSIONS
+                     FROM sys.dm_pdw_exec_sessions
                      where CHARINDEX('system', LOWER(login_name)) = 0
                          {cond}
                      """
@@ -238,7 +238,7 @@ class SynapseQueries:
                 IMPORTANCE,
                 [LABEL],
                 REQUEST_ID,
-                RESOURCE_ALLOCATION_PERCENTAGE,
+                CAST(RESOURCE_ALLOCATION_PERCENTAGE AS FLOAT) AS RESOURCE_ALLOCATION_PERCENTAGE,
                 RESOURCE_CLASS,
                 RESULT_CACHE_HIT,
                 SESSION_ID,
@@ -322,7 +322,7 @@ class SynapseQueries:
                         ELSE 'OTHER'
                     END AS command_type
 
-                FROM SYS.DM_PDW_EXEC_REQUESTS
+                FROM sys.dm_pdw_exec_requests
                 WHERE START_TIME IS NOT NULL
                 AND COMMAND IS NOT NULL
                 {end_time_filter}
@@ -339,7 +339,7 @@ class SynapseQueries:
                        '{workspace_name}' as WORKSPACE_NAME,
                        '{pool_name}' as POOL_NAME,
                         CURRENT_TIMESTAMP AS EXTRACT_TS
-                    FROM SYS.DM_PDW_NODES_DB_PARTITION_STATS
+                    FROM sys.dm_pdw_nodes_db_partition_stats
                     GROUP BY PDW_NODE_ID
                """
 
@@ -426,12 +426,12 @@ class SynapseQueries:
                    I.TYPE_DESC AS INDEX_TYPE,
                    P.ROWS AS ROW_COUNT,
                    P.DATA_COMPRESSION_DESC AS COMPRESSION_TYPE,
-                   AU.TOTAL_PAGES * 8.0 / 1024 AS TOTAL_SIZE_MB,
-                   AU.USED_PAGES * 8.0 / 1024 AS USED_SIZE_MB,
+                   CAST(AU.TOTAL_PAGES * 8.0 / 1024 AS FLOAT) AS TOTAL_SIZE_MB,
+                   CAST(AU.USED_PAGES * 8.0 / 1024 AS FLOAT) AS USED_SIZE_MB,
                    CURRENT_TIMESTAMP AS EXTRACT_TS
-               FROM SYS.PARTITIONS P
-                        INNER JOIN SYS.INDEXES I ON P.OBJECT_ID = I.OBJECT_ID AND P.INDEX_ID = I.INDEX_ID
-                        INNER JOIN SYS.ALLOCATION_UNITS AU ON P.PARTITION_ID = AU.CONTAINER_ID
+               FROM sys.partitions P
+                        INNER JOIN sys.indexes I ON P.OBJECT_ID = I.OBJECT_ID AND P.INDEX_ID = I.INDEX_ID
+                        INNER JOIN sys.allocation_units AU ON P.PARTITION_ID = AU.CONTAINER_ID
                WHERE P.OBJECT_ID > 255
                """
 
@@ -441,15 +441,15 @@ class SynapseQueries:
         return f"""
             SELECT
                 qs.EXECUTION_COUNT,
-                QS.TOTAL_ELAPSED_TIME / 1000000.0 AS TOTAL_ELAPSED_TIME_SEC,
-                QS.TOTAL_WORKER_TIME / 1000000.0 AS TOTAL_WORKER_TIME_SEC,
+                CAST(QS.TOTAL_ELAPSED_TIME / 1000000.0 AS FLOAT) AS TOTAL_ELAPSED_TIME_SEC,
+                CAST(QS.TOTAL_WORKER_TIME / 1000000.0 AS FLOAT) AS TOTAL_WORKER_TIME_SEC,
                 QS.TOTAL_LOGICAL_READS,
                 QS.TOTAL_PHYSICAL_READS,
                 QS.TOTAL_LOGICAL_WRITES,
                 QS.LAST_EXECUTION_TIME,
                 QS.CREATION_TIME,
-                QS.LAST_ELAPSED_TIME / 1000000.0 AS LAST_ELAPSED_TIME_SEC,
-                QS.LAST_WORKER_TIME / 1000000.0 AS LAST_WORKER_TIME_SEC,
+                CAST(QS.LAST_ELAPSED_TIME / 1000000.0 AS FLOAT) AS LAST_ELAPSED_TIME_SEC,
+                CAST(QS.LAST_WORKER_TIME / 1000000.0 AS FLOAT) AS LAST_WORKER_TIME_SEC,
                 QS.LAST_LOGICAL_READS,
                 QS.LAST_PHYSICAL_READS,
                 QS.LAST_LOGICAL_WRITES,
@@ -460,7 +460,7 @@ class SynapseQueries:
                 QS.STATEMENT_START_OFFSET,
                 QS.STATEMENT_END_OFFSET,
                 CURRENT_TIMESTAMP as EXTRACT_TS
-            FROM SYS.DM_EXEC_QUERY_STATS QS
+            FROM sys.dm_exec_query_stats QS
             WHERE QS.last_execution_time >= DATEADD(day, -{days}, GETDATE())
         """
 
@@ -554,5 +554,5 @@ class SynapseQueries:
             '{workspace_name}' as WORKSPACE_NAME,
             '{pool_name}' as POOL_NAME,
             CURRENT_TIMESTAMP AS EXTRACT_TS
-            FROM SYS.DM_EXTERNAL_DATA_PROCESSED
+            FROM sys.dm_external_data_processed
         """

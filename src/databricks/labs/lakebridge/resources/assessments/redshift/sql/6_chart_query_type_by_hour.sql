@@ -1,7 +1,7 @@
 -- 6 - Chart: query_type_by_hour
 select 'chart_query_type_by_hour' set_name
       ,query_type
-      ,date_part(hour, start_time) as hour
+      ,date_part(hour, start_time)::int as hour
       ,count(*) as count
   from query_view
  group by 1, 2, 3

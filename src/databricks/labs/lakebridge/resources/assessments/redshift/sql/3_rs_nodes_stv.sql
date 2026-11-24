@@ -23,5 +23,6 @@ select 'rs_nodes' set_name
          else	'unknown'
        end as	rs_nodes_type
       ,(select count(distinct	host)	from stv_partitions) as	rs_number_of_nodes
+      ,null::double precision as compute_seconds
   from par
 ;

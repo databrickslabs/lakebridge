@@ -102,8 +102,10 @@ This executes the extraction steps defined in the selected variant's pipeline co
 DuckDB extract in the output folder, named:
 
 ```
-profiler_extract_<source-tech>_<version>_<YYYYMMDD>.db
+profiler_extract_<source-tech>_<version>_<YYYYMMDDTHHMMSSZ>.db
 ```
+
+The suffix is the run's start time in UTC, so each run writes a new extract.
 
 The extract contains the system, storage, object, user-database, UDF, and workload tables gathered from the source.
 

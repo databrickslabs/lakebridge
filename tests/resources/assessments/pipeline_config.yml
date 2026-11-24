@@ -5,18 +5,21 @@ steps:
   - name: inventory
     type: sql
     extract_source: assessments/inventory.sql
+    ddl_source: assessments/inventory_ddl.sql
     mode: overwrite
     frequency: daily
     flag: active
   - name: usage
     type: sql
     extract_source: assessments/usage.sql
+    ddl_source: assessments/usage_ddl.sql
     mode: overwrite
     frequency: weekly
     flag: active
   - name: usage_2
     type: sql
     extract_source: assessments/usage.sql
+    ddl_source: assessments/usage_ddl.sql
     mode: overwrite
     frequency: daily
     flag: inactive

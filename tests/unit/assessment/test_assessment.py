@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+import pytest
 import yaml
 from databricks.labs.blueprint.tui import MockPrompts
 
@@ -7,6 +8,7 @@ from databricks.labs.lakebridge.assessments.configure_assessment import (
     REDSHIFT_AUTH_TYPES,
     ConfigureBigQueryAssessment,
     ConfigureLegacySynapseAssessment,
+    ConfigureOracleAssessment,
     ConfigureRedshiftAssessment,
     ConfigureSqlServerAssessment,
     ConfigureSynapseAssessment,
@@ -472,6 +474,48 @@ def test_configure_teradata_credentials(tmp_path):
         credentials = yaml.safe_load(handle)
 
     assert credentials == expected_credentials
+
+
+@pytest.mark.parametrize(
+    ("identifier_choice", "expected_identifiers"),
+    [
+        # `prompts.choice` is called with `sort=False`, so the index follows the order in the code.
+        pytest.param(0, {"db_service_name": "ORCLCDB"}, id="service-name"),
+        pytest.param(1, {"sid": "ORCLCDB"}, id="sid"),
+    ],
+)
+def test_configure_oracle_credentials(tmp_path, identifier_choice, expected_identifiers):
+    prompts = MockPrompts(
+        {
+            r"Enter secret vault type \(local \| env\)": sorted(['local', 'env']).index("local"),
+            r"Enter the host details": "scan.example.com",
+            r"Enter the host port number": "1521",
+            r"Connect to Oracle using": identifier_choice,
+            r"Enter the Oracle (service name|SID)": "ORCLCDB",
+            r"Enter user with privileges": "PROFILER",
+            r"Enter user password": "secret",
+            r"Do you want to test the connection to oracle\?": "no",
+        }
+    )
+    file = tmp_path / ".credentials.yml"
+    assessment = ConfigureOracleAssessment(
+        product_name="lakebridge", source_name="oracle", prompts=prompts, credential_file=file
+    )
+    assessment.run()
+
+    with open(file, 'r', encoding='utf-8') as handle:
+        credentials = yaml.safe_load(handle)
+
+    assert credentials == {
+        'secret_vault_type': 'local',
+        'oracle': {
+            'host': 'scan.example.com',
+            'port': 1521,
+            'user': 'PROFILER',
+            'password': 'secret',
+            **expected_identifiers,
+        },
+    }
 
 
 def test_configure_redshift_credentials_sql_authentication(tmp_path):

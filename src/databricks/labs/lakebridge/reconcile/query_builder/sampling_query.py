@@ -132,6 +132,10 @@ class SamplingQueryBuilder(QueryBuilder):
         if get_key_from_dialect(self.engine) == "databricks":
             return self._recon_subquery_from_temp_view(df)
         column_types_dict = {str(f.name).lower(): f.dataType for f in df.schema.fields}
+        # Redshift external/Spectrum tables report Spark/Glue type names (e.g. "string") that
+        # Redshift cannot CAST to verbatim; render the literal's cast type in the source dialect
+        # so it is valid. Other engines already report in-dialect types, so leave them untouched.
+        cast_dialect = self.engine if get_key_from_dialect(self.engine) == "redshift" else None
         quoted = self._is_add_quotes
         one_row_table = _one_row_table(self.engine)
         union_res: list[exp.Select] = []
@@ -146,6 +150,7 @@ class SamplingQueryBuilder(QueryBuilder):
                             alias=alias,
                             is_string=_get_is_string(column_types_dict, col),
                             cast=cast_types.get(DialectUtils.ansi_normalize_identifier(col)),
+                            cast_dialect=cast_dialect,
                             quoted=quoted,
                         )
                     )

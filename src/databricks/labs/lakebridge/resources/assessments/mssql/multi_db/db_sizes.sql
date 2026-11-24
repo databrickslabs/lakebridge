@@ -8,7 +8,7 @@
 SET NOCOUNT ON;
 
 DECLARE @results TABLE (
-    database_name SYSNAME,
+    DATABASE_NAME SYSNAME,
     FileName SYSNAME,
     type_desc NVARCHAR(60),
     CurrentSizeMB FLOAT,
@@ -28,7 +28,7 @@ FETCH NEXT FROM db_cursor INTO @name;
 WHILE @@FETCH_STATUS = 0
 BEGIN
     SET @sql = N'USE ' + QUOTENAME(@name) + N';'
-        + N' SELECT DB_NAME() AS database_name, [name] AS FileName, type_desc,'
+        + N' SELECT DB_NAME() AS DATABASE_NAME, [name] AS FileName, type_desc,'
         + N' CAST(size / 128.0 AS FLOAT) AS CurrentSizeMB,'
         + N' CAST(size / 128.0 - CAST(FILEPROPERTY([name], ''SpaceUsed'') AS INT) / 128.0 AS FLOAT) AS FreeSpaceInMB,'
         + N' CAST(max_size AS BIGINT) AS MaxSize, SYSDATETIME() AS extract_ts'
@@ -40,5 +40,5 @@ END
 CLOSE db_cursor;
 DEALLOCATE db_cursor;
 
-SELECT database_name, FileName, type_desc, CurrentSizeMB, FreeSpaceInMB, MaxSize, extract_ts
+SELECT DATABASE_NAME, FileName, type_desc, CurrentSizeMB, FreeSpaceInMB, MaxSize, extract_ts
 FROM   @results;
