@@ -18,6 +18,7 @@ _HADOOP = _REPO_ROOT / "src/databricks/labs/lakebridge/resources/assessments/had
 _PIPELINE_CONFIG = _HADOOP / "pipeline_config.yml"
 _NON_STEP_MODULES = {
     "__init__",
+    "ambari",
     "kerberos",
     "cloudera_manager",
     "endpoints",
@@ -44,6 +45,15 @@ _RANGER_STEPS = {
     "ranger_policy_items",
     "ranger_users",
     "ranger_groups",
+}
+_AMBARI_STEPS = {
+    "ambari_blueprint",
+    "ambari_blueprint_configurations",
+    "ambari_hosts",
+    "ambari_services",
+    "ambari_host_components",
+    "ambari_stack_versions",
+    "ambari_component_metrics",
 }
 _IMPALA_STEPS = {
     "impala_queries",
@@ -115,7 +125,9 @@ def test_pipeline_config_labels_and_optional_steps() -> None:
     # Like the original Hadoop profiler, nothing is redacted, so no step needs the `unredacted` label.
     assert not labelled
     # The Spark History Server and Cloudera Manager are optional; the YARN ResourceManager is the core of the profile.
-    assert optional == {"spark_applications", "spark_application_attempts"} | _CM_STEPS | _RANGER_STEPS | _IMPALA_STEPS
+    assert optional == (
+        {"spark_applications", "spark_application_attempts"} | _CM_STEPS | _RANGER_STEPS | _IMPALA_STEPS | _AMBARI_STEPS
+    )
 
 
 @pytest.mark.parametrize("step", ["yarn_applications", "spark_applications"])

@@ -52,11 +52,18 @@ Example::
         catalogd_url: http://catalogd.example.com:25020     # optional; enables the impala_catalog step
         statestored_url: http://statestored.example.com:25010   # optional; enables the impala_statestore step
         verify_ssl: true
+      ambari:                        # optional: the Ambari steps are skipped when this is absent (HDP and HDInsight)
+        url: http://ambari.example.com:8080   # or the HDInsight gateway: https://<cluster>.azurehdinsight.net (no port)
+        auth: basic
+        username: admin
+        password: ...
+        verify_ssl: true
+        cluster: "Sandbox HDP"       # optional; detected when Ambari manages exactly one cluster
       mask_rules:                    # optional search/replace on every REST response (the original sed.txt)
         - pattern: 'internal\.example\.com'
           replacement: 'masked.example'
 
-Other sections (for example ``ambari``) are added in later phases and are ignored here.
+Other sections are ignored here.
 """
 
 import re
@@ -130,6 +137,15 @@ class ClouderaManagerConfig:
 
 
 @dataclass(frozen=True)
+class AmbariConfig:
+    """The Ambari Server, or an HDInsight gateway, that serves the cluster's blueprint, hosts and components."""
+
+    endpoint: RestEndpoint
+    # Detected when Ambari manages exactly one cluster when None. Cluster names may contain spaces.
+    cluster: str | None = None
+
+
+@dataclass(frozen=True)
 class ImpalaConfig:
     """Impala debug web UIs: one impalad per coordinator, plus optional catalogd and statestored."""
 
@@ -160,6 +176,7 @@ class HadoopConfig:
     cloudera_manager: ClouderaManagerConfig | None = None
     ranger: RestEndpoint | None = None
     impala: ImpalaConfig | None = None
+    ambari: AmbariConfig | None = None
 
     def mask(self, text: str) -> str:
         for rule in self.mask_rules:
@@ -186,6 +203,7 @@ def parse_hadoop_config(raw: Any) -> HadoopConfig:
         cloudera_manager=_cloudera_manager(raw.get("cloudera_manager"), lookback_days),
         ranger=_endpoint(raw.get("ranger"), "ranger", multiple_urls=False),
         impala=_impala(raw.get("impala")),
+        ambari=_ambari(raw.get("ambari")),
     )
 
 
@@ -275,6 +293,18 @@ def _impala(raw: Any) -> ImpalaConfig | None:
         catalogd_url=_optional_service_url(raw.get("catalogd_url"), "hadoop.impala.catalogd_url"),
         statestored_url=_optional_service_url(raw.get("statestored_url"), "hadoop.impala.statestored_url"),
     )
+
+
+def _ambari(raw: Any) -> AmbariConfig | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise HadoopConfigError("hadoop.ambari must be a mapping")
+    endpoint = _endpoint(raw, "ambari", multiple_urls=False)
+    if endpoint is None:  # pragma: no cover  (raw is a mapping, so _endpoint never returns None here)
+        raise HadoopConfigError("hadoop.ambari is not configured")
+    cluster = _optional_text(raw.get("cluster"))
+    return AmbariConfig(endpoint=endpoint, cluster=(cluster.strip() if cluster else None) or None)
 
 
 def _optional_service_url(raw: Any, key: str) -> str | None:

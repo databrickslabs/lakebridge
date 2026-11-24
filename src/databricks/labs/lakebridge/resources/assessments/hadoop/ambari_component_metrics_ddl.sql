@@ -1,0 +1,20 @@
+CREATE TABLE ambari_component_metrics (
+    cluster_name VARCHAR,
+    service_name VARCHAR,
+    component_name VARCHAR,
+    category VARCHAR,
+    display_name VARCHAR,
+    state VARCHAR,
+    desired_stack VARCHAR,
+    desired_version VARCHAR,
+    repository_state VARCHAR,
+    total_count BIGINT,
+    installed_count BIGINT,
+    started_count BIGINT,
+    init_count BIGINT,
+    install_failed_count BIGINT,
+    installed_and_maintenance_off_count BIGINT,
+    unknown_count BIGINT,
+    metric_path VARCHAR,
+    metric_value VARCHAR
+)

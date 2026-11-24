@@ -1,0 +1,40 @@
+{
+  "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/services",
+  "items" : [
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/services/HDFS",
+      "ServiceInfo" : {
+        "cluster_name" : "sim",
+        "service_name" : "HDFS"
+      }
+    },
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/services/MAPREDUCE2",
+      "ServiceInfo" : {
+        "cluster_name" : "sim",
+        "service_name" : "MAPREDUCE2"
+      }
+    },
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/services/SPARK",
+      "ServiceInfo" : {
+        "cluster_name" : "sim",
+        "service_name" : "SPARK"
+      }
+    },
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/services/YARN",
+      "ServiceInfo" : {
+        "cluster_name" : "sim",
+        "service_name" : "YARN"
+      }
+    },
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/services/ZOOKEEPER",
+      "ServiceInfo" : {
+        "cluster_name" : "sim",
+        "service_name" : "ZOOKEEPER"
+      }
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/stack_versions/1",
+  "ClusterStackVersions" : {
+    "cluster_name" : "sim",
+    "id" : 1,
+    "repository_summary" : null,
+    "repository_version" : 1,
+    "stack" : "BIGTOP",
+    "state" : "OUT_OF_SYNC",
+    "supports_revert" : false,
+    "version" : "3.3.0",
+    "host_states" : {
+      "CURRENT" : [ ],
+      "INSTALLED" : [ ],
+      "INSTALLING" : [ ],
+      "INSTALL_FAILED" : [ ],
+      "NOT_REQUIRED" : [ ],
+      "OUT_OF_SYNC" : [
+        "agent1.ambari.sim",
+        "agent2.ambari.sim"
+      ]
+    }
+  },
+  "repository_versions" : [
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/stack_versions/1/repository_versions/1",
+      "RepositoryVersions" : {
+        "id" : 1,
+        "stack_name" : "BIGTOP",
+        "stack_version" : "3.3.0"
+      }
+    }
+  ]
+}

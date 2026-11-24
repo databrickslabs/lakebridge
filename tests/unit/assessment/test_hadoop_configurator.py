@@ -10,6 +10,7 @@ from databricks.labs.lakebridge.assessments.configure_assessment import (
     create_assessment_configurator,
 )
 from databricks.labs.lakebridge.resources.assessments.hadoop import hadoop_config
+from databricks.labs.lakebridge.resources.assessments.hadoop.ambari import AmbariError
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import RestEndpoint
 from databricks.labs.lakebridge.resources.assessments.hadoop.kerberos import KerberosSettings
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import HadoopApiError
@@ -47,6 +48,7 @@ def test_configure_hadoop_with_ha_basic_auth_https_and_spark(tmp_path: Path) -> 
         r"Configure Cloudera Manager": "no",
         r"Configure Apache Ranger": "no",
         r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "no",
         r"Do you want to test the connection to hadoop": "no",
     }
     _configurator(tmp_path, answers).run()
@@ -87,6 +89,7 @@ def test_configure_hadoop_env_vault_stores_variable_names_and_a_ca_bundle(tmp_pa
         r"Configure Cloudera Manager": "no",
         r"Configure Apache Ranger": "no",
         r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "no",
         r"Do you want to test the connection to hadoop": "no",
     }
     _configurator(tmp_path, answers).run()
@@ -115,6 +118,7 @@ def test_configure_hadoop_plain_http_without_auth_asks_no_tls_questions(tmp_path
         r"Configure Cloudera Manager": "no",
         r"Configure Apache Ranger": "no",
         r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "no",
         r"Do you want to test the connection to hadoop": "no",
     }
     _configurator(tmp_path, answers).run()
@@ -179,6 +183,7 @@ def test_configure_cloudera_manager_with_impala_writes_the_block(tmp_path: Path)
         r"Select the Impala query interval": "7",  # 60 minutes (the options are 1, 2, 3, 6, 10, 20, 30, 60)
         r"Enter the Impala service name": "",
         r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "no",
         r"Do you want to test the connection to hadoop": "no",
     }
     _configurator(tmp_path, answers).run()
@@ -211,6 +216,7 @@ def test_configure_cloudera_manager_without_impala_leaves_detection_to_the_steps
         r"Enter the Cloudera Manager cluster name": "",
         r"Extract Impala queries": "no",
         r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "no",
         r"Do you want to test the connection to hadoop": "no",
     }
     _configurator(tmp_path, answers).run()
@@ -286,6 +292,7 @@ def test_configure_hadoop_with_ranger_writes_the_block(tmp_path: Path) -> None:
         r"CA bundle for the Apache Ranger": "",
         r"Verify the Apache Ranger TLS certificate": "yes",
         r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "no",
         r"Do you want to test the connection to hadoop": "no",
     }
     _configurator(tmp_path, answers).run()
@@ -313,6 +320,7 @@ def test_configure_hadoop_without_ranger_writes_no_ranger_block(tmp_path: Path) 
         r"Configure Cloudera Manager": "no",
         r"Configure Apache Ranger": "no",
         r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "no",
         r"Do you want to test the connection to hadoop": "no",
     }
     _configurator(tmp_path, answers).run()
@@ -368,6 +376,7 @@ def test_configure_hadoop_with_impala_writes_the_block(tmp_path: Path) -> None:
         r"Configure Cloudera Manager": "no",
         r"Configure Apache Ranger": "no",
         r"Read Impala daemons directly": "yes",
+        r"Configure Ambari": "no",
         r"Enter the Impala daemon URL": "http://impalad-a:25000, http://impalad-b:25000",
         r"Select the Impala daemon authentication": "0",  # none
         r"Enter the Impala catalogd web UI URL": "http://catalogd:25020",
@@ -395,6 +404,7 @@ def test_configure_hadoop_without_impala_writes_no_impala_block(tmp_path: Path) 
         r"Configure Cloudera Manager": "no",
         r"Configure Apache Ranger": "no",
         r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "no",
         r"Do you want to test the connection to hadoop": "no",
     }
     _configurator(tmp_path, answers).run()
@@ -466,6 +476,7 @@ def test_configure_yarn_kerberos_with_keytab_writes_the_block(tmp_path: Path) ->
         r"Configure Cloudera Manager": "no",
         r"Configure Apache Ranger": "no",
         r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "no",
         r"Do you want to test the connection to hadoop": "no",
     }
     _configurator(tmp_path, answers).run()
@@ -493,6 +504,7 @@ def test_configure_spark_history_kerberos_without_keytab_uses_the_existing_ticke
         r"Configure Cloudera Manager": "no",
         r"Configure Apache Ranger": "no",
         r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "no",
         r"Do you want to test the connection to hadoop": "no",
     }
     _configurator(tmp_path, answers).run()
@@ -520,3 +532,92 @@ def test_kerberos_yarn_check_connection_passes_the_endpoint_transport(tmp_path: 
     # The factory is the endpoint's client method, bound to the endpoint with the Kerberos settings.
     assert seen["make_client"].__func__ is RestEndpoint.client
     assert seen["make_client"].__self__.kerberos == KerberosSettings(principal="profiler@HADOOP.SIM")
+
+
+def test_configure_ambari_over_the_hdinsight_gateway_writes_the_block(tmp_path: Path) -> None:
+    answers = {
+        r"Enter secret vault type": "1",  # local
+        r"Select the Hadoop distribution": "3",  # hdp
+        r"Enter the lookback window in days": "30",
+        r"Enter the YARN ResourceManager URL": "http://rm:8088",
+        r"Select the YARN ResourceManager authentication": "0",  # none
+        r"Configure a Spark History Server": "no",
+        r"Configure Cloudera Manager": "no",
+        r"Configure Apache Ranger": "no",
+        r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "yes",
+        r"Enter the Ambari Server URL": "https://sim.azurehdinsight.net",
+        r"Select the Ambari Server authentication": "0",  # none
+        r"CA bundle for the Ambari Server": "",
+        r"Verify the Ambari Server TLS certificate": "yes",
+        r"Enter the Ambari cluster name": "",
+        r"Do you want to test the connection to hadoop": "no",
+    }
+    _configurator(tmp_path, answers).run()
+
+    credentials = yaml.safe_load((tmp_path / ".credentials.yml").read_text(encoding="utf-8"))
+    assert credentials["hadoop"]["ambari"] == {
+        "url": "https://sim.azurehdinsight.net",
+        "auth": "none",
+        "verify_ssl": True,
+    }
+
+
+def test_configure_ambari_with_basic_auth_and_a_named_cluster(tmp_path: Path) -> None:
+    answers = {
+        r"Enter secret vault type": "1",
+        r"Select the Hadoop distribution": "3",
+        r"Enter the lookback window in days": "30",
+        r"Enter the YARN ResourceManager URL": "http://rm:8088",
+        r"Select the YARN ResourceManager authentication": "0",
+        r"Configure a Spark History Server": "no",
+        r"Configure Cloudera Manager": "no",
+        r"Configure Apache Ranger": "no",
+        r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "yes",
+        r"Enter the Ambari Server URL": "http://ambari.example.com:8080",
+        r"Select the Ambari Server authentication": "1",  # basic
+        r"Enter the Ambari Server username": "admin",
+        r"Enter the Ambari Server password": "admin",
+        r"Enter the Ambari cluster name": "Sandbox HDP",
+        r"Do you want to test the connection to hadoop": "no",
+    }
+    _configurator(tmp_path, answers).run()
+
+    credentials = yaml.safe_load((tmp_path / ".credentials.yml").read_text(encoding="utf-8"))
+    assert credentials["hadoop"]["ambari"] == {
+        "url": "http://ambari.example.com:8080",
+        "auth": "basic",
+        "username": "admin",
+        "password": "admin",
+        "cluster": "Sandbox HDP",
+    }
+
+
+def test_check_connection_resolves_the_configured_ambari_cluster(tmp_path: Path, monkeypatch) -> None:
+    resolved: list[tuple[str, str | None]] = []
+
+    def resolve(client, configured):
+        resolved.append((client.base_url, configured))
+        return "sim"
+
+    monkeypatch.setattr(configure_assessment, "resolve_ambari_cluster", resolve)
+    raw = {
+        "distribution": "hdp",
+        "ambari": {"url": "https://sim.azurehdinsight.net/", "auth": "none", "cluster": "sim"},
+    }
+
+    _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+
+    assert resolved == [("https://sim.azurehdinsight.net", "sim")]
+
+
+def test_check_connection_reports_an_ambari_failure_as_a_connection_error(tmp_path: Path, monkeypatch) -> None:
+    def several(*_args, **_kwargs):
+        raise AmbariError("Ambari manages 2 clusters; set hadoop.ambari.cluster to one of: 'prod', 'dev'")
+
+    monkeypatch.setattr(configure_assessment, "resolve_ambari_cluster", several)
+    raw = {"distribution": "hdp", "ambari": {"url": "http://ambari:8080", "auth": "none"}}
+
+    with pytest.raises(ConnectionError, match="manages 2 clusters"):
+        _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access

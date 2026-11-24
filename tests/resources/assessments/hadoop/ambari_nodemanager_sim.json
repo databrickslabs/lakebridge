@@ -1,0 +1,40 @@
+{
+  "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/services/YARN/components/NODEMANAGER",
+  "ServiceComponentInfo" : {
+    "category" : "SLAVE",
+    "cluster_name" : "sim",
+    "component_name" : "NODEMANAGER",
+    "desired_stack" : "BIGTOP-3.3.0",
+    "desired_version" : "3.3.0-1",
+    "display_name" : "NodeManager",
+    "init_count" : 0,
+    "install_failed_count" : 2,
+    "installed_and_maintenance_off_count" : 0,
+    "installed_count" : 0,
+    "recovery_enabled" : "false",
+    "repository_state" : "NOT_REQUIRED",
+    "service_name" : "YARN",
+    "started_count" : 0,
+    "state" : "INSTALLED",
+    "total_count" : 2,
+    "unknown_count" : 0
+  },
+  "host_components" : [
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/NODEMANAGER",
+      "HostRoles" : {
+        "cluster_name" : "sim",
+        "component_name" : "NODEMANAGER",
+        "host_name" : "agent1.ambari.sim"
+      }
+    },
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent2.ambari.sim/host_components/NODEMANAGER",
+      "HostRoles" : {
+        "cluster_name" : "sim",
+        "component_name" : "NODEMANAGER",
+        "host_name" : "agent2.ambari.sim"
+      }
+    }
+  ]
+}

@@ -201,3 +201,61 @@ steps:
     frequency: once
     flag: active
     optional: true
+
+  # Ambari steps are optional: they run only when hadoop.ambari is configured. The component metrics step reads four
+  # components, and a service that is not in the cluster adds no rows.
+  - name: ambari_blueprint
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_blueprint.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ambari_blueprint_configurations
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_blueprint_configurations.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ambari_hosts
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_hosts.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ambari_services
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_services.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ambari_host_components
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_host_components.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ambari_stack_versions
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_stack_versions.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ambari_component_metrics
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_component_metrics.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true

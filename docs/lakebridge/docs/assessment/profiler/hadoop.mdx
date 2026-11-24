@@ -12,6 +12,7 @@ import Admonition from '@theme/Admonition';
 - [Cloudera Manager](#cloudera-manager)
 - [Apache Ranger](#apache-ranger)
 - [Impala (direct)](#impala-direct)
+- [Ambari](#ambari)
 - [Run the profiler](#run-the-profiler)
 - [Profiler output](#profiler-output)
 - [Limitations](#limitations)
@@ -27,6 +28,8 @@ access to the cluster's file system or Hive metastore. It covers:
   [Apache Ranger](#apache-ranger).
 - **Impala, read directly** (optional): the queries each Impala daemon knows about, its backends and configuration, and
   the catalogd tables and statestore subscribers. No Cloudera Manager is needed. See [Impala (direct)](#impala-direct).
+- **Ambari** (optional, HDP and HDInsight): the cluster blueprint, hosts, services, host components, stack version, and
+  the NameNode, DataNode, ResourceManager and NodeManager. See [Ambari](#ambari).
 
 Supported distributions are Apache Hadoop (`oth`), MapR (`mapr`), Cloudera CDH (`cdh`), Hortonworks HDP (`hdp`) and
 Azure HDInsight (`hdi`). The distribution is recorded in the extract. Every distribution uses the same YARN and Spark REST APIs; the
@@ -129,9 +132,11 @@ Select **`hadoop`** as the source system. The wizard asks for:
 9. Whether to configure Apache Ranger. If so: its Admin URL, authentication, and TLS settings.
 10. Whether to read Impala daemons directly. If so: the impalad web UI URL of every coordinator, the authentication and
    TLS settings they share, and optionally the catalogd and statestore web UI URLs. See [Impala (direct)](#impala-direct).
-11. Whether to test the connection. The test finds the active ResourceManager and, if configured, calls the Spark History
+11. Whether to configure Ambari. If so: its URL (or the HDInsight gateway URL, with no port), authentication, TLS settings,
+   and an optional cluster name. Leave the cluster empty to have the profiler detect it. See [Ambari](#ambari).
+12. Whether to test the connection. The test finds the active ResourceManager and, if configured, calls the Spark History
    Server, resolves the Cloudera Manager cluster (and Impala service, if Impala queries are extracted), reads the
-   Ranger service list, and calls each Impala daemon, catalogd and statestore.
+   Ranger service list, calls each Impala daemon, catalogd and statestore, and resolves the Ambari cluster.
 
 With `secret_vault_type: env`, a password answer is the name of an environment variable that holds the password.
 
@@ -173,6 +178,13 @@ hadoop:
     username: profiler           # a user with the Ranger admin role, for the users and groups
     password: ...
     verify_ssl: true
+  ambari:                        # optional; without this block the ambari_* steps are skipped
+    url: http://ambari.example.com:8080   # Ambari Server; for HDInsight, https://<cluster>.azurehdinsight.net (no port)
+    auth: basic
+    username: admin
+    password: ...
+    verify_ssl: true
+    cluster: "Sandbox HDP"       # optional; detected when Ambari manages exactly one cluster
   mask_rules:                    # optional: regex search/replace on every response (the original sed.txt)
     - pattern: 'internal\.example\.com'
       replacement: 'masked.example'
@@ -210,6 +222,10 @@ hadoop:
 | `ranger.url` | yes, if the block is present | The Ranger Admin base URL. It may include a path. |
 | `ranger.auth` / `username` / `password` | no | As for YARN. Ranger needs `basic` in practice. |
 | `ranger.verify_ssl` | no (true) | As for YARN. |
+| `ambari.url` | yes, if the block is present | The Ambari Server base URL, `http(s)://host[:port][/path]`. For HDInsight, the cluster gateway with no port: `https://<cluster>.azurehdinsight.net`. |
+| `ambari.auth` / `username` / `password` | no | As for YARN. Ambari needs `basic` in practice. `kerberos` is not supported. |
+| `ambari.cluster` | no | The cluster name, which may contain spaces. When absent, the profiler uses the cluster if Ambari manages exactly one, and otherwise stops and lists the names. |
+| `ambari.verify_ssl` | no (true) | As for YARN. |
 | `mask_rules` | no | A list of `{pattern, replacement}` regex rules applied, in order, to every REST response before it is stored. Same role as `SEARCH_REPLACE` / `sed.txt` in the original profiler. |
 
 Other sections in the same file (for example `ambari`) are reserved for later phases and are ignored today.
@@ -339,6 +355,45 @@ Ranger releases), and then logs a warning that the result may be incomplete. The
 e-mail address or name fields. Policy descriptions, resource values and conditions are stored as they are. Check the
 extract before you share it, or use `mask_rules` to mask values.
 
+## Ambari
+
+The Ambari steps read the Ambari REST API (`/api/v1`) for an HDP or HDInsight cluster. They run only when `hadoop.ambari`
+is configured. They are the original profiler's Ambari calls (`extract_ambari_bp`), with the same URLs and query strings.
+
+| Step | Source | Notes |
+|------|--------|-------|
+| `ambari_blueprint` | `/api/v1/clusters/<cluster>?format=blueprint` | One row per host group and component, with the stack name and version from the blueprint. A host group with no components keeps one row with a NULL component. Cardinality is kept as text. |
+| `ambari_blueprint_configurations` | the same blueprint | One row per property of each configuration type (for example `yarn-site`), with its value as Ambari returns it. |
+| `ambari_hosts` | `/hosts?fields=Hosts/cpu_count,Hosts/disk_info,Hosts/total_mem,Hosts/os_type` | One row per host: CPU count, `total_mem` as Ambari reports it, OS type, the `disk_info` JSON as returned, and the summed disk size and available space. |
+| `ambari_services` | `/services` | One row per service in the cluster. |
+| `ambari_host_components` | `/hosts?fields=host_components/host_name` | One row per component installed on each host. |
+| `ambari_stack_versions` | `/stack_versions/1` | The stack, version, repository version and state, with `host_states` and `repository_versions` as JSON text. |
+| `ambari_component_metrics` | `/services/HDFS/components/NAMENODE?fields=metrics`, `.../DATANODE?fields=metrics`, `/services/YARN/components/RESOURCEMANAGER` and `.../NODEMANAGER` | One row per component and metric. A component with no metrics has one row, with a NULL metric. |
+
+**HDInsight.** Give the cluster gateway as the URL, with no port: `url: https://<cluster>.azurehdinsight.net`. The
+profiler calls `https://<cluster>.azurehdinsight.net/api/v1/...`. A path in the URL is kept, as for YARN.
+
+**Cluster name.** The name is URL-encoded in every request, so a name with spaces works (`Sandbox HDP`). When Ambari
+manages exactly one cluster, the profiler uses it. When it manages several, the profiler stops with a message that lists
+their names, and you set `cluster`.
+
+**Component calls and a missing service.** Before any service is installed, Ambari answers the four component calls
+with HTTP 404. The original profiler saved that error body as if it were data. Here, a 404 for a service that the cluster
+does not have adds no rows and the step still succeeds. A 404 for a service the cluster does have is an error, as is any
+other HTTP error.
+
+**Metrics.** Ambari returns component metrics only when the Ambari Metrics service is installed. Without it, the metric
+columns are NULL and `ambari_component_metrics` has the component's state and counts only. The metrics are nested in
+Ambari (for example `dfs.namenode.CapacityTotal`), so each leaf is one row. The metric path is relative to the
+component's `metrics` object.
+
+**What is kept.** Nothing is redacted. Host names, disk paths and the blueprint configuration values are stored as Ambari
+returns them. Use `mask_rules` to mask them.
+
+**Differences from the original.** The original saved HTTP error bodies as data and exited 0. Here an HTTP error is an
+error, except the 404 described above. The original requested metrics only for the NameNode and DataNode, and this
+profiler does the same.
+
 ## Run the profiler
 
 ```bash
@@ -388,6 +443,13 @@ The extract is a timestamped DuckDB file in the output folder. Each step's name 
 | `ranger_policy_items` | policy item (optional, Ranger) | Policy id, service, policy name, `item_kind`, users, groups, roles, accesses and conditions as JSON text, delegate admin, and the mask type or row filter expression. |
 | `ranger_users` | user (optional, Ranger) | Name, status, visibility, user source, group and role names, and timestamps. |
 | `ranger_groups` | group (optional, Ranger) | Name, group type and source, visibility, and timestamps. |
+| `ambari_blueprint` | host group component (optional, Ambari) | Stack name and version, host group, cardinality, and component name. |
+| `ambari_blueprint_configurations` | blueprint property (optional, Ambari) | Configuration type, property name and value. |
+| `ambari_hosts` | host (optional, Ambari) | Cluster, host name, CPU count, `total_mem`, OS type, summed disk size and available space, and `disk_info` as JSON text. |
+| `ambari_services` | service (optional, Ambari) | Cluster name and service name. |
+| `ambari_host_components` | host component (optional, Ambari) | Cluster, host name and component name. |
+| `ambari_stack_versions` | stack version (optional, Ambari) | Cluster, stack, version, repository version, state, `host_states` and `repository_versions` as JSON text. |
+| `ambari_component_metrics` | component metric (optional, Ambari) | Service and component, category, state, desired stack and version, component counts, and one metric path and value (NULL without Ambari Metrics). |
 | `impala_queries` | query per daemon (optional, Impala) | Query id, the coordinator URL and host, `is_in_flight`, statement, statement type, user, default database, state, start and end time, duration, queued and waiting time (milliseconds), memory use and estimate, rows fetched, bytes read and sent (bytes), resource pool, progress, and the raw record as JSON text. |
 | `impala_backends` | backend per daemon (optional, Impala) | Address, backend id, coordinator and executor flags, admission memory and slots, executor group, start time, and version. |
 | `impala_daemon_config` | flag per daemon (optional, Impala) | Flag name, type, current value and default for the curated flags. |
@@ -424,9 +486,10 @@ makes the step fail with an error, so match values rather than syntax.
 
 ## Limitations
 
-- **Kerberos** works for the YARN ResourceManager and the Spark History Server only. Cloudera Manager, Ranger and the
-  Impala web UIs use `none` or `basic`; their SPNEGO is not supported. Windows is not tested.
-- **Scope**. Ambari (the blueprint and host metrics) is not extracted yet. Ranger audit logs are not extracted.
+- **Kerberos** works for the YARN ResourceManager and the Spark History Server only. Cloudera Manager, Ranger, Ambari and
+  the Impala web UIs use `none` or `basic`; their SPNEGO is not supported. Windows is not tested.
+- **Scope**. Ranger audit logs are not extracted. Ambari metrics come only from the four component calls; Ambari Metrics
+  must be installed for them to have values.
 - **Cloudera Manager time series** cover every cluster the Cloudera Manager server manages, as in the original. Use
   the `cluster_name` column to filter them.
 - **YARN filters** are not applied. The profiler reads every application in the window.

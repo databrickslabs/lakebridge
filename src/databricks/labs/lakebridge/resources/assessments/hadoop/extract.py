@@ -45,6 +45,7 @@ Endpoint = Literal[
     "impala_daemons",
     "impala_catalogd",
     "impala_statestored",
+    "ambari",
 ]
 # The Impala daemon web UIs, read directly (hadoop.impala), as opposed to the Cloudera Manager "impala" endpoint.
 IMPALA_DIRECT_ENDPOINTS: tuple[str, ...] = ("impala_daemons", "impala_catalogd", "impala_statestored")
@@ -144,6 +145,10 @@ def run_step(
         if config.spark_history is None:
             return "skipped: not configured (hadoop.spark_history is absent)"
         client = config.spark_history.client(config.spark_history.urls[0])
+    elif endpoint == "ambari":
+        if config.ambari is None:
+            return "skipped: not configured (hadoop.ambari is absent)"
+        client = config.ambari.endpoint.client(config.ambari.endpoint.urls[0])
     elif endpoint == "ranger":
         if config.ranger is None:
             return "skipped: not configured (hadoop.ranger is absent)"

@@ -27,6 +27,7 @@ from databricks.labs.lakebridge.connections.snowflake_auth import (
     Pat,
 )
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
+from databricks.labs.lakebridge.resources.assessments.hadoop.ambari import AmbariError, resolve_ambari_cluster
 from databricks.labs.lakebridge.resources.assessments.hadoop.cloudera_manager import (
     ClouderaManagerError,
     api_root,
@@ -43,6 +44,7 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config impor
     DEFAULT_LOOKBACK_DAYS,
     DISTRIBUTIONS,
     IMPALA_INTERVAL_OPTIONS,
+    AmbariConfig,
     ClouderaManagerConfig,
     HadoopConfig,
     HadoopConfigError,
@@ -522,12 +524,12 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
 
 
 class ConfigureHadoopAssessment(AssessmentConfigurator):
-    """Hadoop (YARN, Spark History Server, Cloudera Manager, Apache Ranger and Impala) assessment configuration."""
+    """Hadoop (YARN, Spark History Server, Cloudera Manager, Apache Ranger, Impala and Ambari) assessment configuration."""
 
     def _check_connection(self, raw_config: dict) -> None:
         try:
             self._check_sources(parse_hadoop_config(raw_config))
-        except (HadoopConfigError, HadoopApiError, ClouderaManagerError) as e:
+        except (HadoopConfigError, HadoopApiError, ClouderaManagerError, AmbariError) as e:
             raise ConnectionError(str(e)) from e
 
     def _check_sources(self, config: HadoopConfig) -> None:
@@ -541,6 +543,19 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
             self._check_ranger(config.ranger)
         if config.impala is not None:
             self._check_impala(config.impala)
+        if config.ambari is not None:
+            self._check_ambari(config.ambari)
+
+    @staticmethod
+    def _check_ambari(ambari: AmbariConfig) -> None:
+        """Resolve the cluster the Ambari steps resolve (the configured one, or the only one Ambari manages)."""
+        client = RestClient(
+            ambari.endpoint.urls[0],
+            username=ambari.endpoint.username,
+            password=ambari.endpoint.password,
+            verify=ambari.endpoint.verify,
+        )
+        resolve_ambari_cluster(client, ambari.cluster)
 
     @staticmethod
     def _check_impala(impala: ImpalaConfig) -> None:
@@ -614,12 +629,35 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
         if self.prompts.confirm("Read Impala daemons directly (query history from each impalad web UI)?"):
             source_creds["impala"] = self._prompt_impala(secret_vault_type)
 
+        if self.prompts.confirm("Configure Ambari (blueprint, hosts, services and components)?"):
+            source_creds["ambari"] = self._prompt_ambari(secret_vault_type)
+
         credential = {
             "secret_vault_type": secret_vault_type,
             "secret_vault_name": None,
             source: source_creds,
         }
         _save_to_disk(credential, cred_file)
+
+    def _prompt_ambari(self, secret_vault_type: str) -> dict[str, Any]:
+        logger.info(
+            "Ambari: the Ambari Server URL. For Azure HDInsight use the cluster gateway, with no port: "
+            "https://<cluster>.azurehdinsight.net. The cluster is detected when Ambari manages exactly one cluster. "
+            "Component metrics need the Ambari Metrics service."
+        )
+        ambari = self._prompt_endpoint(
+            secret_vault_type,
+            multiple_urls=False,
+            name="Ambari Server",
+            example="http://ambari.example.com:8080",
+        )
+        cluster = self.prompts.question(
+            "Enter the Ambari cluster name (leave empty to detect it when Ambari manages one cluster)",
+            default="",
+        ).strip()
+        if cluster:
+            ambari["cluster"] = cluster
+        return ambari
 
     def _prompt_impala(self, secret_vault_type: str) -> dict[str, Any]:
         logger.info(

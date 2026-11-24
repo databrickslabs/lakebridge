@@ -1,0 +1,11 @@
+{
+  "href" : "http://127.0.0.1:18090/api/v1/clusters",
+  "items" : [
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim",
+      "Clusters" : {
+        "cluster_name" : "sim"
+      }
+    }
+  ]
+}

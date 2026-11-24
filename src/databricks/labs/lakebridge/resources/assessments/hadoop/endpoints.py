@@ -9,6 +9,14 @@ import logging
 from collections.abc import Iterator
 from datetime import date, datetime, timedelta, timezone
 
+from databricks.labs.lakebridge.resources.assessments.hadoop.ambari import (
+    COMPONENT_CALLS,
+    ambari_config,
+    cluster_path,
+    component_envelope,
+    get_component,
+    resolve_ambari_cluster,
+)
 from databricks.labs.lakebridge.resources.assessments.hadoop.cloudera_manager import (
     TIMESERIES_QUERIES,
     ClouderaManagerError,
@@ -290,6 +298,49 @@ def ranger_users(client: RestClient, _config: HadoopConfig) -> list[str]:
 
 def ranger_groups(client: RestClient, _config: HadoopConfig) -> list[str]:
     return [json.dumps(list_groups(client))]
+
+
+def _ambari_cluster(client: RestClient, config: HadoopConfig) -> str:
+    return resolve_ambari_cluster(client, ambari_config(config).cluster)
+
+
+def ambari_blueprint(client: RestClient, config: HadoopConfig) -> list[str]:
+    """The cluster's blueprint (the original's ``?format=blueprint`` call). Used by both blueprint steps."""
+    cluster = _ambari_cluster(client, config)
+    return [client.get_text(f"{cluster_path(cluster)}?format=blueprint")]
+
+
+def ambari_hosts(client: RestClient, config: HadoopConfig) -> list[str]:
+    cluster = _ambari_cluster(client, config)
+    fields = "Hosts/cpu_count,Hosts/disk_info,Hosts/total_mem,Hosts/os_type"
+    return [client.get_text(f"{cluster_path(cluster)}/hosts?fields={fields}")]
+
+
+def ambari_services(client: RestClient, config: HadoopConfig) -> list[str]:
+    cluster = _ambari_cluster(client, config)
+    return [client.get_text(f"{cluster_path(cluster)}/services")]
+
+
+def ambari_host_components(client: RestClient, config: HadoopConfig) -> list[str]:
+    cluster = _ambari_cluster(client, config)
+    return [client.get_text(f"{cluster_path(cluster)}/hosts?fields=host_components/host_name")]
+
+
+def ambari_stack_versions(client: RestClient, config: HadoopConfig) -> list[str]:
+    cluster = _ambari_cluster(client, config)
+    return [client.get_text(f"{cluster_path(cluster)}/stack_versions/1")]
+
+
+def ambari_component_metrics(client: RestClient, config: HadoopConfig) -> list[str]:
+    """The NameNode, DataNode, ResourceManager and NodeManager, each with its metric leaves. A missing service adds
+    nothing, as described in ``ambari.get_component``."""
+    cluster = _ambari_cluster(client, config)
+    envelopes = []
+    for service, component, metrics in COMPONENT_CALLS:
+        body = get_component(client, cluster, service, component, metrics=metrics)
+        if body is not None:
+            envelopes.append(component_envelope(body))
+    return envelopes
 
 
 def _cm_config(config: HadoopConfig) -> ClouderaManagerConfig:

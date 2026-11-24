@@ -1,0 +1,21 @@
+{
+  "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts?fields=host_components/host_name",
+  "items" : [
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim",
+      "Hosts" : {
+        "cluster_name" : "sim",
+        "host_name" : "agent1.ambari.sim"
+      },
+      "host_components" : [ ]
+    },
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent2.ambari.sim",
+      "Hosts" : {
+        "cluster_name" : "sim",
+        "host_name" : "agent2.ambari.sim"
+      },
+      "host_components" : [ ]
+    }
+  ]
+}

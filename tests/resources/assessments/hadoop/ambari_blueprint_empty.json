@@ -1,0 +1,13 @@
+{
+  "host_groups" : [
+    {
+      "components" : [ ],
+      "name" : "host_group_1",
+      "cardinality" : "2"
+    }
+  ],
+  "Blueprints" : {
+    "stack_name" : "BIGTOP",
+    "stack_version" : "3.3.0"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/services/HDFS/components/NAMENODE?fields=metrics",
+  "ServiceComponentInfo" : {
+    "cluster_name" : "sim",
+    "component_name" : "NAMENODE",
+    "service_name" : "HDFS"
+  }
+}
