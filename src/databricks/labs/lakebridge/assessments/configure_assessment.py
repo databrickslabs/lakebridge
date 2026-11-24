@@ -41,7 +41,6 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.endpoints import (
 )
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
     DEFAULT_IMPALA_INTERVAL_MINUTES,
-    DEFAULT_LOOKBACK_DAYS,
     DISTRIBUTIONS,
     IMPALA_INTERVAL_OPTIONS,
     AmbariConfig,
@@ -603,9 +602,6 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
         secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
 
         distribution = str(self.prompts.choice("Select the Hadoop distribution", list(DISTRIBUTIONS), sort=False))
-        lookback_days = self.prompts.question(
-            "Enter the lookback window in days", default=str(DEFAULT_LOOKBACK_DAYS), valid_number=True
-        )
 
         logger.info(
             "YARN ResourceManager: for high availability list every ResourceManager. For Azure HDInsight use the "
@@ -613,7 +609,6 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
         )
         source_creds: dict[str, Any] = {
             "distribution": distribution,
-            "lookback_days": int(lookback_days),
             "yarn": self._prompt_endpoint(secret_vault_type, multiple_urls=True, allow_kerberos=True),
         }
         if self.prompts.confirm("Configure a Spark History Server?"):

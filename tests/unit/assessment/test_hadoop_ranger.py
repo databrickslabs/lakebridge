@@ -11,8 +11,11 @@ import duckdb
 import pytest
 
 from databricks.labs.lakebridge.resources.assessments.hadoop import endpoints, extract, ranger
+from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import ExtractRun
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import parse_hadoop_config
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import HadoopHttpError, RestClient
+
+RUN = ExtractRun(run_db="extract.db", initial=True)  # the direct calls below read the initial run
 
 _FIXTURES = Path(__file__).resolve().parents[2] / "resources" / "assessments" / "hadoop"
 _SQL_DIR = Path(extract.__file__).resolve().parent
@@ -117,9 +120,9 @@ def _load(step: str, bodies: list[str], tmp_path: Path) -> duckdb.DuckDBPyConnec
     return duckdb.connect(write["db_path"], read_only=True)
 
 
-def _extract(step: str, fetch: Callable[[RestClient, Any], list[str]], handler: Handler, tmp_path: Path):
+def _extract(step: str, fetch: Callable[[RestClient, Any, ExtractRun], list[str]], handler: Handler, tmp_path: Path):
     client, _ = _client(handler)
-    return _load(step, fetch(client, _config()), tmp_path)
+    return _load(step, fetch(client, _config(), RUN), tmp_path)
 
 
 # ---- v2 reads against the Ranger 2.9.0 capture -------------------------------------------------------------------
@@ -386,7 +389,7 @@ def test_users_need_an_admin_account() -> None:
 
     client, _ = _client(forbidden)
     with pytest.raises(HadoopHttpError, match="403"):
-        endpoints.ranger_users(client, _config())
+        endpoints.ranger_users(client, _config(), RUN)
 
 
 def test_other_policy_errors_are_not_treated_as_a_missing_v2_api() -> None:

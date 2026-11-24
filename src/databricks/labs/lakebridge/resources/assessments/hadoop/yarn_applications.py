@@ -1,4 +1,4 @@
-"""YARN applications that finished in the lookback window, plus unfinished ones (/ws/v1/cluster/apps)."""
+"""YARN applications: every application the ResourceManager lists (/ws/v1/cluster/apps), with the app filter if set."""
 
 from pathlib import Path
 

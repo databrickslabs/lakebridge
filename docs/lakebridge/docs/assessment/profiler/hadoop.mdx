@@ -120,21 +120,20 @@ Select **`hadoop`** as the source system. The wizard asks for:
 
 1. The secret vault type (`local` or `env`).
 2. The distribution (`oth`, `mapr`, `cdh`, `hdp` or `hdi`).
-3. The lookback window in days (default 30).
-4. The YARN ResourceManager URL or URLs, comma-separated. For high availability, list every ResourceManager.
-5. The YARN authentication (`none`, `basic` or `kerberos`). For `basic`, the username and password. For `kerberos`, an
+3. The YARN ResourceManager URL or URLs, comma-separated. For high availability, list every ResourceManager.
+4. The YARN authentication (`none`, `basic` or `kerberos`). For `basic`, the username and password. For `kerberos`, an
    optional keytab path and the principal (leave the keytab empty to use an existing ticket).
-6. Whether to verify the YARN TLS certificate, and an optional CA bundle path.
-7. Whether to configure a Spark History Server, and if so the same questions for its URL (including `kerberos`).
-8. Whether to configure Cloudera Manager. If so: its URL, authentication, TLS settings, an optional cluster name, and
+5. Whether to verify the YARN TLS certificate, and an optional CA bundle path.
+6. Whether to configure a Spark History Server, and if so the same questions for its URL (including `kerberos`).
+7. Whether to configure Cloudera Manager. If so: its URL, authentication, TLS settings, an optional cluster name, and
    whether to extract Impala queries (and, if so, the interval and an optional Impala service name). Leave the cluster
    and service empty to have the profiler detect them.
-9. Whether to configure Apache Ranger. If so: its Admin URL, authentication, and TLS settings.
-10. Whether to read Impala daemons directly. If so: the impalad web UI URL of every coordinator, the authentication and
+8. Whether to configure Apache Ranger. If so: its Admin URL, authentication, and TLS settings.
+9. Whether to read Impala daemons directly. If so: the impalad web UI URL of every coordinator, the authentication and
    TLS settings they share, and optionally the catalogd and statestore web UI URLs. See [Impala (direct)](#impala-direct).
-11. Whether to configure Ambari. If so: its URL (or the HDInsight gateway URL, with no port), authentication, TLS settings,
+10. Whether to configure Ambari. If so: its URL (or the HDInsight gateway URL, with no port), authentication, TLS settings,
    and an optional cluster name. Leave the cluster empty to have the profiler detect it. See [Ambari](#ambari).
-12. Whether to test the connection. The test finds the active ResourceManager and, if configured, calls the Spark History
+11. Whether to test the connection. The test finds the active ResourceManager and, if configured, calls the Spark History
    Server, resolves the Cloudera Manager cluster (and Impala service, if Impala queries are extracted), reads the
    Ranger service list, calls each Impala daemon, catalogd and statestore, and resolves the Ambari cluster.
 
@@ -149,7 +148,6 @@ secret_vault_type: local
 secret_vault_name: null
 hadoop:
   distribution: cdh              # oth | mapr | cdh | hdp | hdi
-  lookback_days: 30              # 1 to 3650
   yarn:
     urls:                        # every ResourceManager in HA; a gateway URL may include a path
       - http://rm1.example.com:8088
@@ -193,7 +191,6 @@ hadoop:
 | Key | Required | Notes |
 |-----|----------|-------|
 | `distribution` | yes | Recorded in `yarn_cluster_info`. |
-| `lookback_days` | no (30) | Window for finished YARN applications and Spark applications. |
 | `yarn.urls` | yes | Each URL is `http(s)://host[:port][/path]`. Credentials in the URL are rejected. |
 | `yarn.auth` / `username` / `password` | no | `auth` defaults to `basic` when a username is set, otherwise `none`. `kerberos` takes no username or password. |
 | `yarn.principal` | with `keytab` | The Kerberos principal, for example `profiler@EXAMPLE.COM`. Optional with an existing ticket. |
@@ -201,7 +198,7 @@ hadoop:
 | `yarn.ccache` | no | The ticket cache, such as `FILE:/tmp/krb5cc_profiler`. Sets `KRB5CCNAME` for curl and kinit/klist. Recommended with a keytab: without it, kinit replaces the default ticket cache of the account running the profiler (as the original profiler's kinit did). |
 | `yarn.krb5_config` | no | A `krb5.conf` file that must exist. Sets `KRB5_CONFIG`. |
 | `yarn.verify_ssl` | no (true) | `false` disables certificate checks and logs a warning. |
-| `yarn.app_filter` | no | Query parameters added to the YARN applications request, for example `user=etl&queue=root.prod` (a leading `?` is allowed). Same as `RM_APP_FILTER` in the original profiler; where it names a parameter the profiler also sets, your value wins. A filter that sets its own `states`, `state`, `finishedTime*`, `startedTime*` or `limit` replaces the profiler's lookback window and is sent as the only request, as the original did. |
+| `yarn.app_filter` | no | Query parameters for the YARN applications request, for example `user=etl&queue=root.prod` (a leading `?` is allowed). Same as `RM_APP_FILTER` in the original profiler. The request is the full application list with this filter, on every run. |
 | `spark_history.url` | yes, if the block is present | A single URL. |
 | `spark_history.auth` / `principal` / `keytab` / `ccache` / `krb5_config` | no | As for YARN, including Kerberos. |
 | `cloudera_manager.url` | yes, if the block is present | The Cloudera Manager base URL. It may include a path, for example behind a gateway. |
@@ -293,9 +290,9 @@ What is collected:
 | `cm_timeseries` | `/timeseries` | Seven queries (host roles, HDFS usage, YARN utilisation, YARN memory and CPU, Impala utilisation, cluster CPU and memory), as in the original. Long format: one row per sample. |
 | `cm_impala_queries` | `/clusters/<cluster>/services/<impala>/impalaQueries` | Opt-in. One row per query. |
 
-Time-series windows match the original. The YARN, Impala and cluster queries use the hourly rollup over
-`hadoop.lookback_days`. The host roles and HDFS queries have no window, which returns Cloudera Manager's default recent
-window, as the original does.
+Time-series windows match the original. The YARN, Impala and cluster queries use the hourly rollup from one month
+before today (`date -d '-1 month'`) up to today, on every run. The host roles and HDFS queries have no window, which
+returns Cloudera Manager's default recent window, as the original does.
 
 ### Time-series metrics that the Cloudera Manager version does not have
 
@@ -308,8 +305,9 @@ sample, so you can see which metrics this Cloudera Manager does not report.
 ### Impala queries (opt-in)
 
 Impala queries are not extracted unless `extract_impala_queries` is `true`. The original profiler also left them off by
-default (`CM_EXTRACT_IMPALA_QUERIES=N`). On a busy cluster, the extract makes many requests, so start with a short
-lookback and then widen it.
+default (`CM_EXTRACT_IMPALA_QUERIES=N`). On a busy cluster, the extract makes many requests. The initial run reads today and
+the previous `impala_lookback_days` days (default 1). Each later run reads yesterday only. See
+[Initial and incremental runs](#initial-and-incremental-runs).
 
 The profiler reads the window in slices of `impala_interval_minutes`. Each slice is read in pages of 1,000 queries,
 and the pages stop at the first short page or at `impala_max_pages`. Queries are stored as CM returns them: the
@@ -407,8 +405,9 @@ The run works in three steps for each table:
 2. Fetch the REST responses for the table.
 3. Load them into a typed table in the extract.
 
-Each run is a snapshot of the current state. Applications are fetched for the lookback window only, not the whole
-application history.
+Each run writes its own DuckDB file, named `profiler_extract_hadoop_<version>_<UTC start time>.db`. Some tables are
+collected on the initial run only, and later runs read only recent history. See
+[Initial and incremental runs](#initial-and-incremental-runs).
 
 A failing YARN step is recorded as an error and fails the run. A failing Spark History Server step is recorded as
 absent, so the run still completes. A Spark step with no `spark_history` block is reported as skipped and writes no
@@ -416,6 +415,129 @@ table. The same holds for the Cloudera Manager steps without a `cloudera_manager
 without `extract_impala_queries: true`, for the Ranger steps without a `ranger` block, and for the Impala steps without
 an `impala` block (`impala_catalog` and `impala_statestore` also need their URLs). A Cloudera Manager step that fails, for example on an ambiguous cluster
 choice or an HTTP error, is recorded as absent, so the run still completes.
+
+## Initial and incremental runs
+
+The profiler behaves as the original profiler did. The first run is the **initial** run. It collects the inventory
+(the cluster configuration, the schedulers and the Ambari, Ranger and Cloudera Manager configuration) and the recent
+history. Every later run is **incremental**. It reads the recent history again, and it does not read the inventory
+again.
+
+| Data | Steps | Initial run | Incremental run |
+|------|-------|-------------|-----------------|
+| YARN cluster identity and HA state | `yarn_cluster_info` | Yes | Yes |
+| YARN applications | `yarn_applications` | Every application the ResourceManager lists, with `yarn.app_filter` | Same |
+| YARN metrics, NodeManagers, scheduler queues | `yarn_cluster_metrics`, `yarn_nodes`, `yarn_scheduler_queues` | Yes | No |
+| Spark History Server applications and attempts | `spark_applications`, `spark_application_attempts` | Started in the last 7 UTC days (`minDate`) | Started since yesterday (`minDate`) |
+| Cloudera Manager version and cluster | `cm_clusters` | Yes | Yes |
+| Cloudera Manager time series | `cm_timeseries` | One month up to today | Same |
+| Cloudera Manager services, hosts, host configuration, cluster export | `cm_services`, `cm_hosts`, `cm_host_config`, `cm_cluster_export` | Yes | No |
+| Cloudera Manager Impala queries (opt-in) | `cm_impala_queries` | Today and the previous `impala_lookback_days` days (default 1) | Yesterday only |
+| Impala daemon query log (direct, opt-in) | `impala_queries` | Yes | Yes |
+| Impala backends, daemon configuration, catalogd, statestore (direct) | `impala_backends`, `impala_daemon_config`, `impala_catalog`, `impala_statestore` | Yes | No |
+| Ambari blueprint, hosts, services, components, stack versions, metrics | `ambari_*` (7 steps) | Yes | No |
+| Ranger services, service definitions, policies, users, groups | `ranger_*` (6 steps) | Yes | No |
+
+Each step's status message says what it did. An incremental run reports an inventory step that already succeeded as:
+
+```text
+{"status":"success","message":"skipped: incremental run (initial extract already collected)"}
+```
+
+An inventory step that has not succeeded in the completed initial extract runs again on an incremental run, so an
+inventory step that failed is retried. An initial run that aborts before its end is repeated in full by the next run.
+
+### The run tracker
+
+As in the original profiler, the first run is initial, and it stays initial until it completes. The runs share one
+file, `hadoop_extract_tracker.json`, in the output folder next to the DuckDB files. It holds:
+
+- `initial_run_db`: the file name of the run doing the initial extract.
+- `initial_completed`: true once an initial extract has completed. Every later run is incremental.
+- `yarn_cluster_info_run_db`: the run whose `yarn_cluster_info` step succeeded. This is the check that the active
+  ResourceManager was reached, as in the original profiler.
+- `completed_inventory_steps`: the inventory steps that have succeeded in the initial extract. An incremental run skips
+  these.
+
+An initial extract completes only at the end of its run. The last step of every run, `hadoop_extract_tracker`, writes no
+table. It sets `initial_completed` when the run is initial and its `yarn_cluster_info` succeeded. Otherwise it records
+nothing, and the next run is initial again. So a run that aborts before its end, for example because the ResourceManager
+is unreachable, leaves no completed initial extract, and the next run repeats the initial extract in full. Its status
+message is `initial extract recorded`, `initial extract not recorded: ...`, or `incremental run, nothing to record`.
+
+An inventory step that did not succeed in the completed initial extract, such as an Ambari call that failed, runs again
+on the next incremental run. It is recorded when it succeeds, and skipped after that.
+
+**To force a new initial extract, delete the tracker file.** The next run is initial and collects the inventory again.
+Do this after a change to the source system that the inventory should reflect, such as new Ambari or Ranger
+configuration, or a new Cloudera Manager cluster.
+
+A run whose tracker is damaged stops with an error. The profiler does not guess. Delete the tracker to start over.
+
+Each run's DuckDB file holds only the tables its steps wrote. An incremental run writes no inventory tables, so
+the inventory is in the initial run's file. See [Combining the run files](#combining-the-run-files).
+
+### Scheduling
+
+The original profiler ran daily under cron, and hourly for clusters with more than about 10,000 applications a day. The
+ResourceManager keeps only `yarn.resourcemanager.max-completed-applications` completed applications (10,000 by
+default). An application that finishes and is dropped between two runs is not extracted. Choose the interval so that a
+run always sees every application that finished since the previous run.
+
+A ResourceManager restart without state recovery loses its application history. Runs after a restart miss the
+applications that finished before it. This is outside the profiler's control.
+
+A daily crontab entry, run at 01:30 UTC, looks like this. The cron environment is minimal, so set the Databricks profile
+and the PATH in the entry:
+
+```text
+30 1 * * * PATH=/usr/local/bin:/usr/bin:/bin DATABRICKS_CONFIG_PROFILE=<profile> databricks labs lakebridge execute-database-profiler --source-tech hadoop --cred-file-path /opt/lakebridge/hadoop/.credentials.yml --output-folder /opt/lakebridge/hadoop/out >> /opt/lakebridge/hadoop/cron.log 2>&1
+```
+
+For an hourly run, use `0 * * * *` in place of the first two fields. Every run must use the same `--output-folder`,
+because the tracker lives there. The credentials file must resolve in the cron environment. With
+`secret_vault_type: env`, export the variables in the crontab line or in a file the entry sources.
+
+Without cron, a shell loop runs the same command at a fixed interval until a set date. This is documentation only, not a
+script the profiler ships. Replace `FREQUENCY_HOURS` and `NO_OF_DAYS`:
+
+```bash
+FREQUENCY_HOURS=24
+NO_OF_DAYS=14
+END=$(( $(date +%s) + NO_OF_DAYS * 86400 ))
+while [ "$(date +%s)" -lt "$END" ]; do
+  databricks labs lakebridge execute-database-profiler --source-tech hadoop \
+    --cred-file-path /opt/lakebridge/hadoop/.credentials.yml --output-folder /opt/lakebridge/hadoop/out
+  sleep $(( FREQUENCY_HOURS * 3600 ))
+done
+```
+
+### Combining the run files
+
+Each run writes a new DuckDB file, so the history is spread over one file per run. Each file name carries the run's
+UTC start time, so the files sort oldest first. Attach them with an alias made from that time, and keep the latest row
+per application. The SQL below was run against three runs' files:
+
+```sql
+ATTACH '/opt/lakebridge/hadoop/out/profiler_extract_hadoop_<version>_20261124T165649Z.db' AS run_20261124T165649 (READ_ONLY);
+ATTACH '/opt/lakebridge/hadoop/out/profiler_extract_hadoop_<version>_20261124T165840Z.db' AS run_20261124T165840 (READ_ONLY);
+
+CREATE OR REPLACE TABLE yarn_applications_all AS
+SELECT * EXCLUDE (run_rank) FROM (
+    SELECT *, row_number() OVER (PARTITION BY application_id ORDER BY run_name DESC) AS run_rank
+    FROM (
+        SELECT 'run_20261124T165649' AS run_name, * FROM run_20261124T165649.yarn_applications
+        UNION ALL
+        SELECT 'run_20261124T165840' AS run_name, * FROM run_20261124T165840.yarn_applications
+    )
+) WHERE run_rank = 1;
+```
+
+The alias names sort in time order, so a descending sort on `run_name` puts the latest run first. Attach every file in
+the folder the same way, and the query needs one `SELECT ... UNION ALL` branch per file. Repeat the pattern for
+`spark_applications` (keyed by `application_id`) and `spark_application_attempts` (keyed by `application_id` and
+`attempt_id`). For the inventory
+tables, query the initial run's file, which holds the tables that only the initial run wrote.
 
 ## Profiler output
 
@@ -492,8 +614,8 @@ makes the step fail with an error, so match values rather than syntax.
   must be installed for them to have values.
 - **Cloudera Manager time series** cover every cluster the Cloudera Manager server manages, as in the original. Use
   the `cluster_name` column to filter them.
-- **YARN filters** are not applied. The profiler reads every application in the window.
-- **Lookback** applies to finished applications, which are selected by finish time. An application that started
-  before the window and is still running is included; one that finished before it is not.
+- **YARN history** is bounded by the ResourceManager. It lists the applications it still keeps, which
+  `yarn.resourcemanager.max-completed-applications` limits (10,000 by default). Schedule runs often enough that no
+  application is dropped before a run reads it. See [Scheduling](#scheduling).
 
 [Back to Configure Profiler](../#configure-profiler)

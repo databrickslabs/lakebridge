@@ -4,6 +4,7 @@ Cloudera Manager bodies that a step needs to know more about (the API version, t
 query name) are wrapped in a small JSON envelope built here, so the step's SQL reads one document per request.
 """
 
+import calendar
 import json
 import logging
 from collections.abc import Iterator
@@ -30,6 +31,7 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.cloudera_manager im
     resolve_cluster,
     resolve_impala_service,
 )
+from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import ExtractRun
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
     ClouderaManagerConfig,
     HadoopConfig,
@@ -47,52 +49,43 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import 
 logger = logging.getLogger(__name__)
 
 YARN_APPS_PATH = "/ws/v1/cluster/apps"
-# Applications that have not finished yet. Their finishedTime is 0, so the finished-time window misses them.
-# App-list parameters that define which applications are returned; a user filter naming one replaces the window.
-YARN_WINDOW_PARAMS = frozenset(
-    {"states", "state", "finishedTimeBegin", "finishedTimeEnd", "startedTimeBegin", "startedTimeEnd", "limit"}
-)
-YARN_UNFINISHED_STATES = ("NEW", "NEW_SAVING", "SUBMITTED", "ACCEPTED", "RUNNING")
+# The Spark History Server minDate, in days before today (UTC): the original's '-1 week' initial and '-1 day' scheduled.
+SPARK_INITIAL_DAYS = 7
+SPARK_INCREMENTAL_DAYS = 1
+
 # The page size and the marker CM puts in a response that hit its scan limit (the original profiler's CM_IMPALA_PAGES).
 IMPALA_PAGE_LIMIT = 1000
 IMPALA_SCAN_LIMIT_MARKER = "Impala query scan limit reached"
 
 
-def yarn_cluster_info(client: RestClient, _config: HadoopConfig) -> list[str]:
+def yarn_cluster_info(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [client.get_text("/ws/v1/cluster/info")]
 
 
-def yarn_cluster_metrics(client: RestClient, _config: HadoopConfig) -> list[str]:
+def yarn_cluster_metrics(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [client.get_text("/ws/v1/cluster/metrics")]
 
 
-def yarn_nodes(client: RestClient, _config: HadoopConfig) -> list[str]:
+def yarn_nodes(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [client.get_text("/ws/v1/cluster/nodes")]
 
 
-def yarn_scheduler(client: RestClient, _config: HadoopConfig) -> list[str]:
+def yarn_scheduler(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [client.get_text("/ws/v1/cluster/scheduler")]
 
 
-def yarn_applications(client: RestClient, config: HadoopConfig) -> list[str]:
-    """Applications that finished inside the lookback window, plus every application that is still unfinished.
-
-    The two bodies overlap when an application finishes between the two calls. The SQL keeps one row per id.
-    """
-    since_ms = _epoch_ms_days_ago(config.lookback_days)
-    # The user's filter (the original profiler's RM_APP_FILTER) is added to both requests. A filter that sets its own
-    # states or time window replaces the profiler's window: one request with exactly that filter, as the original did.
-    user_filter = dict(config.yarn.app_filter) if config.yarn else {}
-    if YARN_WINDOW_PARAMS & user_filter.keys():
-        return [client.get_text(YARN_APPS_PATH, user_filter)]
-    finished = client.get_text(YARN_APPS_PATH, {"finishedTimeBegin": since_ms, **user_filter})
-    unfinished = client.get_text(YARN_APPS_PATH, {"states": ",".join(YARN_UNFINISHED_STATES), **user_filter})
-    return [finished, unfinished]
+def yarn_applications(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
+    """Every application the ResourceManager lists, with the user's app filter if one is set (the original's
+    ``apps${RM_APP_FILTER}``). There is no time window: the ResourceManager keeps only the completed applications that
+    ``yarn.resourcemanager.max-completed-applications`` allows, so that is the history this returns."""
+    return [client.get_text(YARN_APPS_PATH, dict(config.yarn.app_filter) if config.yarn else None)]
 
 
-def spark_applications(client: RestClient, config: HadoopConfig) -> list[str]:
-    """Spark History Server applications that started inside the lookback window."""
-    min_date = (datetime.now(timezone.utc).date() - timedelta(days=config.lookback_days)).isoformat()
+def spark_applications(client: RestClient, _config: HadoopConfig, run: ExtractRun) -> list[str]:
+    """Spark History Server applications started since the window's first UTC day: a week back on the initial run and
+    yesterday on an incremental run, as the original profiler's minDate."""
+    days = SPARK_INITIAL_DAYS if run.initial else SPARK_INCREMENTAL_DAYS
+    min_date = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
     return [client.get_text("/api/v1/applications", {"minDate": min_date})]
 
 
@@ -105,32 +98,28 @@ IMPALA_CATALOG_PATH = "/catalog?json"
 IMPALA_SUBSCRIBERS_PATH = "/subscribers?json"
 
 
-def impala_queries(client: RestClient, _config: HadoopConfig) -> list[str]:
+def impala_queries(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     """Completed queries (the daemon's query log) and the queries in flight. The daemon keeps the last query_log_size."""
     return [client.get_text(IMPALA_QUERIES_PATH)]
 
 
-def impala_backends(client: RestClient, _config: HadoopConfig) -> list[str]:
+def impala_backends(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [client.get_text(IMPALA_BACKENDS_PATH)]
 
 
-def impala_daemon_config(client: RestClient, _config: HadoopConfig) -> list[str]:
+def impala_daemon_config(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [client.get_text(IMPALA_VARZ_PATH)]
 
 
-def impala_catalog(client: RestClient, _config: HadoopConfig) -> list[str]:
+def impala_catalog(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [client.get_text(IMPALA_CATALOG_PATH)]
 
 
-def impala_statestore(client: RestClient, _config: HadoopConfig) -> list[str]:
+def impala_statestore(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [client.get_text(IMPALA_SUBSCRIBERS_PATH)]
 
 
-def _epoch_ms_days_ago(days: int) -> int:
-    return int((datetime.now(timezone.utc) - timedelta(days=days)).timestamp() * 1000)
-
-
-def cm_clusters(client: RestClient, config: HadoopConfig) -> list[str]:
+def cm_clusters(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
     """Every cluster Cloudera Manager manages, with the CM version. Never fails on an ambiguous cluster choice."""
     cm = _cm_config(config)
     root = api_root(client, cm)
@@ -156,40 +145,43 @@ def cm_clusters(client: RestClient, config: HadoopConfig) -> list[str]:
     return [envelope]
 
 
-def cm_services(client: RestClient, config: HadoopConfig) -> list[str]:
+def cm_services(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
     cm = _cm_config(config)
     root = api_root(client, cm)
     cluster = resolve_cluster(client, root, cm.cluster)
     return [client.get_text(f"{root}/clusters/{path_segment(cluster)}/services")]
 
 
-def cm_hosts(client: RestClient, config: HadoopConfig) -> list[str]:
+def cm_hosts(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [client.get_text(f"{api_root(client, _cm_config(config))}/hosts")]
 
 
-def cm_host_config(client: RestClient, config: HadoopConfig) -> list[str]:
+def cm_host_config(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [client.get_text(f"{api_root(client, _cm_config(config))}/cm/allHosts/config")]
 
 
-def cm_cluster_export(client: RestClient, config: HadoopConfig) -> list[str]:
+def cm_cluster_export(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
     cm = _cm_config(config)
     root = api_root(client, cm)
     cluster = resolve_cluster(client, root, cm.cluster)
     return [client.get_text(f"{root}/clusters/{path_segment(cluster)}/export")]
 
 
-def cm_timeseries(client: RestClient, config: HadoopConfig) -> list[str]:
-    """One envelope per timeseries query. Metrics that the CM version does not know are dropped and recorded."""
+def cm_timeseries(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
+    """One envelope per timeseries query, over the last month as the original profiler does. Metrics that the CM version
+    does not know are dropped and recorded."""
     root = api_root(client, _cm_config(config))
     end = datetime.now(timezone.utc).date()
-    start = end - timedelta(days=config.lookback_days)
+    start = one_month_before(end)
     return [_timeseries_envelope(client, root, query, start, end) for query in TIMESERIES_QUERIES]
 
 
-def cm_impala_queries(client: RestClient, config: HadoopConfig) -> Iterator[str]:
+def cm_impala_queries(client: RestClient, config: HadoopConfig, run: ExtractRun) -> Iterator[str]:
     """Impala queries by time interval and page, one body per page that has queries it has not yielded yet.
 
-    The bodies are yielded lazily so a large extract never sits in memory as one list.
+    The initial run reads today and the previous ``impala_lookback_days`` days, up to now. An incremental run reads
+    yesterday only, as the original profiler's scheduled mode does. The bodies are yielded lazily so a large extract
+    never sits in memory as one list.
     """
     cm = _cm_config(config)
     root = api_root(client, cm)
@@ -198,13 +190,23 @@ def cm_impala_queries(client: RestClient, config: HadoopConfig) -> Iterator[str]
     path = f"{root}/clusters/{path_segment(cluster)}/services/{path_segment(service)}/impalaQueries"
 
     now = datetime.now(timezone.utc)
-    window_start = (now - timedelta(days=cm.impala_lookback_days)).replace(hour=0, minute=0, second=0, microsecond=0)
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if run.initial:
+        window_start, stop = today - timedelta(days=cm.impala_lookback_days), now
+    else:
+        window_start, stop = today - timedelta(days=1), today
     interval = timedelta(minutes=cm.impala_interval_minutes)
     seen: set[str] = set()
-    while window_start < now:
-        window_end = min(window_start + interval, now)
+    while window_start < stop:
+        window_end = min(window_start + interval, stop)
         yield from _impala_window(client, path, cm, window_start, window_end, seen)
         window_start = window_end
+
+
+def one_month_before(day: date) -> date:
+    """The original's ``date -d '-1 month'``: the same day of the previous month, or that month's last day if it is shorter."""
+    year, month = (day.year, day.month - 1) if day.month > 1 else (day.year - 1, 12)
+    return date(year, month, min(day.day, calendar.monthrange(year, month)[1]))
 
 
 def _timeseries_envelope(client: RestClient, root: str, query: TimeseriesQuery, start: date, end: date) -> str:
@@ -285,24 +287,24 @@ def _iso_millis(moment: datetime) -> str:
     return moment.strftime("%Y-%m-%dT%H:%M:%S") + f".{moment.microsecond // 1000:03d}Z"
 
 
-def ranger_services(client: RestClient, _config: HadoopConfig) -> list[str]:
+def ranger_services(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [json.dumps(list_services(client))]
 
 
-def ranger_service_defs(client: RestClient, _config: HadoopConfig) -> list[str]:
+def ranger_service_defs(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [list_service_defs(client)]
 
 
-def ranger_policies(client: RestClient, _config: HadoopConfig) -> list[str]:
+def ranger_policies(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     """Every policy. The policies step and the policy items step each read this same list."""
     return [json.dumps(list_policies(client))]
 
 
-def ranger_users(client: RestClient, _config: HadoopConfig) -> list[str]:
+def ranger_users(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [json.dumps(list_users(client))]
 
 
-def ranger_groups(client: RestClient, _config: HadoopConfig) -> list[str]:
+def ranger_groups(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
     return [json.dumps(list_groups(client))]
 
 
@@ -310,34 +312,34 @@ def _ambari_cluster(client: RestClient, config: HadoopConfig) -> str:
     return resolve_ambari_cluster(client, ambari_config(config).cluster)
 
 
-def ambari_blueprint(client: RestClient, config: HadoopConfig) -> list[str]:
+def ambari_blueprint(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
     """The cluster's blueprint (the original's ``?format=blueprint`` call). Used by both blueprint steps."""
     cluster = _ambari_cluster(client, config)
     return [client.get_text(f"{cluster_path(cluster)}?format=blueprint")]
 
 
-def ambari_hosts(client: RestClient, config: HadoopConfig) -> list[str]:
+def ambari_hosts(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
     cluster = _ambari_cluster(client, config)
     fields = "Hosts/cpu_count,Hosts/disk_info,Hosts/total_mem,Hosts/os_type"
     return [client.get_text(f"{cluster_path(cluster)}/hosts?fields={fields}")]
 
 
-def ambari_services(client: RestClient, config: HadoopConfig) -> list[str]:
+def ambari_services(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
     cluster = _ambari_cluster(client, config)
     return [client.get_text(f"{cluster_path(cluster)}/services")]
 
 
-def ambari_host_components(client: RestClient, config: HadoopConfig) -> list[str]:
+def ambari_host_components(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
     cluster = _ambari_cluster(client, config)
     return [client.get_text(f"{cluster_path(cluster)}/hosts?fields=host_components/host_name")]
 
 
-def ambari_stack_versions(client: RestClient, config: HadoopConfig) -> list[str]:
+def ambari_stack_versions(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
     cluster = _ambari_cluster(client, config)
     return [client.get_text(f"{cluster_path(cluster)}/stack_versions/1")]
 
 
-def ambari_component_metrics(client: RestClient, config: HadoopConfig) -> list[str]:
+def ambari_component_metrics(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
     """The NameNode, DataNode, ResourceManager and NodeManager, each with its metric leaves. A missing service adds
     nothing, as described in ``ambari.get_component``."""
     cluster = _ambari_cluster(client, config)

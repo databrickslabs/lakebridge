@@ -12,6 +12,7 @@ import pytest
 
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.resources.assessments.hadoop import extract
+from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import RECORD_STEP
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _HADOOP = _REPO_ROOT / "src/databricks/labs/lakebridge/resources/assessments/hadoop"
@@ -19,6 +20,7 @@ _PIPELINE_CONFIG = _HADOOP / "pipeline_config.yml"
 _NON_STEP_MODULES = {
     "__init__",
     "ambari",
+    "extract_runs",
     "kerberos",
     "cloudera_manager",
     "endpoints",
@@ -28,7 +30,8 @@ _NON_STEP_MODULES = {
     "rest_client",
 }
 
-_STEPS = [step.name for step in PipelineClass.load_config_from_yaml(_PIPELINE_CONFIG).steps]
+# The run's final step writes no table, so it has no DDL or SQL. Every other step writes one.
+_STEPS = [step.name for step in PipelineClass.load_config_from_yaml(_PIPELINE_CONFIG).steps if step.name != RECORD_STEP]
 _CM_STEPS = {
     "cm_clusters",
     "cm_services",
@@ -101,7 +104,8 @@ def test_pipeline_steps_and_step_scripts_match() -> None:
     scripts = {path.stem for path in _HADOOP.glob("*.py")} - _NON_STEP_MODULES
     sql_steps = {path.name[: -len(".sql")] for path in _HADOOP.glob("*.sql") if not path.name.endswith("_ddl.sql")}
 
-    assert set(_STEPS) == scripts == sql_steps
+    assert set(_STEPS) | {RECORD_STEP} == scripts
+    assert set(_STEPS) == sql_steps
     assert len(_STEPS) == len(set(_STEPS))
 
 

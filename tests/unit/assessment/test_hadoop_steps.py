@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
-from urllib.parse import parse_qs, parse_qsl, urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import duckdb
 import pytest
@@ -15,6 +15,7 @@ import yaml
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.resources.assessments.hadoop import extract
 from databricks.labs.lakebridge.resources.assessments.hadoop.endpoints import yarn_applications
+from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import ExtractRun
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
     HadoopConfigError,
     parse_hadoop_config,
@@ -24,6 +25,7 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import 
 _FIXTURES = Path(__file__).resolve().parents[2] / "resources" / "assessments" / "hadoop"
 _SQL_DIR = Path(extract.__file__).resolve().parent
 _DISTRIBUTION_PARAMS = {"distribution": "cdh"}
+RUN = ExtractRun(run_db="extract.db", initial=True)
 
 
 def _fixture(name: str) -> str:
@@ -373,13 +375,13 @@ def test_run_step_applies_mask_rules_to_the_raw_responses(tmp_path: Path) -> Non
         assert _rows(conn, "SELECT DISTINCT name, spark_user FROM spark_applications") == [("masked-app", "u1")]
 
 
-def test_yarn_applications_adds_the_app_filter_to_both_requests() -> None:
-    """hadoop.yarn.app_filter plays the role of the original profiler's RM_APP_FILTER."""
-    calls: list[dict] = []
+def test_yarn_applications_is_one_request_for_the_full_list_with_the_app_filter() -> None:
+    """Like the original's apps${RM_APP_FILTER}: the whole list, with the user's filter, and no time window."""
+    calls: list[tuple[str, dict]] = []
 
     class _RecordingClient:
-        def get_text(self, _path: str, params: dict) -> str:
-            calls.append(dict(params))
+        def get_text(self, path: str, params: dict | None = None) -> str:
+            calls.append((path, dict(params or {})))
             return '{"apps": null}'
 
     client = _RecordingClient()
@@ -387,30 +389,24 @@ def test_yarn_applications_adds_the_app_filter_to_both_requests() -> None:
         {"distribution": "oth", "yarn": {"urls": ["http://rm:8088"], "app_filter": "?user=etl&queue=root.prod"}}
     )
 
-    yarn_applications(client, config)  # type: ignore[arg-type]  # a recording stand-in for RestClient
+    yarn_applications(client, config, RUN)  # type: ignore[arg-type]  # a recording stand-in for RestClient
 
-    assert len(calls) == 2
-    assert all(call["user"] == "etl" and call["queue"] == "root.prod" for call in calls)
-    assert "finishedTimeBegin" in calls[0] and "states" in calls[1]
+    assert calls == [("/ws/v1/cluster/apps", {"user": "etl", "queue": "root.prod"})]
 
 
-@pytest.mark.parametrize("app_filter", ["states=FINISHED,FAILED", "finishedTimeBegin=1700000000000&user=etl"])
-def test_yarn_applications_filter_with_its_own_window_is_sent_alone(app_filter: str) -> None:
-    """Like the original's single apps${RM_APP_FILTER} request: the user's window replaces the profiler's."""
-    calls: list[dict] = []
+def test_yarn_applications_without_a_filter_asks_for_every_application() -> None:
+    calls: list[tuple[str, dict]] = []
 
     class _RecordingClient:
-        def get_text(self, _path: str, params: dict) -> str:
-            calls.append(dict(params))
+        def get_text(self, path: str, params: dict | None = None) -> str:
+            calls.append((path, dict(params or {})))
             return '{"apps": null}'
 
-    config = parse_hadoop_config(
-        {"distribution": "oth", "yarn": {"urls": ["http://rm:8088"], "app_filter": app_filter}}
-    )
+    config = parse_hadoop_config({"distribution": "oth", "yarn": {"urls": ["http://rm:8088"]}})
 
-    yarn_applications(_RecordingClient(), config)  # type: ignore[arg-type]  # a recording stand-in for RestClient
+    yarn_applications(_RecordingClient(), config, RUN)  # type: ignore[arg-type]  # a recording stand-in for RestClient
 
-    assert calls == [dict(parse_qsl(app_filter))]
+    assert calls == [("/ws/v1/cluster/apps", {})]
 
 
 def test_run_step_requires_yarn_for_the_yarn_steps(tmp_path: Path) -> None:
@@ -447,8 +443,7 @@ class _HadoopHandler(BaseHTTPRequestHandler):
         if path == "/yarnui/ws/v1/cluster/metrics":
             return self._send(200, _fixture("yarn_metrics_vanilla.json"))
         if path == "/yarnui/ws/v1/cluster/apps":
-            body = "yarn_applications_vanilla.json" if "finishedTimeBegin" in query else "yarn_applications_empty.json"
-            return self._send(200, _fixture(body))
+            return self._send(200, _fixture("yarn_applications_vanilla.json"))
         if path == "/spark/api/v1/applications":
             return self._send(200, _fixture("spark_applications_vanilla.json"))
         return self._send(404, "{}")
@@ -497,7 +492,6 @@ def _hadoop_server() -> Iterator[str]:
 def _steps_creds(tmp_path: Path, base: str, *, yarn_urls: list[str] | None = None, spark: bool = True) -> Path:
     hadoop: dict = {
         "distribution": "hdp",
-        "lookback_days": 7,
         "yarn": {"urls": yarn_urls or [f"{base}/standby/yarnui", f"{base}/yarnui"]},
     }
     if spark:

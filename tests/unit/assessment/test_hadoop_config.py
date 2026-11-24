@@ -24,7 +24,6 @@ def test_minimal_config_gets_defaults() -> None:
     config = parse_hadoop_config(_raw())
 
     assert config.distribution == "cdh"
-    assert config.lookback_days == 30
     assert config.spark_history is None
     assert config.yarn is not None
     assert config.yarn.urls == ("http://rm1:8088", "http://rm2:8088")
@@ -98,9 +97,6 @@ def test_spark_history_block_is_parsed_with_its_own_settings() -> None:
     [
         ({"yarn": dict(_YARN)}, "hadoop.distribution must be one of"),
         (_raw(distribution="cloudera"), "hadoop.distribution must be one of"),
-        (_raw(lookback_days=0), "between 1 and 3650"),
-        (_raw(lookback_days="many"), "whole number of days"),
-        (_raw(lookback_days=True), "whole number of days"),
         (_raw(yarn={"urls": []}), "hadoop.yarn.urls must be a non-empty list"),
         (_raw(yarn={"urls": ["rm1:8088"]}), "Invalid Hadoop service URL"),
         (_raw(yarn={"urls": ["http://u:p@rm1:8088"]}), "put credentials in username and password"),
@@ -132,7 +128,7 @@ def test_load_hadoop_config_reads_the_hadoop_section(tmp_path: Path) -> None:
         yaml.safe_dump(
             {
                 "secret_vault_type": "local",
-                "hadoop": {"distribution": "oth", "lookback_days": 7, "yarn": {"urls": ["http://rm:8088"]}},
+                "hadoop": {"distribution": "oth", "yarn": {"urls": ["http://rm:8088"]}},
             }
         ),
         encoding="utf-8",
@@ -140,7 +136,7 @@ def test_load_hadoop_config_reads_the_hadoop_section(tmp_path: Path) -> None:
 
     config = load_hadoop_config(creds)
 
-    assert (config.distribution, config.lookback_days) == ("oth", 7)
+    assert config.distribution == "oth"
 
 
 def test_load_hadoop_config_resolves_passwords_from_the_environment(tmp_path: Path, monkeypatch) -> None:
@@ -174,7 +170,7 @@ _CM = {"url": "https://cm.example.net:7183", "username": "profiler", "password":
 
 
 def test_cloudera_manager_defaults_leave_the_detection_and_impala_extract_off() -> None:
-    config = parse_hadoop_config(_raw(lookback_days=14, cloudera_manager=dict(_CM)))
+    config = parse_hadoop_config(_raw(cloudera_manager=dict(_CM)))
 
     cloudera = config.cloudera_manager
     assert cloudera is not None

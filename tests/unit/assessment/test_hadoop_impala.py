@@ -23,11 +23,14 @@ import yaml
 
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.resources.assessments.hadoop import endpoints, extract
+from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import ExtractRun
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
     HadoopConfigError,
     parse_hadoop_config,
 )
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import HadoopApiError
+
+RUN = ExtractRun(run_db="extract.db", initial=True)  # the direct calls below read the initial run
 
 _FIXTURES = Path(__file__).resolve().parents[2] / "resources" / "assessments" / "hadoop"
 _SQL_DIR = Path(extract.__file__).resolve().parent
@@ -393,7 +396,7 @@ class _FakeClient:
 )
 def test_each_impala_fetch_reads_its_json_endpoint(fetch, path: str) -> None:
     client = _FakeClient("{}")
-    fetch(client, parse_hadoop_config(_impala()))  # type: ignore[arg-type]
+    fetch(client, parse_hadoop_config(_impala()), RUN)  # type: ignore[arg-type]
 
     assert client.paths == [path]
 
@@ -581,7 +584,7 @@ def test_impala_fetch_reports_a_daemon_error_as_an_api_error() -> None:
             raise HadoopApiError(f"GET {path} from {self.base_url} timed out")
 
     with pytest.raises(HadoopApiError, match="timed out"):
-        endpoints.impala_queries(_Down(), parse_hadoop_config(_impala()))  # type: ignore[arg-type]
+        endpoints.impala_queries(_Down(), parse_hadoop_config(_impala()), RUN)  # type: ignore[arg-type]
 
 
 def test_the_envelope_names_the_daemon_and_carries_the_body_unchanged() -> None:

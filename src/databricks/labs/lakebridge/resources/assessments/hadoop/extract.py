@@ -23,6 +23,17 @@ from databricks.labs.blueprint.entrypoint import get_logger
 
 from databricks.labs.lakebridge.resources.assessments.common.cli import arguments_loader
 from databricks.labs.lakebridge.resources.assessments.common.duckdb_helpers import connect_to_profiler_db
+from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import (
+    INITIAL_GATE_STEP,
+    SKIPPED_INCREMENTAL,
+    STEP_KINDS,
+    ExtractRun,
+    StepKind,
+    finish_run,
+    record_initial_gate,
+    record_inventory_step,
+    resolve_run,
+)
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
     HadoopConfig,
     HadoopConfigError,
@@ -49,7 +60,7 @@ Endpoint = Literal[
 ]
 # The Impala daemon web UIs, read directly (hadoop.impala), as opposed to the Cloudera Manager "impala" endpoint.
 IMPALA_DIRECT_ENDPOINTS: tuple[str, ...] = ("impala_daemons", "impala_catalogd", "impala_statestored")
-Fetch = Callable[[RestClient, HadoopConfig], Iterable[str]]
+Fetch = Callable[[RestClient, HadoopConfig, ExtractRun], Iterable[str]]
 
 # Session-scoped (TEMP) so they never persist into the profiler extract. Each takes a JSON value.
 HELPER_MACROS: tuple[str, ...] = (
@@ -118,18 +129,54 @@ def run_step(
     db_path: str,
     creds_file: Path,
 ) -> str:
-    """Extract one step and return its status message. Raises on failure."""
+    """Extract one step and return its status message. Raises on failure.
+
+    The step first asks the run tracker whether this run is the initial one. An inventory step (``STEP_KINDS``) that
+    already succeeded in the initial run is skipped by an incremental run. Once an inventory step succeeds, it is recorded
+    so that later runs skip it.
+    """
+    run = resolve_run(db_path)
+    kind = STEP_KINDS[step]
+    if kind is StepKind.INITIAL_ONLY and not run.initial and step in run.completed:
+        return SKIPPED_INCREMENTAL
+    message, extracted = _extract(
+        step=step,
+        endpoint=endpoint,
+        fetch=fetch,
+        sql_dir=sql_dir,
+        db_path=db_path,
+        creds_file=creds_file,
+        run=run,
+    )
+    if extracted and kind is StepKind.INITIAL_ONLY:
+        record_inventory_step(db_path, run, step)
+    if extracted and run.initial and step == INITIAL_GATE_STEP:
+        record_initial_gate(db_path, run)
+    return message
+
+
+def _extract(
+    *,
+    step: str,
+    endpoint: Endpoint,
+    fetch: Fetch,
+    sql_dir: Path,
+    db_path: str,
+    creds_file: Path,
+    run: ExtractRun,
+) -> tuple[str, bool]:
+    """Fetch and write the step. Returns its status message and whether it wrote a table (a skip does not)."""
     config = load_hadoop_config(creds_file)
     if endpoint in IMPALA_DIRECT_ENDPOINTS:
         clients = _impala_clients(endpoint, config.impala)
         if isinstance(clients, str):
-            return clients
+            return clients, False
         # Each daemon's body is wrapped with the daemon's URL so the step's rows say where they came from, then masked
         # as a whole, so mask_rules also apply to the coordinator URL.
         bodies = (
             config.mask(_coordinator_envelope(client.base_url, body))
             for client in clients
-            for body in fetch(client, config)
+            for body in fetch(client, config, run)
         )
         row_count = _write_table(
             step=step,
@@ -139,30 +186,30 @@ def run_step(
             params={"distribution": config.distribution},
             streaming=True,
         )
-        return f"{step} extracted {row_count} rows"
+        return f"{step} extracted {row_count} rows", True
     if endpoint == "yarn":
         if config.yarn is None:
             raise HadoopConfigError("hadoop.yarn is not configured; the YARN steps need it")
         client = find_active_resource_manager(config.yarn.urls, make_client=config.yarn.client)
     elif endpoint == "spark_history":
         if config.spark_history is None:
-            return "skipped: not configured (hadoop.spark_history is absent)"
+            return "skipped: not configured (hadoop.spark_history is absent)", False
         client = config.spark_history.client(config.spark_history.urls[0])
     elif endpoint == "ambari":
         if config.ambari is None:
-            return "skipped: not configured (hadoop.ambari is absent)"
+            return "skipped: not configured (hadoop.ambari is absent)", False
         client = config.ambari.endpoint.client(config.ambari.endpoint.urls[0])
     elif endpoint == "ranger":
         if config.ranger is None:
-            return "skipped: not configured (hadoop.ranger is absent)"
+            return "skipped: not configured (hadoop.ranger is absent)", False
         ranger = config.ranger
         client = RestClient(ranger.urls[0], username=ranger.username, password=ranger.password, verify=ranger.verify)
     else:
         cm = config.cloudera_manager
         if cm is None:
-            return "skipped: not configured (hadoop.cloudera_manager is absent)"
+            return "skipped: not configured (hadoop.cloudera_manager is absent)", False
         if endpoint == "impala" and not cm.extract_impala_queries:
-            return "skipped: not configured (hadoop.cloudera_manager.extract_impala_queries is false)"
+            return "skipped: not configured (hadoop.cloudera_manager.extract_impala_queries is false)", False
         client = RestClient(
             cm.endpoint.urls[0],
             username=cm.endpoint.username,
@@ -171,7 +218,7 @@ def run_step(
         )
 
     # Masking runs on the raw responses before parsing, like the original profiler's SEARCH_REPLACE pipe.
-    bodies = (config.mask(body) for body in fetch(client, config))
+    bodies = (config.mask(body) for body in fetch(client, config, run))
     row_count = _write_table(
         step=step,
         sql_dir=sql_dir,
@@ -180,7 +227,7 @@ def run_step(
         params={"distribution": config.distribution},
         streaming=endpoint == "impala",
     )
-    return f"{step} extracted {row_count} rows"
+    return f"{step} extracted {row_count} rows", True
 
 
 def _impala_clients(endpoint: str, impala: ImpalaConfig | None) -> list[RestClient] | str:
@@ -225,6 +272,18 @@ def run_step_script(*, step: str, endpoint: Endpoint, fetch: Fetch, sql_dir: Pat
         )
     except Exception as e:  # noqa: BLE001  (reported to the pipeline as a status line, then a non-zero exit)
         logger.error(f"Failed to extract {step}: {e}")
+        print(json.dumps({"status": "error", "message": str(e)}))
+        sys.exit(1)
+    print(json.dumps({"status": "success", "message": message}))
+
+
+def run_finish_script() -> None:
+    """Entry point for the run's final step: record the run in the tracker and print the status line."""
+    db_path, _creds_file = arguments_loader(desc="Hadoop extract tracker")
+    try:
+        message = finish_run(db_path)
+    except Exception as e:  # noqa: BLE001  (reported to the pipeline as a status line, then a non-zero exit)
+        logger.error(f"Failed to record the Hadoop extract run: {e}")
         print(json.dumps({"status": "error", "message": str(e)}))
         sys.exit(1)
     print(json.dumps({"status": "success", "message": message}))

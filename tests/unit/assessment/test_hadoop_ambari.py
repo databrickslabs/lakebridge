@@ -21,6 +21,7 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.ambari import (
     metric_leaves,
     resolve_ambari_cluster,
 )
+from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import ExtractRun
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
     HadoopConfigError,
     parse_hadoop_config,
@@ -30,6 +31,8 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import 
     HadoopHttpError,
     RestClient,
 )
+
+RUN = ExtractRun(run_db="extract.db", initial=True)  # the direct calls below read the initial run
 
 _FIXTURES = Path(__file__).resolve().parents[2] / "resources" / "assessments" / "hadoop"
 _SQL_DIR = Path(extract.__file__).resolve().parent
@@ -153,10 +156,13 @@ def _one_row(conn: duckdb.DuckDBPyConnection, query: str) -> tuple[Any, ...]:
 
 
 def _extract(
-    step: str, fetch: Callable[[RestClient, Any], list[str]], routes: dict[str, tuple[int, str]], tmp_path: Path
+    step: str,
+    fetch: Callable[[RestClient, Any, ExtractRun], list[str]],
+    routes: dict[str, tuple[int, str]],
+    tmp_path: Path,
 ) -> duckdb.DuckDBPyConnection:
     client, _ = _client(routes)
-    return _load(step, fetch(client, _config(cluster="sim")), tmp_path)
+    return _load(step, fetch(client, _config(cluster="sim"), RUN), tmp_path)
 
 
 # ---- config -------------------------------------------------------------------------------------------------------
@@ -273,7 +279,7 @@ def test_cluster_name_with_spaces_is_url_encoded_in_every_path() -> None:
     routes["/api/v1/clusters/Sandbox%20HDP?format=blueprint"] = (200, '{"host_groups": [], "Blueprints": {}}')
     client, session = _client(routes)
 
-    endpoints.ambari_blueprint(client, _config(cluster="Sandbox HDP"))
+    endpoints.ambari_blueprint(client, _config(cluster="Sandbox HDP"), RUN)
 
     assert session.urls[-1] == f"{_BASE}/api/v1/clusters/Sandbox%20HDP?format=blueprint"
 
@@ -287,7 +293,7 @@ def test_gateway_requests_go_to_the_gateway_root_without_a_port() -> None:
     session = _FakeSession(routes)
     client = RestClient(base, session=session)  # type: ignore[arg-type]
 
-    rows = endpoints.ambari_services(client, _config(cluster="sim", url=base))
+    rows = endpoints.ambari_services(client, _config(cluster="sim", url=base), RUN)
 
     assert rows == [_fixture("ambari_services_sim.json")]
     assert session.urls == [f"{base}/api/v1/clusters", f"{base}/api/v1/clusters/sim/services"]
@@ -306,7 +312,7 @@ def test_extraction_asks_ambari_for_the_original_nine_calls() -> None:
         endpoints.ambari_stack_versions,
         endpoints.ambari_component_metrics,
     ):
-        fetch(client, config)
+        fetch(client, config, RUN)
 
     requested = {url[len(_BASE) :] for url in session.urls}
     assert _ORIGINAL_PATHS <= requested
@@ -320,7 +326,7 @@ def test_component_calls_skip_a_service_the_cluster_does_not_have() -> None:
     """Before any service is installed, the four component calls answer 404 and the step adds no rows."""
     client, _ = _client(_empty_routes())
 
-    assert not endpoints.ambari_component_metrics(client, _config(cluster="sim"))
+    assert not endpoints.ambari_component_metrics(client, _config(cluster="sim"), RUN)
 
 
 def test_a_404_for_a_service_the_cluster_has_is_an_error() -> None:
@@ -329,7 +335,7 @@ def test_a_404_for_a_service_the_cluster_has_is_an_error() -> None:
     client, _ = _client(routes)
 
     with pytest.raises(HadoopHttpError) as raised:
-        endpoints.ambari_component_metrics(client, _config(cluster="sim"))
+        endpoints.ambari_component_metrics(client, _config(cluster="sim"), RUN)
     assert raised.value.status_code == 404
 
 
@@ -339,7 +345,7 @@ def test_a_server_error_on_a_component_is_an_error() -> None:
     client, _ = _client(routes)
 
     with pytest.raises(HadoopApiError, match="returned HTTP 500"):
-        endpoints.ambari_component_metrics(client, _config(cluster="sim"))
+        endpoints.ambari_component_metrics(client, _config(cluster="sim"), RUN)
 
 
 def test_a_server_error_on_a_top_level_call_is_an_error() -> None:
@@ -351,7 +357,7 @@ def test_a_server_error_on_a_top_level_call_is_an_error() -> None:
     client, _ = _client(routes)
 
     with pytest.raises(HadoopHttpError):
-        endpoints.ambari_hosts(client, _config(cluster="sim"))
+        endpoints.ambari_hosts(client, _config(cluster="sim"), RUN)
 
 
 def test_a_non_json_blueprint_is_an_error() -> None:
@@ -360,7 +366,7 @@ def test_a_non_json_blueprint_is_an_error() -> None:
     client, _ = _client(routes)
 
     with pytest.raises(HadoopApiError, match="did not return JSON"):
-        endpoints.ambari_blueprint(client, _config(cluster="sim"))
+        endpoints.ambari_blueprint(client, _config(cluster="sim"), RUN)
 
 
 # ---- step SQL over the populated capture -------------------------------------------------------------------------

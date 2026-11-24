@@ -259,3 +259,12 @@ steps:
     frequency: once
     flag: active
     optional: true
+
+  # The run's final step writes no table. It records in the extract tracker that the initial extract completed, so it
+  # must run last and must not be optional: a failure here is a failure to record the run.
+  - name: hadoop_extract_tracker
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/hadoop_extract_tracker.py
+    mode: overwrite
+    frequency: once
+    flag: active

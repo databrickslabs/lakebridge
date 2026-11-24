@@ -35,7 +35,6 @@ def test_configure_hadoop_with_ha_basic_auth_https_and_spark(tmp_path: Path) -> 
     answers = {
         r"Enter secret vault type": "1",  # local (choices are sorted: env, local)
         r"Select the Hadoop distribution": "2",  # cdh (the list is not sorted)
-        r"Enter the lookback window in days": "30",
         r"Enter the YARN ResourceManager URL": "https://rm1.example.net/yarnui, https://rm2.example.net/yarnui",
         r"Select the YARN ResourceManager authentication": "1",  # basic
         r"Enter the YARN ResourceManager username": "profiler",
@@ -59,7 +58,6 @@ def test_configure_hadoop_with_ha_basic_auth_https_and_spark(tmp_path: Path) -> 
         "secret_vault_name": None,
         "hadoop": {
             "distribution": "cdh",
-            "lookback_days": 30,
             "yarn": {
                 "urls": ["https://rm1.example.net/yarnui", "https://rm2.example.net/yarnui"],
                 "auth": "basic",
@@ -78,7 +76,6 @@ def test_configure_hadoop_env_vault_stores_variable_names_and_a_ca_bundle(tmp_pa
     answers = {
         r"Enter secret vault type": "0",  # env
         r"Select the Hadoop distribution": "4",  # hdi
-        r"Enter the lookback window in days": "14",
         r"Enter the YARN ResourceManager URL": "https://c.azurehdinsight.net/yarnui",
         r"Select the YARN ResourceManager authentication": "1",
         r"Enter the YARN ResourceManager username": "admin",
@@ -111,7 +108,6 @@ def test_configure_hadoop_plain_http_without_auth_asks_no_tls_questions(tmp_path
     answers = {
         r"Enter secret vault type": "1",
         r"Select the Hadoop distribution": "0",  # oth
-        r"Enter the lookback window in days": "30",
         r"Enter the YARN ResourceManager URL": "http://localhost:8088",
         r"Select the YARN ResourceManager authentication": "0",  # none
         r"Configure a Spark History Server": "no",
@@ -166,7 +162,6 @@ def test_configure_cloudera_manager_with_impala_writes_the_block(tmp_path: Path)
     answers = {
         r"Enter secret vault type": "1",  # local
         r"Select the Hadoop distribution": "2",  # cdh
-        r"Enter the lookback window in days": "30",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",  # none
         r"Configure a Spark History Server": "no",
@@ -205,7 +200,6 @@ def test_configure_cloudera_manager_without_impala_leaves_detection_to_the_steps
     answers = {
         r"Enter secret vault type": "1",
         r"Select the Hadoop distribution": "2",
-        r"Enter the lookback window in days": "30",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",
         r"Configure a Spark History Server": "no",
@@ -279,7 +273,6 @@ def test_configure_hadoop_with_ranger_writes_the_block(tmp_path: Path) -> None:
     answers = {
         r"Enter secret vault type": "1",  # local
         r"Select the Hadoop distribution": "3",  # hdp (the list is not sorted)
-        r"Enter the lookback window in days": "30",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",  # none
         r"Configure a Spark History Server": "no",
@@ -313,7 +306,6 @@ def test_configure_hadoop_without_ranger_writes_no_ranger_block(tmp_path: Path) 
     answers = {
         r"Enter secret vault type": "1",
         r"Select the Hadoop distribution": "3",
-        r"Enter the lookback window in days": "30",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",
         r"Configure a Spark History Server": "no",
@@ -369,7 +361,6 @@ def test_configure_hadoop_with_impala_writes_the_block(tmp_path: Path) -> None:
     answers = {
         r"Enter secret vault type": "1",  # local
         r"Select the Hadoop distribution": "0",  # oth (the list is not sorted)
-        r"Enter the lookback window in days": "30",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",  # none
         r"Configure a Spark History Server": "no",
@@ -397,7 +388,6 @@ def test_configure_hadoop_without_impala_writes_no_impala_block(tmp_path: Path) 
     answers = {
         r"Enter secret vault type": "1",
         r"Select the Hadoop distribution": "0",
-        r"Enter the lookback window in days": "30",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",
         r"Configure a Spark History Server": "no",
@@ -467,7 +457,6 @@ def test_configure_yarn_kerberos_with_keytab_writes_the_block(tmp_path: Path) ->
     answers = {
         r"Enter secret vault type": "1",  # local
         r"Select the Hadoop distribution": "2",  # cdh
-        r"Enter the lookback window in days": "30",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "2",  # kerberos
         r"Enter the path to the keytab for the YARN ResourceManager": "/etc/security/profiler.keytab",
@@ -494,7 +483,6 @@ def test_configure_spark_history_kerberos_without_keytab_uses_the_existing_ticke
     answers = {
         r"Enter secret vault type": "1",
         r"Select the Hadoop distribution": "2",
-        r"Enter the lookback window in days": "30",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",  # none
         r"Configure a Spark History Server": "yes",
@@ -538,7 +526,6 @@ def test_configure_ambari_over_the_hdinsight_gateway_writes_the_block(tmp_path: 
     answers = {
         r"Enter secret vault type": "1",  # local
         r"Select the Hadoop distribution": "3",  # hdp
-        r"Enter the lookback window in days": "30",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",  # none
         r"Configure a Spark History Server": "no",
@@ -567,7 +554,6 @@ def test_configure_ambari_with_basic_auth_and_a_named_cluster(tmp_path: Path) ->
     answers = {
         r"Enter secret vault type": "1",
         r"Select the Hadoop distribution": "3",
-        r"Enter the lookback window in days": "30",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",
         r"Configure a Spark History Server": "no",

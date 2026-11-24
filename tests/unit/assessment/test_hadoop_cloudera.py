@@ -24,6 +24,7 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.cloudera_manager im
     resolve_cluster,
     resolve_impala_service,
 )
+from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import ExtractRun
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
     HadoopConfig,
     HadoopConfigError,
@@ -34,6 +35,8 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import 
     HadoopHttpError,
     RestClient,
 )
+
+RUN = ExtractRun(run_db="extract.db", initial=True)  # the direct calls below read the initial run
 
 _FIXTURES = Path(__file__).resolve().parents[2] / "resources" / "assessments" / "hadoop"
 _SQL_DIR = Path(extract.__file__).resolve().parent
@@ -51,7 +54,7 @@ def _fixture(name: str) -> str:
 
 def _config(**cloudera: object) -> HadoopConfig:
     block = {"url": _CM_URL, "username": "profiler", "password": "pw", **cloudera}
-    return parse_hadoop_config({"distribution": "cdh", "lookback_days": 30, "cloudera_manager": block})
+    return parse_hadoop_config({"distribution": "cdh", "cloudera_manager": block})
 
 
 class _Cm:
@@ -209,7 +212,7 @@ def test_cluster_name_with_spaces_is_url_encoded_on_the_wire(monkeypatch: pytest
 
     monkeypatch.setattr(requests.Session, "get", get)
 
-    endpoints.cm_services(RestClient(_CM_URL, username="profiler", password="pw"), _config())
+    endpoints.cm_services(RestClient(_CM_URL, username="profiler", password="pw"), _config(), RUN)
 
     assert path_segment(_CLUSTER) == "Cloudera%20QuickStart"
     assert seen[-1] == f"{_CM_URL}/api/v12/clusters/Cloudera%20QuickStart/services"
@@ -265,7 +268,7 @@ def _timeseries_cm(path: str, params: dict) -> str:
 def test_unknown_metrics_are_dropped_one_at_a_time_and_recorded() -> None:
     fake_cm = _Cm(_timeseries_cm)
 
-    bodies = endpoints.cm_timeseries(cast(RestClient, fake_cm), _config())
+    bodies = endpoints.cm_timeseries(cast(RestClient, fake_cm), _config(), RUN)
 
     impala_queries = [params["query"] for _, params in fake_cm.requests if "impala_query" in params.get("query", "")]
     # The first request fails on impala_memory_rss, the second on impala_memory_total_used, the third succeeds.
@@ -286,13 +289,13 @@ def test_an_invalid_metric_error_that_names_no_query_metric_is_raised() -> None:
         return _standard_cm(path, params)
 
     with pytest.raises(HadoopHttpError):
-        endpoints.cm_timeseries(_client(unrelated), _config())
+        endpoints.cm_timeseries(_client(unrelated), _config(), RUN)
 
 
 def test_windowed_queries_use_the_hourly_rollup_and_others_have_no_window(fixed_clock: None) -> None:
     fake_cm = _Cm(_standard_cm)
 
-    endpoints.cm_timeseries(cast(RestClient, fake_cm), _config())
+    endpoints.cm_timeseries(cast(RestClient, fake_cm), _config(), RUN)
 
     host_roles = next(
         params for _, params in fake_cm.requests if params.get("query", "").startswith("select scm_role_state")
@@ -304,15 +307,17 @@ def test_windowed_queries_use_the_hourly_rollup_and_others_have_no_window(fixed_
     assert yarn["desiredRollup"] == "HOURLY" and yarn["mustUseDesiredRollup"] == "true"
 
 
-def test_the_window_is_the_lookback_days_up_to_today(fixed_clock: None) -> None:
-    fake_cm = _Cm(_standard_cm)
+def test_the_window_is_the_last_month_up_to_today_on_every_run(fixed_clock: None) -> None:
+    """The original's date -d '-1 month' to today, for the initial run and an incremental run alike."""
+    for run in (RUN, ExtractRun(run_db="later.db", initial=False)):
+        fake_cm = _Cm(_standard_cm)
 
-    endpoints.cm_timeseries(cast(RestClient, fake_cm), _config())
+        endpoints.cm_timeseries(cast(RestClient, fake_cm), _config(), run)
 
-    yarn = next(
-        params for _, params in fake_cm.requests if params.get("query", "").startswith("select allocated_memory_mb")
-    )
-    assert (yarn["from"], yarn["to"]) == ("2026-10-24", "2026-11-23")
+        yarn = next(
+            params for _, params in fake_cm.requests if params.get("query", "").startswith("select allocated_memory_mb")
+        )
+        assert (yarn["from"], yarn["to"]) == ("2026-10-23", "2026-11-23")
 
 
 # ---- impala --------------------------------------------------------------------------------------------------------
@@ -340,7 +345,7 @@ def test_impala_windows_page_until_a_short_page_and_skip_the_rest(fixed_clock: N
         return _impala_page(0, 0)
 
     config = _config(extract_impala_queries=True, impala_lookback_days=1)
-    bodies = list(endpoints.cm_impala_queries(_client(impala), config))
+    bodies = list(endpoints.cm_impala_queries(_client(impala), config, RUN))
 
     windows = {(call["from"], call["to"]) for call in calls}
     assert len(windows) == 27
@@ -358,7 +363,7 @@ def test_impala_queries_come_from_the_resolved_cluster_and_service(fixed_clock: 
 
     list(
         endpoints.cm_impala_queries(
-            cast(RestClient, fake_cm), _config(extract_impala_queries=True, impala_lookback_days=1)
+            cast(RestClient, fake_cm), _config(extract_impala_queries=True, impala_lookback_days=1), RUN
         )
     )
 
@@ -372,7 +377,11 @@ def test_impala_scan_limit_warning_is_logged(fixed_clock: None, caplog: pytest.L
         return _standard_cm(path, params)
 
     with caplog.at_level(logging.WARNING):
-        list(endpoints.cm_impala_queries(_client(impala), _config(extract_impala_queries=True, impala_lookback_days=1)))
+        list(
+            endpoints.cm_impala_queries(
+                _client(impala), _config(extract_impala_queries=True, impala_lookback_days=1), RUN
+            )
+        )
 
     assert "scan limit" in caplog.text
     assert "reduce hadoop.cloudera_manager.impala_interval_minutes" in caplog.text
@@ -386,7 +395,7 @@ def test_impala_truncation_at_the_page_cap_is_logged(fixed_clock: None, caplog: 
 
     config = _config(extract_impala_queries=True, impala_lookback_days=1, impala_max_pages=1)
     with caplog.at_level(logging.WARNING):
-        list(endpoints.cm_impala_queries(_client(impala), config))
+        list(endpoints.cm_impala_queries(_client(impala), config, RUN))
 
     assert "impala_max_pages=1 allows" in caplog.text
 
@@ -395,7 +404,7 @@ def test_cm_fetch_without_the_block_is_a_config_error() -> None:
     config = parse_hadoop_config({"distribution": "cdh"})
 
     with pytest.raises(HadoopConfigError, match="not configured"):
-        endpoints.cm_services(_client(_standard_cm), config)
+        endpoints.cm_services(_client(_standard_cm), config, RUN)
 
 
 # ---- the step SQL over the captured fixtures -----------------------------------------------------------------------
@@ -482,7 +491,7 @@ def test_cm_clusters_without_a_selection_marks_none(tmp_path: Path) -> None:
 
 def test_cm_clusters_fetch_selects_the_auto_detected_cluster(tmp_path: Path) -> None:
     """With no cluster configured and one cluster in CM, that cluster is the one the profile is for."""
-    (envelope,) = endpoints.cm_clusters(_client(_standard_cm), _config())
+    (envelope,) = endpoints.cm_clusters(_client(_standard_cm), _config(), RUN)
 
     assert json.loads(envelope)["selected_cluster"] == _CLUSTER
     with _load("cm_clusters", [envelope], tmp_path) as conn:
@@ -497,7 +506,7 @@ def test_cm_clusters_fetch_with_an_ambiguous_choice_selects_none() -> None:
             return json.dumps({"items": [{"name": "a"}, {"name": "b"}]})
         return _standard_cm(path, params)
 
-    (envelope,) = endpoints.cm_clusters(_client(two_clusters), _config())
+    (envelope,) = endpoints.cm_clusters(_client(two_clusters), _config(), RUN)
 
     assert json.loads(envelope)["selected_cluster"] is None
 

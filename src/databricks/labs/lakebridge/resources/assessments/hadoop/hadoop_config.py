@@ -5,7 +5,6 @@ Example::
     secret_vault_type: local
     hadoop:
       distribution: cdh              # oth | mapr | cdh | hdp | hdi
-      lookback_days: 30
       yarn:
         urls:                        # HA: list every ResourceManager; a gateway URL may carry a path
           - http://rm1.example.com:8088
@@ -84,10 +83,9 @@ SUPPORTED_AUTH = ("none", "basic")
 # Kerberos (SPNEGO) is supported only where the original profiler supports it: the YARN ResourceManager and the Spark
 # History Server (RM_KERBERIZED and SPARK_HS_KERBERIZED).
 KERBEROS_SECTIONS = ("yarn", "spark_history")
-DEFAULT_LOOKBACK_DAYS = 30
 # The original profiler's CM_IMPALA_NUMBER_OF_DAYS=1: yesterday and today. Impala query history is large.
 DEFAULT_IMPALA_LOOKBACK_DAYS = 1
-MAX_LOOKBACK_DAYS = 3650
+MAX_IMPALA_LOOKBACK_DAYS = 3650
 # The Impala interval must divide an hour, as in the original profiler (CM_IMPALA_INTERVAL_MINUTES).
 IMPALA_INTERVAL_OPTIONS = (1, 2, 3, 6, 10, 20, 30, 60)
 DEFAULT_IMPALA_INTERVAL_MINUTES = 60
@@ -169,7 +167,6 @@ class MaskRule:
 @dataclass(frozen=True)
 class HadoopConfig:
     distribution: str
-    lookback_days: int
     yarn: RestEndpoint | None
     spark_history: RestEndpoint | None
     mask_rules: tuple[MaskRule, ...] = ()
@@ -193,14 +190,12 @@ def parse_hadoop_config(raw: Any) -> HadoopConfig:
         raise HadoopConfigError(
             f"hadoop.distribution must be one of {', '.join(DISTRIBUTIONS)}; got {raw.get('distribution')!r}"
         )
-    lookback_days = _lookback_days(raw.get("lookback_days", DEFAULT_LOOKBACK_DAYS))
     return HadoopConfig(
         distribution=distribution,
-        lookback_days=lookback_days,
         yarn=_endpoint(raw.get("yarn"), "yarn", multiple_urls=True),
         spark_history=_endpoint(raw.get("spark_history"), "spark_history", multiple_urls=False),
         mask_rules=_mask_rules(raw.get("mask_rules")),
-        cloudera_manager=_cloudera_manager(raw.get("cloudera_manager"), lookback_days),
+        cloudera_manager=_cloudera_manager(raw.get("cloudera_manager")),
         ranger=_endpoint(raw.get("ranger"), "ranger", multiple_urls=False),
         impala=_impala(raw.get("impala")),
         ambari=_ambari(raw.get("ambari")),
@@ -217,19 +212,19 @@ def load_hadoop_config(creds_file: Path) -> HadoopConfig:
     return parse_hadoop_config(raw)
 
 
-def _lookback_days(raw: Any, key: str = "hadoop.lookback_days") -> int:
+def _whole_days(raw: Any, key: str) -> int:
     if isinstance(raw, bool):
         raise HadoopConfigError(f"{key} must be a whole number of days")
     try:
         value = int(raw)
     except (TypeError, ValueError) as e:
         raise HadoopConfigError(f"{key} must be a whole number of days") from e
-    if not 1 <= value <= MAX_LOOKBACK_DAYS:
-        raise HadoopConfigError(f"{key} must be between 1 and {MAX_LOOKBACK_DAYS}")
+    if not 1 <= value <= MAX_IMPALA_LOOKBACK_DAYS:
+        raise HadoopConfigError(f"{key} must be between 1 and {MAX_IMPALA_LOOKBACK_DAYS}")
     return value
 
 
-def _cloudera_manager(raw: Any, lookback_days: int) -> ClouderaManagerConfig | None:
+def _cloudera_manager(raw: Any) -> ClouderaManagerConfig | None:
     if raw is None:
         return None
     if not isinstance(raw, Mapping):
@@ -274,7 +269,7 @@ def _cloudera_manager(raw: Any, lookback_days: int) -> ClouderaManagerConfig | N
         impala_lookback_days=(
             DEFAULT_IMPALA_LOOKBACK_DAYS
             if impala_lookback is None
-            else _lookback_days(impala_lookback, "hadoop.cloudera_manager.impala_lookback_days")
+            else _whole_days(impala_lookback, "hadoop.cloudera_manager.impala_lookback_days")
         ),
         impala_max_pages=int(max_pages),
     )
