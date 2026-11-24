@@ -1,0 +1,1 @@
+{"clusterInfo":{"id":1795437591388,"startedOn":1795437591388,"state":"STARTED","haState":"STANDBY","rmStateStoreName":"org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore","resourceManagerVersion":"3.4.1","hadoopVersion":"3.4.1"}}

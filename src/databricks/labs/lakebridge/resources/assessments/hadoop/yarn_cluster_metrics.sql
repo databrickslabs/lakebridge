@@ -1,0 +1,28 @@
+-- One row: cluster-wide counters. Fields a distribution does not report are NULL.
+SELECT
+    CAST(doc->>'$.clusterMetrics.appsSubmitted' AS BIGINT) AS apps_submitted,
+    CAST(doc->>'$.clusterMetrics.appsCompleted' AS BIGINT) AS apps_completed,
+    CAST(doc->>'$.clusterMetrics.appsPending' AS BIGINT) AS apps_pending,
+    CAST(doc->>'$.clusterMetrics.appsRunning' AS BIGINT) AS apps_running,
+    CAST(doc->>'$.clusterMetrics.appsFailed' AS BIGINT) AS apps_failed,
+    CAST(doc->>'$.clusterMetrics.appsKilled' AS BIGINT) AS apps_killed,
+    CAST(doc->>'$.clusterMetrics.containersAllocated' AS BIGINT) AS containers_allocated,
+    CAST(doc->>'$.clusterMetrics.containersPending' AS BIGINT) AS containers_pending,
+    CAST(doc->>'$.clusterMetrics.totalMB' AS BIGINT) AS total_mb,
+    CAST(doc->>'$.clusterMetrics.availableMB' AS BIGINT) AS available_mb,
+    CAST(doc->>'$.clusterMetrics.allocatedMB' AS BIGINT) AS allocated_mb,
+    CAST(doc->>'$.clusterMetrics.pendingMB' AS BIGINT) AS pending_mb,
+    CAST(doc->>'$.clusterMetrics.reservedMB' AS BIGINT) AS reserved_mb,
+    CAST(doc->>'$.clusterMetrics.totalVirtualCores' AS BIGINT) AS total_virtual_cores,
+    CAST(doc->>'$.clusterMetrics.availableVirtualCores' AS BIGINT) AS available_virtual_cores,
+    CAST(doc->>'$.clusterMetrics.allocatedVirtualCores' AS BIGINT) AS allocated_virtual_cores,
+    CAST(doc->>'$.clusterMetrics.pendingVirtualCores' AS BIGINT) AS pending_virtual_cores,
+    CAST(doc->>'$.clusterMetrics.totalNodes' AS BIGINT) AS total_nodes,
+    CAST(doc->>'$.clusterMetrics.activeNodes' AS BIGINT) AS active_nodes,
+    CAST(doc->>'$.clusterMetrics.lostNodes' AS BIGINT) AS lost_nodes,
+    CAST(doc->>'$.clusterMetrics.unhealthyNodes' AS BIGINT) AS unhealthy_nodes,
+    CAST(doc->>'$.clusterMetrics.decommissioningNodes' AS BIGINT) AS decommissioning_nodes,
+    CAST(doc->>'$.clusterMetrics.decommissionedNodes' AS BIGINT) AS decommissioned_nodes,
+    CAST(doc->>'$.clusterMetrics.rebootedNodes' AS BIGINT) AS rebooted_nodes,
+    CAST(doc->>'$.clusterMetrics.shutdownNodes' AS BIGINT) AS shutdown_nodes
+FROM raw_documents

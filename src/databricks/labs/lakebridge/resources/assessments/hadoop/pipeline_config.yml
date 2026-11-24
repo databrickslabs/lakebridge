@@ -1,0 +1,55 @@
+name: hadoop_assessment
+version: "1.0"
+steps:
+  - name: yarn_cluster_info
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_cluster_info.py
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: yarn_cluster_metrics
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_cluster_metrics.py
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: yarn_nodes
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_nodes.py
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: yarn_scheduler_queues
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_scheduler_queues.py
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: yarn_applications
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_applications.py
+    mode: overwrite
+    frequency: once
+    flag: active
+
+
+  # Spark History Server steps are optional: an unreachable or unconfigured Spark History Server does not fail the run.
+  - name: spark_applications
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/spark_applications.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: spark_application_attempts
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/spark_application_attempts.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true

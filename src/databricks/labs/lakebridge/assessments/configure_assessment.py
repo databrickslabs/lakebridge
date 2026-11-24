@@ -27,6 +27,17 @@ from databricks.labs.lakebridge.connections.snowflake_auth import (
     Pat,
 )
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
+from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
+    DEFAULT_LOOKBACK_DAYS,
+    DISTRIBUTIONS,
+    HadoopConfigError,
+    parse_hadoop_config,
+)
+from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import (
+    HadoopApiError,
+    RestClient,
+    find_active_resource_manager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -492,6 +503,97 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         _save_to_disk(credential, cred_file)
 
 
+class ConfigureHadoopAssessment(AssessmentConfigurator):
+    """Hadoop (YARN ResourceManager and Spark History Server) assessment configuration."""
+
+    def _check_connection(self, raw_config: dict) -> None:
+        try:
+            config = parse_hadoop_config(raw_config)
+            if config.yarn is not None:
+                find_active_resource_manager(
+                    config.yarn.urls,
+                    username=config.yarn.username,
+                    password=config.yarn.password,
+                    verify=config.yarn.verify,
+                )
+            if config.spark_history is not None:
+                spark = config.spark_history
+                RestClient(
+                    spark.urls[0], username=spark.username, password=spark.password, verify=spark.verify
+                ).get_json("/api/v1/applications", {"limit": 1})
+        except (HadoopConfigError, HadoopApiError) as e:
+            raise ConnectionError(str(e)) from e
+
+    def _configure_credentials(self) -> None:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+
+        distribution = str(self.prompts.choice("Select the Hadoop distribution", list(DISTRIBUTIONS), sort=False))
+        lookback_days = self.prompts.question(
+            "Enter the lookback window in days", default=str(DEFAULT_LOOKBACK_DAYS), valid_number=True
+        )
+
+        logger.info(
+            "YARN ResourceManager: for high availability list every ResourceManager. For Azure HDInsight use the "
+            "gateway URL, which includes its path (for example https://<cluster>.azurehdinsight.net/yarnui)."
+        )
+        source_creds: dict[str, Any] = {
+            "distribution": distribution,
+            "lookback_days": int(lookback_days),
+            "yarn": self._prompt_endpoint(secret_vault_type, multiple_urls=True),
+        }
+        if self.prompts.confirm("Configure a Spark History Server?"):
+            source_creds["spark_history"] = self._prompt_endpoint(secret_vault_type, multiple_urls=False)
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": None,
+            source: source_creds,
+        }
+        _save_to_disk(credential, cred_file)
+
+    def _prompt_endpoint(self, secret_vault_type: str, *, multiple_urls: bool) -> dict[str, Any]:
+        name = "YARN ResourceManager" if multiple_urls else "Spark History Server"
+        endpoint: dict[str, Any] = {}
+        if multiple_urls:
+            raw_urls = self.prompts.question(f"Enter the {name} URL(s), comma-separated")
+            urls = [url.strip() for url in raw_urls.split(",") if url.strip()]
+            endpoint["urls"] = urls
+        else:
+            urls = [self.prompts.question(f"Enter the {name} URL (for example http://spark-hs:18081)")]
+            endpoint["url"] = urls[0]
+
+        auth = str(
+            self.prompts.choice(f"Select the {name} authentication (none | basic)", ["none", "basic"], sort=False)
+        )
+        endpoint["auth"] = auth.lower()
+        if endpoint["auth"] == "basic":
+            endpoint["username"] = self.prompts.question(f"Enter the {name} username")
+            if secret_vault_type == "env":
+                endpoint["password"] = self.prompts.question(
+                    f"Enter the environment variable name holding the {name} password"
+                )
+            else:
+                endpoint["password"] = self.prompts.password(f"Enter the {name} password")
+
+        if any(url.lower().startswith("https://") for url in urls):
+            ca_bundle = self.prompts.question(
+                f"Enter the path to a CA bundle for the {name} certificate (leave empty for the system trust store)",
+                default="",
+            )
+            if self.prompts.confirm(f"Verify the {name} TLS certificate?"):
+                endpoint["verify_ssl"] = ca_bundle.strip() or True
+            else:
+                endpoint["verify_ssl"] = False
+        return endpoint
+
+
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
 
 
@@ -585,6 +687,7 @@ def create_assessment_configurator(
         "oracle": ConfigureOracleAssessment,
         "teradata": ConfigureTeradataAssessment,
         "bigquery": ConfigureBigQueryAssessment,
+        "hadoop": ConfigureHadoopAssessment,
     }
 
     if source_system not in configurators:

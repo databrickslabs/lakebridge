@@ -1,0 +1,23 @@
+CREATE TABLE yarn_scheduler_queues (
+    scheduler_type VARCHAR,
+    queue_path VARCHAR,
+    parent_queue_path VARCHAR,
+    depth BIGINT,
+    queue_type VARCHAR,
+    state VARCHAR,
+    scheduling_policy VARCHAR,
+    capacity DOUBLE,
+    max_capacity DOUBLE,
+    used_capacity DOUBLE,
+    absolute_capacity DOUBLE,
+    absolute_max_capacity DOUBLE,
+    weight DOUBLE,
+    max_parallel_apps BIGINT,
+    num_applications BIGINT,
+    num_pending_apps BIGINT,
+    allocated_containers BIGINT,
+    pending_containers BIGINT,
+    preemptable BOOLEAN,
+    max_memory_mb BIGINT,
+    used_memory_mb BIGINT
+)

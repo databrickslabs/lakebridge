@@ -1,0 +1,192 @@
+---
+sidebar_position: 2
+title: Hadoop Profiler Details
+---
+import Admonition from '@theme/Admonition';
+
+# Hadoop Profiler Details
+
+- [Prerequisites](#prerequisites)
+- [Configure Connection to Hadoop](#configure-connection-to-hadoop)
+- [Credentials file reference](#credentials-file-reference)
+- [Run the profiler](#run-the-profiler)
+- [Profiler output](#profiler-output)
+- [Limitations](#limitations)
+
+This profiler reads cluster and workload metadata over the Hadoop REST APIs. It needs no database driver and no
+access to the cluster's file system or Hive metastore. Phase 1 covers:
+
+- **YARN**: the ResourceManager's cluster info, metrics, NodeManagers, scheduler queues and applications.
+- **Spark History Server**: applications and their attempts (optional).
+
+Supported distributions are Apache Hadoop (`oth`), MapR (`mapr`), Cloudera CDH (`cdh`), Hortonworks HDP (`hdp`) and
+Azure HDInsight (`hdi`). In phase 1 the distribution is recorded in the extract, and every distribution uses the same
+YARN and Spark REST APIs.
+
+## Prerequisites
+
+### 1. Environment
+
+- **Lakebridge CLI** installed and configured for your Databricks workspace (same as other profiler sources).
+
+### 2. Network connectivity
+
+The machine running the profiler must reach each ResourceManager web address and, if used, the Spark History Server
+address. The default ports are **8088** for the ResourceManager and **18081** for the Spark History Server. Azure
+HDInsight is reached through its HTTPS gateway, which has no port: use the gateway URL, which includes its path (for
+example `https://<cluster>.azurehdinsight.net/yarnui`).
+
+### 3. Authentication
+
+Phase 1 supports:
+
+| Auth | Use |
+|------|-----|
+| `none` | The REST endpoints are open to the network, as on many development clusters |
+| `basic` | HTTP basic authentication with a username and password, for example HDInsight gateway logins or a proxy in front of the ResourceManager |
+
+**Kerberos is not supported yet.** A credentials file that sets `auth: kerberos` fails with a clear message.
+
+### 4. Permissions
+
+The account only needs read access to the REST endpoints. The profiler issues `GET` requests only.
+
+<Admonition type="warning" title="Sensitive text">
+YARN application names and failure diagnostics can contain paths, query text or data values, and user, queue and
+host names appear throughout. Like the original Hadoop profiler, these are stored as the cluster reports them. To
+mask them, add `mask_rules` (see [Mask data](#mask-data)) and inspect the extract before sharing it.
+</Admonition>
+
+## Configure Connection to Hadoop
+
+```bash
+databricks labs lakebridge configure-database-profiler
+```
+
+Select **`hadoop`** as the source system. The wizard asks for:
+
+1. The secret vault type (`local` or `env`).
+2. The distribution (`oth`, `mapr`, `cdh`, `hdp` or `hdi`).
+3. The lookback window in days (default 30).
+4. The YARN ResourceManager URL or URLs, comma-separated. For high availability, list every ResourceManager.
+5. The YARN authentication (`none` or `basic`) and, for `basic`, the username and password.
+6. Whether to verify the YARN TLS certificate, and an optional CA bundle path.
+7. Whether to configure a Spark History Server, and if so the same questions for its URL.
+8. Whether to test the connection. The test finds the active ResourceManager and, if configured, calls the Spark History Server.
+
+With `secret_vault_type: env`, a password answer is the name of an environment variable that holds the password.
+
+## Credentials file reference
+
+The wizard writes the following to `~/.databricks/labs/lakebridge/.credentials.yml`. You can also write it by hand.
+
+```yaml
+secret_vault_type: local
+secret_vault_name: null
+hadoop:
+  distribution: cdh              # oth | mapr | cdh | hdp | hdi
+  lookback_days: 30              # 1 to 3650
+  yarn:
+    urls:                        # every ResourceManager in HA; a gateway URL may include a path
+      - http://rm1.example.com:8088
+      - http://rm2.example.com:8088
+    auth: basic                  # none | basic
+    username: profiler
+    password: ...                # a literal, or an environment variable name when secret_vault_type is env
+    verify_ssl: true             # true | false | path to a CA bundle (applies to https URLs)
+    app_filter: "user=etl"       # optional: extra YARN apps query parameters (the original RM_APP_FILTER)
+  spark_history:                 # optional; without this block the Spark steps are skipped
+    url: https://spark-hs.example.com:18081
+    auth: none
+    verify_ssl: true
+  mask_rules:                    # optional: regex search/replace on every response (the original sed.txt)
+    - pattern: 'internal\.example\.com'
+      replacement: 'masked.example'
+```
+
+| Key | Required | Notes |
+|-----|----------|-------|
+| `distribution` | yes | Recorded in `yarn_cluster_info`. |
+| `lookback_days` | no (30) | Window for finished YARN applications and Spark applications. |
+| `yarn.urls` | yes | Each URL is `http(s)://host[:port][/path]`. Credentials in the URL are rejected. |
+| `yarn.auth` / `username` / `password` | no | `auth` defaults to `basic` when a username is set, otherwise `none`. |
+| `yarn.verify_ssl` | no (true) | `false` disables certificate checks and logs a warning. |
+| `yarn.app_filter` | no | Query parameters added to the YARN applications request, for example `user=etl&queue=root.prod` (a leading `?` is allowed). Same as `RM_APP_FILTER` in the original profiler; where it names a parameter the profiler also sets, your value wins. |
+| `spark_history.url` | yes, if the block is present | A single URL. |
+| `mask_rules` | no | A list of `{pattern, replacement}` regex rules applied, in order, to every REST response before it is stored. Same role as `SEARCH_REPLACE` / `sed.txt` in the original profiler. |
+
+Other sections in the same file (for example `cloudera_manager`, `ambari` or `ranger`) are reserved for later
+phases and are ignored today.
+
+## Run the profiler
+
+```bash
+databricks labs lakebridge execute-database-profiler --source-tech hadoop
+```
+
+The run works in three steps for each table:
+
+1. Find the active ResourceManager. With HA, the client tries the URLs in order and uses the one reporting
+   `haState` ACTIVE.
+2. Fetch the REST responses for the table.
+3. Load them into a typed table in the extract.
+
+Each run is a snapshot of the current state. Applications are fetched for the lookback window only, not the whole
+application history.
+
+A failing YARN step is recorded as an error and fails the run. A failing Spark History Server step is recorded as
+absent, so the run still completes. A Spark step with no `spark_history` block is reported as skipped and writes no
+table.
+
+## Profiler output
+
+The extract is a timestamped DuckDB file in the output folder. Each step's name is its table name.
+
+| Table | One row per | Notes |
+|-------|-------------|-------|
+| `yarn_cluster_info` | the ResourceManager | Distribution, cluster id, HA state, Hadoop version. |
+| `yarn_cluster_metrics` | snapshot | Cluster-wide application, container, memory, vcore and node counters. |
+| `yarn_nodes` | NodeManager | State, version, containers, memory and vcores. Utilisation fields are NULL where a distribution does not report them. |
+| `yarn_scheduler_queues` | queue | Capacity and fair scheduler trees, flattened with `depth` and `parent_queue_path`. |
+| `yarn_applications` | application | User, queue, type, state, timings, memory and vcore seconds, preemption counts, `name` and `diagnostics`. |
+| `spark_applications` | Spark application (optional) | Attempt count, Spark user and version, first start, last end, completed, `name`. |
+| `spark_application_attempts` | Spark application attempt (optional) | Attempt start, end, last update, duration, Spark user and version. |
+
+Timestamps are UTC. Counters are `BIGINT` and rates are `DOUBLE`. A column is NULL when the distribution does not
+report that field. A `-1` that YARN uses for "not applicable" is stored as NULL.
+
+The extract carries no copies of application logs, executor data or environment variables.
+
+YARN keeps finished applications in ResourceManager memory, up to `yarn.resourcemanager.max-completed-applications`
+(10,000 by default). Unless ResourceManager recovery is enabled, a ResourceManager restart clears that history, so
+run the profiler before a planned restart and often enough to stay inside the retention limit.
+
+## Mask data
+
+Like the original profiler's `sed.txt`, `mask_rules` rewrites each REST response before it is stored. Rules are
+Python regular expressions applied in order. Keep obfuscated host names and addresses unique (for example, replace
+a domain suffix or a leading part of an address), so the analysis can still tell hosts apart:
+
+```yaml
+hadoop:
+  mask_rules:
+    - pattern: '\.corp\.example\.com'
+      replacement: '.masked'
+    - pattern: '"(user|sparkUser)"\s*:\s*"[^"]*"'
+      replacement: '"\1":"redacted"'
+```
+
+Services format their JSON differently: YARN writes `"user":"etl"` while the Spark History Server writes
+`"sparkUser" : "etl"`, so allow optional spaces around the colon (`\s*:\s*`). A rule that breaks the JSON structure
+makes the step fail with an error, so match values rather than syntax.
+
+## Limitations
+
+- **Kerberos** is not supported yet. Use `none` or `basic`, or a gateway that accepts basic authentication.
+- **Scope** is phase 1 only. Cloudera Manager (services, host and time-series metrics, Impala queries), Ambari (the
+  blueprint and host metrics) and Ranger (repositories and policies) are not extracted yet.
+- **YARN filters** are not applied. The profiler reads every application in the window.
+- **Lookback** applies to finished applications, which are selected by finish time. An application that started
+  before the window and is still running is included; one that finished before it is not.
+
+[Back to Configure Profiler](../#configure-profiler)

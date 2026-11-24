@@ -1,0 +1,1 @@
+{"nodes":{"node":[{"rack":"/default","state":"RUNNING","id":"quickstart.cloudera:8041","nodeHostName":"quickstart.cloudera","nodeHTTPAddress":"quickstart.cloudera:8042","lastHealthUpdate":1795441674715,"version":"2.6.0-cdh5.7.0","healthReport":"","numContainers":0,"usedMemoryMB":0,"availMemoryMB":3072,"usedVirtualCores":0,"availableVirtualCores":3}]}}
