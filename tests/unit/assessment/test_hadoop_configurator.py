@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from databricks.labs.blueprint.tui import MockPrompts
+from databricks.labs.blueprint.tui import MockPrompts, Prompts
 
 from databricks.labs.lakebridge.assessments import configure_assessment
 from databricks.labs.lakebridge.assessments.configure_assessment import (
@@ -18,13 +18,21 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.kerberos import Ker
 from databricks.labs.lakebridge.resources.assessments.hadoop.masking import parse_masking_rules
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import HadoopApiError
 
+# Questions every test answers with Enter unless it says otherwise: no masking, no YARN application filter, and the
+# original's Impala defaults (the defaults apply when the answer is empty).
+_DEFAULT_ANSWERS = {
+    r"Mask data in the extract": "no",
+    r"Filter the YARN applications": "",
+    r"number of days the initial run reads Impala queries": "",
+    r"pages of 1000 Impala queries": "",
+}
+
 
 def _configurator(tmp_path: Path, answers: dict[str, str]) -> ConfigureHadoopAssessment:
-    # The extract is not masked unless a test says so.
     return ConfigureHadoopAssessment(
         product_name="lakebridge",
         source_name="hadoop",
-        prompts=MockPrompts({r"Mask data in the extract": "no", **answers}),
+        prompts=MockPrompts({**_DEFAULT_ANSWERS, **answers}),
         credential_file=tmp_path / ".credentials.yml",
     )
 
@@ -33,7 +41,7 @@ class _MaskingPrompts(MockPrompts):
     """The configuration answers from a dict, and the masking questions from a script that is asked in order."""
 
     def __init__(self, answers: dict[str, str], masking: list[tuple[str, str]]) -> None:
-        super().__init__(answers)
+        super().__init__({**_DEFAULT_ANSWERS, **answers})
         self._masking = list(masking)
         self.asked: list[tuple[str, str | None]] = []
 
@@ -411,6 +419,9 @@ def test_configure_cloudera_manager_with_impala_writes_the_block(tmp_path: Path)
         "cluster": "Cloudera QuickStart",
         "extract_impala_queries": True,
         "impala_interval_minutes": 60,
+        # Enter takes the original profiler's defaults (CM_IMPALA_NUMBER_OF_DAYS=1, CM_IMPALA_PAGES=2).
+        "impala_lookback_days": 1,
+        "impala_max_pages": 2,
     }
 
 
@@ -825,3 +836,145 @@ def test_check_connection_reports_an_ambari_failure_as_a_connection_error(tmp_pa
 
     with pytest.raises(ConnectionError, match="manages 2 clusters"):
         _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+
+
+def test_optional_questions_accept_enter_with_the_real_prompts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """blueprint's real Prompts re-ask a blank answer unless the default is non-empty, which MockPrompts does not do.
+    Every optional question ("leave empty to ...") must take Enter as "leave it out"."""
+    script = [  # (prompt pattern, typed answer); "" is pressing Enter
+        (r"Enter secret vault type", "1"),
+        (r"Select the Hadoop distribution", "2"),
+        (r"Enter the YARN ResourceManager URL", "https://rm.example.com:8090"),
+        (r"Select the YARN ResourceManager authentication", "0"),
+        (r"CA bundle for the YARN ResourceManager", ""),
+        (r"Verify the YARN ResourceManager TLS certificate", "yes"),
+        (r"Filter the YARN applications", ""),
+        (r"Configure a Spark History Server", "yes"),
+        (r"Enter the Spark History Server URL", "http://shs.example.com:18081"),
+        (r"Select the Spark History Server authentication", "2"),
+        (r"keytab for the Spark History Server", ""),
+        (r"Configure Cloudera Manager", "yes"),
+        (r"Enter the Cloudera Manager URL", "http://cm.example.com:7180"),
+        (r"Select the Cloudera Manager authentication", "0"),
+        (r"Cloudera Manager cluster name", ""),
+        (r"Extract Impala queries", "yes"),
+        (r"Impala query interval", "0"),
+        (r"number of days the initial run reads Impala queries", ""),
+        (r"pages of 1000 Impala queries", ""),
+        (r"Impala service name", ""),
+        (r"Configure Apache Ranger", "no"),
+        (r"Read Impala daemons directly", "yes"),
+        (r"Enter the Impala daemon URL", "http://impalad.example.com:25000"),
+        (r"Select the Impala daemon authentication", "0"),
+        (r"Impala catalogd web UI URL", ""),
+        (r"Impala statestore web UI URL", ""),
+        (r"Configure Ambari", "yes"),
+        (r"Enter the Ambari Server URL", "http://ambari.example.com:8080"),
+        (r"Select the Ambari Server authentication", "0"),
+        (r"Ambari cluster name", ""),
+        (r"Mask data in the extract", "yes"),
+        (r"Use an existing masking rules file", "no"),
+        (r"Domain\(s\) to mask", ""),
+        (r"Mask IP addresses", "no"),
+        (r"Redact user names", "no"),
+        (r"Redact query text", "no"),
+    ]
+    shown: list[str] = []
+
+    def typed(prompt: str = "") -> str:
+        plain = re.sub(r"\x1b\[[0-9;]*m", "", prompt)
+        shown.append(plain)
+        pattern, answer = script[0]
+        assert re.search(pattern, plain), f"expected {pattern!r}, asked {plain!r}"
+        script.pop(0)
+        return answer
+
+    monkeypatch.setattr("builtins.input", typed)
+    monkeypatch.setattr(configure_assessment, "default_rules_file", lambda: tmp_path / "rules.txt")
+    creds = tmp_path / ".credentials.yml"
+    configurator = ConfigureHadoopAssessment("lakebridge", Prompts(), "hadoop", creds)
+    configurator._configure_credentials()  # pylint: disable=protected-access
+
+    assert not script, f"not asked: {script}"
+    saved = yaml.safe_load(creds.read_text())["hadoop"]
+    assert saved["yarn"]["verify_ssl"] is True  # no CA bundle: the system trust store
+    assert "keytab" not in saved["spark_history"] and saved["spark_history"]["auth"] == "kerberos"
+    assert "cluster" not in saved["cloudera_manager"] and "impala_service" not in saved["cloudera_manager"]
+    assert "catalogd_url" not in saved["impala"] and "statestored_url" not in saved["impala"]
+    assert "cluster" not in saved["ambari"]
+    assert "app_filter" not in saved["yarn"]
+    assert (saved["cloudera_manager"]["impala_lookback_days"], saved["cloudera_manager"]["impala_max_pages"]) == (1, 2)
+    optional = [text for text in shown if "leave empty" in text or "blank to skip" in text]
+    assert len(optional) == 9 and all("(default: none)" in text for text in optional)
+
+
+def test_the_original_profiler_settings_are_asked_and_saved(tmp_path: Path) -> None:
+    """RM_APP_FILTER, CM_IMPALA_NUMBER_OF_DAYS and CM_IMPALA_PAGES, as the original profiler.conf sets them."""
+    answers = {
+        **_HADOOP_ANSWERS,
+        r"Select the Hadoop distribution": "2",  # cdh
+        r"Filter the YARN applications": "?user=etl&queue=root.prod",
+        r"Configure Cloudera Manager": "yes",
+        r"Enter the Cloudera Manager URL": "http://cm.example.net:7180",
+        r"Select the Cloudera Manager authentication": "0",
+        r"Enter the Cloudera Manager cluster name": "",
+        r"Extract Impala queries": "yes",
+        r"Select the Impala query interval": "5",  # 20 minutes
+        r"number of days the initial run reads Impala queries": "7",
+        r"pages of 1000 Impala queries": "5",
+        r"Enter the Impala service name": "",
+    }
+    _configurator(tmp_path, answers).run()
+
+    saved = yaml.safe_load((tmp_path / ".credentials.yml").read_text(encoding="utf-8"))["hadoop"]
+    assert saved["yarn"]["app_filter"] == "user=etl&queue=root.prod"
+    cloudera = saved["cloudera_manager"]
+    assert (cloudera["impala_interval_minutes"], cloudera["impala_lookback_days"], cloudera["impala_max_pages"]) == (
+        20,
+        7,
+        5,
+    )
+    parsed = hadoop_config.parse_hadoop_config(saved)
+    assert parsed.yarn is not None and parsed.yarn.app_filter == (("user", "etl"), ("queue", "root.prod"))
+
+
+class _SequencePrompts(MockPrompts):
+    """Answers one question pattern from a list, in order, so a re-asked question gets the next answer."""
+
+    def __init__(self, answers: dict[str, str], pattern: str, sequence: list[str]) -> None:
+        super().__init__({**_DEFAULT_ANSWERS, **answers})
+        self._pattern, self._sequence = pattern, list(sequence)
+
+    def question(self, text: str, default: str | None = None, **kwargs) -> str:
+        if re.search(self._pattern, text) and self._sequence:
+            return self._sequence.pop(0)
+        return super().question(text, default=default, **kwargs)
+
+
+def test_an_invalid_app_filter_is_reported_and_asked_again(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    prompts = _SequencePrompts(_HADOOP_ANSWERS, r"Filter the YARN applications", ["user", "states=FINISHED"])
+    ConfigureHadoopAssessment("lakebridge", prompts, "hadoop", tmp_path / ".credentials.yml").run()
+
+    saved = yaml.safe_load((tmp_path / ".credentials.yml").read_text(encoding="utf-8"))["hadoop"]
+    assert saved["yarn"]["app_filter"] == "states=FINISHED"
+    assert "app_filter is not a valid query string" in caplog.text
+
+
+def test_impala_days_and_pages_out_of_range_are_asked_again(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    answers = {
+        **_HADOOP_ANSWERS,
+        r"Configure Cloudera Manager": "yes",
+        r"Enter the Cloudera Manager URL": "http://cm.example.net:7180",
+        r"Select the Cloudera Manager authentication": "0",
+        r"Enter the Cloudera Manager cluster name": "",
+        r"Extract Impala queries": "yes",
+        r"Select the Impala query interval": "7",
+        r"pages of 1000 Impala queries": "",
+        r"Enter the Impala service name": "",
+    }
+    prompts = _SequencePrompts(answers, r"number of days the initial run reads Impala queries", ["0", "4000", "3"])
+    ConfigureHadoopAssessment("lakebridge", prompts, "hadoop", tmp_path / ".credentials.yml").run()
+
+    saved = yaml.safe_load((tmp_path / ".credentials.yml").read_text(encoding="utf-8"))["hadoop"]
+    assert saved["cloudera_manager"]["impala_lookback_days"] == 3
+    assert caplog.text.count("Enter a whole number from 1 to 3650") == 2

@@ -347,7 +347,7 @@ def _endpoint(raw: Any, section: str, *, multiple_urls: bool) -> RestEndpoint | 
         username=username if auth == "basic" else None,
         password=password if auth == "basic" else None,
         verify=_verify(raw.get("verify_ssl", True), section),
-        app_filter=_app_filter(raw.get("app_filter"), section) if multiple_urls else (),
+        app_filter=parse_app_filter(raw.get("app_filter"), section) if multiple_urls else (),
     )
 
 
@@ -364,7 +364,7 @@ def _kerberos_endpoint(raw: Mapping[str, Any], section: str, *, multiple_urls: b
     return RestEndpoint(
         urls=_urls(raw, section, multiple_urls=multiple_urls),
         verify=_verify(raw.get("verify_ssl", True), section),
-        app_filter=_app_filter(raw.get("app_filter"), section) if multiple_urls else (),
+        app_filter=parse_app_filter(raw.get("app_filter"), section) if multiple_urls else (),
         kerberos=KerberosSettings(
             principal=principal.strip() if principal else None,
             keytab=keytab,
@@ -385,7 +385,7 @@ def _optional_path(raw: Any, key: str) -> str | None:
     return str(path)
 
 
-def _app_filter(raw: Any, section: str) -> tuple[tuple[str, str], ...]:
+def parse_app_filter(raw: Any, section: str = "yarn") -> tuple[tuple[str, str], ...]:
     """Parse a YARN query string such as ``user=etl&queue=root.prod`` (a leading ``?`` is allowed)."""
     if raw is None or raw == "":
         return ()

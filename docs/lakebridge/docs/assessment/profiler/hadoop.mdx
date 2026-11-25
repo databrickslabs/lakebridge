@@ -125,16 +125,23 @@ Select **`hadoop`** as the source system. The wizard asks for:
 4. The YARN authentication (`none`, `basic` or `kerberos`). For `basic`, the username and password. For `kerberos`, an
    optional keytab path and the principal (leave the keytab empty to use an existing ticket).
 5. Whether to verify the YARN TLS certificate, and an optional CA bundle path.
-6. Whether to configure a Spark History Server, and if so the same questions for its URL (including `kerberos`).
-7. Whether to configure Cloudera Manager. If so: its URL, authentication, TLS settings, an optional cluster name, and
-   whether to extract Impala queries (and, if so, the interval and an optional Impala service name). Leave the cluster
-   and service empty to have the profiler detect them.
-8. Whether to configure Apache Ranger. If so: its Admin URL, authentication, and TLS settings.
-9. Whether to read Impala daemons directly. If so: the impalad web UI URL of every coordinator, the authentication and
+6. An optional filter for the YARN applications: a YARN REST query string such as `user=etl` or
+   `queue=root.prod&applicationTypes=SPARK`, the original profiler's `RM_APP_FILTER`. Press Enter to extract every
+   application.
+7. Whether to configure a Spark History Server, and if so the same questions for its URL (including `kerberos`).
+8. Whether to configure Cloudera Manager. If so: its URL, authentication, TLS settings, an optional cluster name, and
+   whether to extract Impala queries. If so: the interval, the number of days the initial run reads (default 1, the
+   original `CM_IMPALA_NUMBER_OF_DAYS`; an incremental run reads yesterday), the pages of 1000 queries read per interval
+   (default 2, the original `CM_IMPALA_PAGES`), and an optional Impala service name. Leave the cluster and service
+   empty to have the profiler detect them.
+9. Whether to configure Apache Ranger (services and policies). If so: its Admin URL, authentication, and TLS settings.
+10. Whether to read Impala daemons directly. If so: the impalad web UI URL of every coordinator, the authentication and
    TLS settings they share, and optionally the catalogd and statestore web UI URLs. See [Impala (direct)](#impala-direct).
-10. Whether to configure Ambari. If so: its URL (or the HDInsight gateway URL, with no port), authentication, TLS settings,
+11. Whether to configure Ambari. If so: its URL (or the HDInsight gateway URL, with no port), authentication, TLS settings,
    and an optional cluster name. Leave the cluster empty to have the profiler detect it. See [Ambari](#ambari).
-11. Whether to test the connection. The test finds the active ResourceManager and, if configured, calls the Spark History
+12. Whether to mask data in the extract. If so: an existing masking rules file, or guided answers (domains, IP
+   addresses, user names, query text and job names) that are saved as a rules file. See [Mask data](#mask-data).
+13. Whether to test the connection. The test finds the active ResourceManager and, if configured, calls the Spark History
    Server, resolves the Cloudera Manager cluster (and Impala service, if Impala queries are extracted), reads the
    Ranger service list, calls each Impala daemon, catalogd and statestore, and resolves the Ambari cluster.
 
@@ -174,7 +181,7 @@ hadoop:
   ranger:                        # optional; without this block the ranger_* steps are skipped
     url: https://ranger.example.com:6182   # Ranger Admin; may include a path (for example behind a gateway)
     auth: basic
-    username: profiler           # a user with the Ranger admin role, for the users and groups
+    username: profiler           # a user that can read the Ranger services and policies
     password: ...
     verify_ssl: true
   ambari:                        # optional; without this block the ambari_* steps are skipped
