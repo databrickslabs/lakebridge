@@ -8,7 +8,6 @@ EXCEPTION) taken while a query was still running (1 in flight).
 
 import json
 import re
-import sys
 import threading
 from collections.abc import Iterator
 from datetime import datetime
@@ -21,7 +20,6 @@ import duckdb
 import pytest
 import yaml
 
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.resources.assessments.hadoop import endpoints, extract
 from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import ExtractRun
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
@@ -29,6 +27,7 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config impor
     parse_hadoop_config,
 )
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import HadoopApiError
+from tests.unit.assessment.hadoop_support import run_step_script
 
 RUN = ExtractRun(run_db="extract.db", initial=True)  # the direct calls below read the initial run
 
@@ -53,12 +52,12 @@ def _fixture(name: str) -> str:
 
 def _envelope(url: str, name: str) -> str:
     """The body the step runner builds for one daemon response."""
-    return extract._coordinator_envelope(url, _fixture(name))  # pylint: disable=protected-access
+    return extract.coordinator_envelope(url, _fixture(name))
 
 
 def _load(step: str, bodies: list[str], tmp_path: Path) -> duckdb.DuckDBPyConnection:
     db_path = tmp_path / "extract.db"
-    extract._write_table(  # pylint: disable=protected-access
+    extract.write_table(
         step=step,
         sql_dir=_SQL_DIR,
         db_path=str(db_path),
@@ -276,7 +275,7 @@ def test_a_query_listed_twice_by_one_daemon_is_kept_once_as_completed(tmp_path: 
     body = json.loads(_fixture("impala_queries.json"))
     moved = next(q for q in body["completed_queries"] if q["query_id"] == _SELECT_ID)
     body["in_flight_queries"] = [dict(moved)]
-    bodies = [extract._coordinator_envelope(_DAEMON_A, json.dumps(body))]  # pylint: disable=protected-access
+    bodies = [extract.coordinator_envelope(_DAEMON_A, json.dumps(body))]
 
     with _load("impala_queries", bodies, tmp_path) as conn:
         rows = _rows(
@@ -291,7 +290,7 @@ def test_a_query_listed_twice_by_one_daemon_is_kept_once_as_completed(tmp_path: 
 
 def test_a_daemon_with_an_empty_log_yields_no_rows(tmp_path: Path) -> None:
     empty = json.dumps({"in_flight_queries": [], "completed_queries": [], "num_in_flight_queries": 0})
-    bodies = [extract._coordinator_envelope(_DAEMON_A, empty)]  # pylint: disable=protected-access
+    bodies = [extract.coordinator_envelope(_DAEMON_A, empty)]
     with _load("impala_queries", bodies, tmp_path) as conn:
         assert _rows(conn, "SELECT COUNT(*) FROM impala_queries") == [(0,)]
 
@@ -470,13 +469,15 @@ _ROUTES = {
 class _ImpalaHandler(BaseHTTPRequestHandler):
     """Serves the captured bodies at the paths above. `/broken/...` answers HTTP 500, like a daemon that is down."""
 
-    def do_GET(self) -> None:  # noqa: N802  # pylint: disable=invalid-name
+    def _get(self) -> None:
         path = urlsplit(self.path).path
         if path.startswith("/broken/"):
             return self._send(500, "{}")
         if path in _ROUTES:
             return self._send(200, _fixture(_ROUTES[path]))
         return self._send(404, "{}")
+
+    do_GET = _get  # BaseHTTPRequestHandler's hook name for GET
 
     def _send(self, status: int, body: str) -> None:
         payload = body.encode("utf-8")
@@ -499,8 +500,7 @@ def _impala_server() -> Iterator[str]:
 
 
 def _run_script(step: str, db_path: Path, creds: Path) -> None:
-    script = Path(extract.__file__).resolve().parent / f"{step}.py"
-    PipelineClass._run_python_script(sys.executable, str(script), db_path, creds)  # pylint: disable=protected-access
+    run_step_script(step, db_path, creds)
 
 
 def test_pipeline_unions_every_listed_daemon_over_http(impala_server: str, tmp_path: Path) -> None:
@@ -595,7 +595,7 @@ def test_impala_fetch_reports_a_daemon_error_as_an_api_error() -> None:
 
 def test_the_envelope_names_the_daemon_and_carries_the_body_unchanged() -> None:
     body = _fixture("impala_backends.json")
-    wrapped = json.loads(extract._coordinator_envelope(_DAEMON_A, body))  # pylint: disable=protected-access
+    wrapped = json.loads(extract.coordinator_envelope(_DAEMON_A, body))
 
     assert wrapped["coordinator"] == _DAEMON_A
     assert wrapped["body"] == json.loads(body)

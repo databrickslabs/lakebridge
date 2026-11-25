@@ -50,8 +50,8 @@ class FakeSystem:
     def which(self, name: str) -> str | None:
         return None if name in self.missing else f"/usr/bin/{name}"
 
-    def run(self, argv, *, env, capture_output, text, timeout, check):  # pylint: disable=unused-argument
-        assert capture_output and text and not check  # the call shape the transport relies on
+    def run(self, argv, *, env, capture_output, text, timeout, check):
+        assert capture_output and text and not check and timeout > 0  # the call shape the transport relies on
         self.commands.append(list(argv))
         self.envs.append(env)
         tool = Path(argv[0]).name

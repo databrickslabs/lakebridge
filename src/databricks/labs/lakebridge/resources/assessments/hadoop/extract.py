@@ -201,11 +201,11 @@ def _extract(
         # Each daemon's body is wrapped with the daemon's URL so the step's rows say where they came from, then masked
         # as a whole, so the masking rules also apply to the coordinator URL.
         bodies = (
-            config.mask(_coordinator_envelope(client.base_url, body))
+            config.mask(coordinator_envelope(client.base_url, body))
             for client in clients
             for body in fetch(client, config, run)
         )
-        row_count = _write_table(
+        row_count = write_table(
             step=step,
             sql_dir=sql_dir,
             db_path=db_path,
@@ -246,7 +246,7 @@ def _extract(
 
     # Masking runs on the raw responses before parsing, as the original profiler's SEARCH_REPLACE pipe did.
     bodies = (config.mask(body) for body in fetch(client, config, run))
-    row_count = _write_table(
+    row_count = write_table(
         step=step,
         sql_dir=sql_dir,
         db_path=db_path,
@@ -281,7 +281,7 @@ def _impala_client(url: str, impala: ImpalaConfig) -> RestClient:
     )
 
 
-def _coordinator_envelope(base_url: str, body: str) -> str:
+def coordinator_envelope(base_url: str, body: str) -> str:
     return '{"coordinator":' + json.dumps(base_url) + ',"body":' + body + "}"
 
 
@@ -316,7 +316,7 @@ def run_finish_script() -> None:
     print(json.dumps({"status": "success", "message": message}))
 
 
-def _write_table(
+def write_table(
     *,
     step: str,
     sql_dir: Path,

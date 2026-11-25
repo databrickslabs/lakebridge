@@ -37,6 +37,13 @@ def _configurator(tmp_path: Path, answers: dict[str, str]) -> ConfigureHadoopAss
     )
 
 
+def _check_connection(tmp_path: Path, raw: dict) -> None:
+    """The connection test the CLI runs: the configurator reads the saved profile and checks every configured service."""
+    creds = tmp_path / ".credentials.yml"
+    creds.write_text(yaml.safe_dump({"secret_vault_type": "local", "hadoop": raw}), encoding="utf-8")
+    _configurator(tmp_path, {}).test_connection()
+
+
 class _MaskingPrompts(MockPrompts):
     """The configuration answers from a dict, and the masking questions from a script that is asked in order."""
 
@@ -357,7 +364,7 @@ def test_check_connection_reports_a_failed_rm_lookup_as_a_connection_error(tmp_p
     raw = {"distribution": "oth", "yarn": {"urls": ["http://rm:8088"], "auth": "none"}}
 
     with pytest.raises(ConnectionError, match="No ACTIVE ResourceManager"):
-        _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+        _check_connection(tmp_path, raw)
 
 
 def test_check_connection_probes_the_spark_history_server(tmp_path: Path, monkeypatch) -> None:
@@ -379,7 +386,7 @@ def test_check_connection_probes_the_spark_history_server(tmp_path: Path, monkey
         "spark_history": {"url": "http://spark:18081", "auth": "none"},
     }
 
-    _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+    _check_connection(tmp_path, raw)
 
     assert probed == [("http://spark:18081", "/api/v1/applications", {"limit": 1})]
 
@@ -468,7 +475,7 @@ def test_check_connection_fails_when_cm_manages_several_clusters(tmp_path: Path,
     }
 
     with pytest.raises(ConnectionError, match="manages 2 clusters"):
-        _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+        _check_connection(tmp_path, raw)
 
 
 def test_check_connection_resolves_the_configured_impala_service(tmp_path: Path, monkeypatch) -> None:
@@ -493,7 +500,7 @@ def test_check_connection_resolves_the_configured_impala_service(tmp_path: Path,
         "cloudera_manager": {"url": "http://cm:7180", "auth": "none", "extract_impala_queries": True},
     }
 
-    _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+    _check_connection(tmp_path, raw)
 
     assert seen == ["/api/v12/clusters", "/api/v12/clusters/Cloudera%20QuickStart/services"]
 
@@ -565,7 +572,7 @@ def test_check_connection_reads_the_ranger_service_list(tmp_path: Path, monkeypa
         "ranger": {"url": "https://ranger:6182/", "auth": "none"},
     }
 
-    _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+    _check_connection(tmp_path, raw)
 
     assert seen == ["https://ranger:6182"]
 
@@ -583,7 +590,7 @@ def test_check_connection_reports_a_ranger_failure_as_a_connection_error(tmp_pat
     }
 
     with pytest.raises(ConnectionError, match="HTTP 401"):
-        _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+        _check_connection(tmp_path, raw)
 
 
 def test_configure_hadoop_with_impala_writes_the_block(tmp_path: Path) -> None:
@@ -654,7 +661,7 @@ def test_check_connection_probes_every_impalad_and_the_services(tmp_path: Path, 
         },
     }
 
-    _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+    _check_connection(tmp_path, raw)
 
     assert seen == [
         "http://impalad-a:25000/backends?json",
@@ -679,7 +686,7 @@ def test_check_connection_reports_an_impala_failure_as_a_connection_error(tmp_pa
     raw = {"distribution": "oth", "impala": {"urls": ["http://impalad-a:25000"], "auth": "none"}}
 
     with pytest.raises(ConnectionError, match="timed out"):
-        _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+        _check_connection(tmp_path, raw)
 
 
 def test_configure_yarn_kerberos_with_keytab_writes_the_block(tmp_path: Path) -> None:
@@ -743,7 +750,7 @@ def test_kerberos_yarn_check_connection_passes_the_endpoint_transport(tmp_path: 
         "yarn": {"urls": ["http://rm:8088"], "auth": "kerberos", "principal": "profiler@HADOOP.SIM"},
     }
 
-    _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+    _check_connection(tmp_path, raw)
 
     assert seen["urls"] == ("http://rm:8088",)
     # The factory is the endpoint's client method, bound to the endpoint with the Kerberos settings.
@@ -822,7 +829,7 @@ def test_check_connection_resolves_the_configured_ambari_cluster(tmp_path: Path,
         "ambari": {"url": "https://sim.azurehdinsight.net/", "auth": "none", "cluster": "sim"},
     }
 
-    _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+    _check_connection(tmp_path, raw)
 
     assert resolved == [("https://sim.azurehdinsight.net", "sim")]
 
@@ -835,7 +842,7 @@ def test_check_connection_reports_an_ambari_failure_as_a_connection_error(tmp_pa
     raw = {"distribution": "hdp", "ambari": {"url": "http://ambari:8080", "auth": "none"}}
 
     with pytest.raises(ConnectionError, match="manages 2 clusters"):
-        _configurator(tmp_path, {})._check_connection(raw)  # pylint: disable=protected-access
+        _check_connection(tmp_path, raw)
 
 
 def test_optional_questions_accept_enter_with_the_real_prompts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -878,6 +885,7 @@ def test_optional_questions_accept_enter_with_the_real_prompts(tmp_path: Path, m
         (r"Mask IP addresses", "no"),
         (r"Redact user names", "no"),
         (r"Redact query text", "no"),
+        (r"Do you want to test the connection to hadoop", "no"),
     ]
     shown: list[str] = []
 
@@ -893,7 +901,7 @@ def test_optional_questions_accept_enter_with_the_real_prompts(tmp_path: Path, m
     monkeypatch.setattr(configure_assessment, "default_rules_file", lambda: tmp_path / "rules.txt")
     creds = tmp_path / ".credentials.yml"
     configurator = ConfigureHadoopAssessment("lakebridge", Prompts(), "hadoop", creds)
-    configurator._configure_credentials()  # pylint: disable=protected-access
+    configurator.run()
 
     assert not script, f"not asked: {script}"
     saved = yaml.safe_load(creds.read_text())["hadoop"]

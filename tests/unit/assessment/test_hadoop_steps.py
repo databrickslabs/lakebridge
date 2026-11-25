@@ -1,5 +1,4 @@
 import json
-import sys
 import threading
 from collections.abc import Iterator
 from datetime import datetime
@@ -13,7 +12,6 @@ import pytest
 import requests
 import yaml
 
-from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
 from databricks.labs.lakebridge.resources.assessments.hadoop import extract
 from databricks.labs.lakebridge.resources.assessments.hadoop.endpoints import yarn_applications
 from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import ExtractRun
@@ -22,6 +20,7 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config impor
     parse_hadoop_config,
 )
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import RestClient
+from tests.unit.assessment.hadoop_support import run_step_script
 
 _FIXTURES = Path(__file__).resolve().parents[2] / "resources" / "assessments" / "hadoop"
 _SQL_DIR = Path(extract.__file__).resolve().parent
@@ -38,7 +37,7 @@ def _load(step: str, bodies: list[str], tmp_path: Path) -> duckdb.DuckDBPyConnec
     db_path = tmp_path / "extract.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     # The step script's own write path, without the network.
-    extract._write_table(  # pylint: disable=protected-access
+    extract.write_table(
         step=step,
         sql_dir=_SQL_DIR,
         db_path=str(db_path),
@@ -446,8 +445,7 @@ def test_run_step_requires_yarn_for_the_yarn_steps(tmp_path: Path) -> None:
 class _HadoopHandler(BaseHTTPRequestHandler):
     """Serves the captured fixtures the way the REST endpoints do. `/standby` is a standby ResourceManager."""
 
-    # BaseHTTPRequestHandler's hook name.
-    def do_GET(self) -> None:  # noqa: N802  # pylint: disable=invalid-name
+    def _get(self) -> None:
         parts = urlsplit(self.path)
         query = parse_qs(parts.query)
         path = parts.path
@@ -466,6 +464,8 @@ class _HadoopHandler(BaseHTTPRequestHandler):
         if path == "/spark/api/v1/applications":
             return self._send(200, _fixture("spark_applications_vanilla.json"))
         return self._send(404, "{}")
+
+    do_GET = _get  # BaseHTTPRequestHandler's hook name for GET
 
     def _cloudera(self, path: str, query: dict) -> None:
         """Cloudera Manager from the captured fixtures. That CM does not know the two Impala metrics below."""
@@ -521,9 +521,7 @@ def _steps_creds(tmp_path: Path, base: str, *, yarn_urls: list[str] | None = Non
 
 
 def _run_script(step: str, db_path: Path, creds: Path) -> None:
-    """Run the step script through the framework's own runner, exactly as the profiler pipeline does."""
-    script = Path(extract.__file__).resolve().parent / f"{step}.py"
-    PipelineClass._run_python_script(sys.executable, str(script), db_path, creds)  # pylint: disable=protected-access
+    run_step_script(step, db_path, creds)
 
 
 def test_pipeline_runs_yarn_steps_against_a_gateway_with_standby_first(hadoop_server: str, tmp_path: Path) -> None:

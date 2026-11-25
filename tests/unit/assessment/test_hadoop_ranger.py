@@ -98,7 +98,7 @@ def _load(step: str, bodies: list[str], tmp_path: Path) -> duckdb.DuckDBPyConnec
         "bodies": bodies,
         "params": {"distribution": "hdp"},
     }
-    extract._write_table(**write)  # pylint: disable=protected-access
+    extract.write_table(**write)
     return duckdb.connect(write["db_path"], read_only=True)
 
 

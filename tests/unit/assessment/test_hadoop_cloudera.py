@@ -109,7 +109,7 @@ def _standard_cm(path: str, params: dict) -> str:
 
 def _load(step: str, bodies: list[str], tmp_path: Path) -> duckdb.DuckDBPyConnection:
     db_path = tmp_path / "extract.db"
-    extract._write_table(  # pylint: disable=protected-access
+    extract.write_table(
         step=step,
         sql_dir=_SQL_DIR,
         db_path=str(db_path),
