@@ -100,7 +100,11 @@ def test_every_step_writes_the_table_its_name_gives() -> None:
 
 def test_pipeline_steps_and_step_scripts_match() -> None:
     scripts = {path.stem for path in _HADOOP.glob("*.py")} - _NON_STEP_MODULES
-    sql_steps = {path.name[: -len(".sql")] for path in _HADOOP.glob("*.sql") if not path.name.endswith("_ddl.sql")}
+    sql_steps = {
+        path.name[: -len(".sql")]
+        for path in _HADOOP.glob("*.sql")
+        if not path.name.endswith(("_ddl.sql", "_after_load.sql"))
+    }
 
     assert set(_STEPS) | {RECORD_STEP} == scripts
     assert set(_STEPS) == sql_steps

@@ -352,7 +352,7 @@ def test_impala_windows_page_until_a_short_page_and_skip_the_rest(fixed_clock: N
         if params["from"] == _FIRST_WINDOW_FROM and params["offset"] == 0:
             return _impala_page(0, 1000)  # a full page: the window asks for the next one
         if params["from"] == _FIRST_WINDOW_FROM and params["offset"] == 1000:
-            return _impala_page(995, 10)  # 5 queries seen on the first page, then 5 new ones; short, so the window ends
+            return _impala_page(995, 10)  # 5 queries also on the first page, then 5 new ones; short, so the window ends
         return _impala_page(0, 0)
 
     config = _config(extract_impala_queries=True, impala_lookback_days=1)
@@ -365,8 +365,8 @@ def test_impala_windows_page_until_a_short_page_and_skip_the_rest(fixed_clock: N
     assert [call["offset"] for call in calls if call["from"] == _FIRST_WINDOW_FROM] == [0, 1000]
     assert len(calls) == 27 + 1  # every other window is one request, because its single page is empty
     assert all(call["limit"] == 1000 and call["filter"] == "" for call in calls)
-    # The second page's first five queries were already yielded, so only the five new ones come through.
-    assert [len(json.loads(body)["queries"]) for body in bodies] == [1000, 5]
+    # Each page with queries comes through whole, as CM returned it; the step keeps one row per query later.
+    assert [len(json.loads(body)["queries"]) for body in bodies] == [1000, 10]
 
 
 def test_impala_queries_come_from_the_resolved_cluster_and_service(fixed_clock: None) -> None:
@@ -699,3 +699,43 @@ def test_cm_timeseries_hourly_points_keep_their_aggregate_statistics(tmp_path: P
             "host-2-id",
         )
     ]
+
+
+def _impala_copy(query_id: str, state: str, duration: int) -> dict:
+    return {"queryId": query_id, "queryState": state, "durationMillis": duration, "statement": "select 1"}
+
+
+def test_a_query_on_several_pages_keeps_its_most_complete_copy(tmp_path: Path) -> None:
+    """A query still running across windows is on each window's page; keep the finished copy, else the latest one."""
+    pages = [
+        json.dumps({"queries": [_impala_copy("q1", "RUNNING", 100), _impala_copy("q2", "RUNNING", 100)]}),
+        json.dumps({"queries": [_impala_copy("q1", "RUNNING", 300), _impala_copy("q2", "RUNNING", 200)]}),
+        json.dumps({"queries": [_impala_copy("q1", "FINISHED", 250)], "warnings": []}),
+    ]
+    with _load("cm_impala_queries", pages, tmp_path) as conn:
+        rows = conn.execute("SELECT query_id, query_state, duration_ms FROM cm_impala_queries ORDER BY 1").fetchall()
+        raw = conn.execute("SELECT CAST(body AS VARCHAR) FROM hadoop_raw_responses ORDER BY sequence").fetchall()
+
+    assert rows == [("q1", "FINISHED", 250), ("q2", "RUNNING", 200)]
+    assert [body for (body,) in raw] == pages  # every copy stays in the raw pages, exactly as CM returned them
+
+
+def test_impala_pages_are_yielded_as_cm_returned_them_with_their_warnings(fixed_clock: None) -> None:
+    page = json.dumps(
+        {
+            "queries": [_impala_copy("q1", "FINISHED", 5)],
+            "warnings": ["Impala query scan limit reached. Last end time ..."],
+        },
+        indent=2,
+    )
+
+    def impala(path: str, params: dict) -> str:
+        if path.endswith("/impalaQueries"):
+            return page if params["offset"] == 0 and params["from"] == _FIRST_WINDOW_FROM else _impala_page(0, 0)
+        return _standard_cm(path, params)
+
+    bodies = list(
+        endpoints.cm_impala_queries(_client(impala), _config(extract_impala_queries=True, impala_lookback_days=1), RUN)
+    )
+
+    assert bodies == [page]  # verbatim, warnings and formatting included; the empty pages are skipped

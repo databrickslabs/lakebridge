@@ -360,6 +360,11 @@ def _write_table(
                 )
                 conn.unregister("_bodies")
                 conn.execute(f"INSERT INTO {step} SELECT * FROM ({sql})", bound)
+            # A step can finish its table once every body is loaded, for work that spans bodies (streamed bodies are
+            # loaded one at a time), such as keeping one row per query when a query is on several pages.
+            after_load = sql_dir / f"{step}_after_load.sql"
+            if after_load.exists():
+                conn.execute(after_load.read_text(encoding="utf-8"))
             row_count = conn.execute(f"SELECT COUNT(*) FROM {step}").fetchone()
             conn.commit()
         except Exception:

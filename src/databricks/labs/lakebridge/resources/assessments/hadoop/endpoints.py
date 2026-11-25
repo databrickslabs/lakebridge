@@ -193,10 +193,9 @@ def cm_impala_queries(client: RestClient, config: HadoopConfig, run: ExtractRun)
     else:
         window_start, stop = today - timedelta(days=1), today
     interval = timedelta(minutes=cm.impala_interval_minutes)
-    seen: set[str] = set()
     while window_start < stop:
         window_end = min(window_start + interval, stop)
-        yield from _impala_window(client, path, cm, window_start, window_end, seen)
+        yield from _impala_window(client, path, cm, window_start, window_end)
         window_start = window_end
 
 
@@ -250,9 +249,13 @@ def _impala_window(
     cm: ClouderaManagerConfig,
     start: datetime,
     end: datetime,
-    seen: set[str],
 ) -> Iterator[str]:
-    """Page through one time window. A short page ends the window; ``impala_max_pages`` caps a busy one."""
+    """Page through one time window. A short page ends the window; ``impala_max_pages`` caps a busy one.
+
+    Each page that has queries is yielded exactly as Cloudera Manager returned it, warnings included, as the original
+    profiler saved it; a page without queries is skipped, as the original did. A query still running across several
+    windows is on several pages; the step keeps its most complete copy (see cm_impala_queries_after_load.sql).
+    """
     base = {"from": _iso_millis(start), "to": _iso_millis(end - timedelta(milliseconds=1)), "filter": ""}
     for page in range(cm.impala_max_pages):
         text = client.get_text(path, {**base, "limit": IMPALA_PAGE_LIMIT, "offset": page * IMPALA_PAGE_LIMIT})
@@ -262,16 +265,8 @@ def _impala_window(
                 "reduce hadoop.cloudera_manager.impala_interval_minutes and raise impala_max_pages to read every query"
             )
         queries = json.loads(text).get("queries") or []
-        fresh = []
-        for query in queries:
-            query_id = query.get("queryId") if isinstance(query, dict) else None
-            if query_id is not None:
-                if query_id in seen:
-                    continue
-                seen.add(query_id)
-            fresh.append(query)
-        if fresh:
-            yield json.dumps({"queries": fresh})
+        if queries:
+            yield text
         if len(queries) < IMPALA_PAGE_LIMIT:
             return
     logger.warning(
