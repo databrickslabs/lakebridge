@@ -260,7 +260,7 @@ def test_hadoop_is_a_registered_configurator(tmp_path: Path) -> None:
 def test_configure_hadoop_with_ha_basic_auth_https_and_spark(tmp_path: Path) -> None:
     answers = {
         r"Enter secret vault type": "1",  # local (choices are sorted: env, local)
-        r"Select the Hadoop distribution": "2",  # cdh (the list is not sorted)
+        r"Select the Hadoop distribution": "1",  # cdh (the list is not sorted: oth, cdh, hdp)
         r"Enter the YARN ResourceManager URL": "https://rm1.example.net/yarnui, https://rm2.example.net/yarnui",
         r"Select the YARN ResourceManager authentication": "1",  # basic
         r"Enter the YARN ResourceManager username": "profiler",
@@ -301,7 +301,7 @@ def test_configure_hadoop_env_vault_stores_variable_names_and_a_ca_bundle(tmp_pa
     ca_bundle.write_text("synthetic", encoding="utf-8")
     answers = {
         r"Enter secret vault type": "0",  # env
-        r"Select the Hadoop distribution": "4",  # hdi
+        r"Select the Hadoop distribution": "2",  # hdp (Azure HDInsight is hdp)
         r"Enter the YARN ResourceManager URL": "https://c.azurehdinsight.net/yarnui",
         r"Select the YARN ResourceManager authentication": "1",
         r"Enter the YARN ResourceManager username": "admin",
@@ -319,7 +319,7 @@ def test_configure_hadoop_env_vault_stores_variable_names_and_a_ca_bundle(tmp_pa
 
     credentials = yaml.safe_load((tmp_path / ".credentials.yml").read_text(encoding="utf-8"))
     assert credentials["secret_vault_type"] == "env"
-    assert credentials["hadoop"]["distribution"] == "hdi"
+    assert credentials["hadoop"]["distribution"] == "hdp"
     assert credentials["hadoop"]["yarn"] == {
         "urls": ["https://c.azurehdinsight.net/yarnui"],
         "auth": "basic",
@@ -387,7 +387,7 @@ def test_check_connection_probes_the_spark_history_server(tmp_path: Path, monkey
 def test_configure_cloudera_manager_with_impala_writes_the_block(tmp_path: Path) -> None:
     answers = {
         r"Enter secret vault type": "1",  # local
-        r"Select the Hadoop distribution": "2",  # cdh
+        r"Select the Hadoop distribution": "1",  # cdh
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",  # none
         r"Configure a Spark History Server": "no",
@@ -428,7 +428,7 @@ def test_configure_cloudera_manager_with_impala_writes_the_block(tmp_path: Path)
 def test_configure_cloudera_manager_without_impala_leaves_detection_to_the_steps(tmp_path: Path) -> None:
     answers = {
         r"Enter secret vault type": "1",
-        r"Select the Hadoop distribution": "2",
+        r"Select the Hadoop distribution": "1",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",
         r"Configure a Spark History Server": "no",
@@ -501,7 +501,7 @@ def test_check_connection_resolves_the_configured_impala_service(tmp_path: Path,
 def test_configure_hadoop_with_ranger_writes_the_block(tmp_path: Path) -> None:
     answers = {
         r"Enter secret vault type": "1",  # local
-        r"Select the Hadoop distribution": "3",  # hdp (the list is not sorted)
+        r"Select the Hadoop distribution": "2",  # hdp (the list is not sorted: oth, cdh, hdp)
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",  # none
         r"Configure a Spark History Server": "no",
@@ -534,7 +534,7 @@ def test_configure_hadoop_with_ranger_writes_the_block(tmp_path: Path) -> None:
 def test_configure_hadoop_without_ranger_writes_no_ranger_block(tmp_path: Path) -> None:
     answers = {
         r"Enter secret vault type": "1",
-        r"Select the Hadoop distribution": "3",
+        r"Select the Hadoop distribution": "2",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",
         r"Configure a Spark History Server": "no",
@@ -589,7 +589,7 @@ def test_check_connection_reports_a_ranger_failure_as_a_connection_error(tmp_pat
 def test_configure_hadoop_with_impala_writes_the_block(tmp_path: Path) -> None:
     answers = {
         r"Enter secret vault type": "1",  # local
-        r"Select the Hadoop distribution": "0",  # oth (the list is not sorted)
+        r"Select the Hadoop distribution": "0",  # oth (the list is not sorted: oth, cdh, hdp)
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",  # none
         r"Configure a Spark History Server": "no",
@@ -685,7 +685,7 @@ def test_check_connection_reports_an_impala_failure_as_a_connection_error(tmp_pa
 def test_configure_yarn_kerberos_with_keytab_writes_the_block(tmp_path: Path) -> None:
     answers = {
         r"Enter secret vault type": "1",  # local
-        r"Select the Hadoop distribution": "2",  # cdh
+        r"Select the Hadoop distribution": "1",  # cdh
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "2",  # kerberos
         r"Enter the path to the keytab for the YARN ResourceManager": "/etc/security/profiler.keytab",
@@ -711,7 +711,7 @@ def test_configure_yarn_kerberos_with_keytab_writes_the_block(tmp_path: Path) ->
 def test_configure_spark_history_kerberos_without_keytab_uses_the_existing_ticket(tmp_path: Path) -> None:
     answers = {
         r"Enter secret vault type": "1",
-        r"Select the Hadoop distribution": "2",
+        r"Select the Hadoop distribution": "1",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",  # none
         r"Configure a Spark History Server": "yes",
@@ -754,7 +754,7 @@ def test_kerberos_yarn_check_connection_passes_the_endpoint_transport(tmp_path: 
 def test_configure_ambari_over_the_hdinsight_gateway_writes_the_block(tmp_path: Path) -> None:
     answers = {
         r"Enter secret vault type": "1",  # local
-        r"Select the Hadoop distribution": "3",  # hdp
+        r"Select the Hadoop distribution": "2",  # hdp
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",  # none
         r"Configure a Spark History Server": "no",
@@ -782,7 +782,7 @@ def test_configure_ambari_over_the_hdinsight_gateway_writes_the_block(tmp_path: 
 def test_configure_ambari_with_basic_auth_and_a_named_cluster(tmp_path: Path) -> None:
     answers = {
         r"Enter secret vault type": "1",
-        r"Select the Hadoop distribution": "3",
+        r"Select the Hadoop distribution": "2",
         r"Enter the YARN ResourceManager URL": "http://rm:8088",
         r"Select the YARN ResourceManager authentication": "0",
         r"Configure a Spark History Server": "no",
@@ -843,7 +843,7 @@ def test_optional_questions_accept_enter_with_the_real_prompts(tmp_path: Path, m
     Every optional question ("leave empty to ...") must take Enter as "leave it out"."""
     script = [  # (prompt pattern, typed answer); "" is pressing Enter
         (r"Enter secret vault type", "1"),
-        (r"Select the Hadoop distribution", "2"),
+        (r"Select the Hadoop distribution", "1"),
         (r"Enter the YARN ResourceManager URL", "https://rm.example.com:8090"),
         (r"Select the YARN ResourceManager authentication", "0"),
         (r"CA bundle for the YARN ResourceManager", ""),
@@ -912,7 +912,7 @@ def test_the_original_profiler_settings_are_asked_and_saved(tmp_path: Path) -> N
     """RM_APP_FILTER, CM_IMPALA_NUMBER_OF_DAYS and CM_IMPALA_PAGES, as the original profiler.conf sets them."""
     answers = {
         **_HADOOP_ANSWERS,
-        r"Select the Hadoop distribution": "2",  # cdh
+        r"Select the Hadoop distribution": "1",  # cdh
         r"Filter the YARN applications": "?user=etl&queue=root.prod",
         r"Configure Cloudera Manager": "yes",
         r"Enter the Cloudera Manager URL": "http://cm.example.net:7180",

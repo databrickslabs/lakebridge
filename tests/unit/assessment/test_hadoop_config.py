@@ -153,6 +153,9 @@ def test_spark_history_block_is_parsed_with_its_own_settings() -> None:
     [
         ({"yarn": dict(_YARN)}, "hadoop.distribution must be one of"),
         (_raw(distribution="cloudera"), "hadoop.distribution must be one of"),
+        # Only the original profiler's three values; the error says where HDInsight and MapR belong.
+        (_raw(distribution="hdi"), "must be one of oth, cdh, hdp .Azure HDInsight is hdp, MapR is oth"),
+        (_raw(distribution="mapr"), "must be one of oth, cdh, hdp .Azure HDInsight is hdp, MapR is oth"),
         (_raw(yarn={"urls": []}), "hadoop.yarn.urls must be a non-empty list"),
         (_raw(yarn={"urls": ["rm1:8088"]}), "Invalid Hadoop service URL"),
         (_raw(yarn={"urls": ["http://u:p@rm1:8088"]}), "put credentials in username and password"),

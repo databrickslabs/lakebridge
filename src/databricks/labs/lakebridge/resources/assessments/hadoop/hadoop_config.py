@@ -4,7 +4,7 @@ Example::
 
     secret_vault_type: local
     hadoop:
-      distribution: cdh              # oth | mapr | cdh | hdp | hdi
+      distribution: cdh              # cdh | hdp | oth, as the original profiler's DISTRIBUTION
       yarn:
         urls:                        # HA: list every ResourceManager; a gateway URL may carry a path
           - http://rm1.example.com:8088
@@ -82,7 +82,9 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.masking import (
 )
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import RestClient, normalize_base_url
 
-DISTRIBUTIONS = ("oth", "mapr", "cdh", "hdp", "hdi")
+# The original profiler's DISTRIBUTION values: OTH (vanilla Apache Hadoop, MapR and others), CDH (Cloudera CDH and CDP
+# Private Cloud Base) and HDP (Hortonworks HDP and Azure HDInsight, which is reached through its gateway URLs).
+DISTRIBUTIONS = ("oth", "cdh", "hdp")
 SUPPORTED_AUTH = ("none", "basic")
 # Kerberos (SPNEGO) is supported only where the original profiler supports it: the YARN ResourceManager and the Spark
 # History Server (RM_KERBERIZED and SPARK_HS_KERBERIZED).
@@ -181,7 +183,8 @@ def parse_hadoop_config(raw: Any) -> HadoopConfig:
     distribution = str(raw.get("distribution") or "").strip().lower()
     if distribution not in DISTRIBUTIONS:
         raise HadoopConfigError(
-            f"hadoop.distribution must be one of {', '.join(DISTRIBUTIONS)}; got {raw.get('distribution')!r}"
+            f"hadoop.distribution must be one of {', '.join(DISTRIBUTIONS)} (Azure HDInsight is hdp, MapR is oth); "
+            f"got {raw.get('distribution')!r}"
         )
     return HadoopConfig(
         distribution=distribution,

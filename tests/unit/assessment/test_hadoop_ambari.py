@@ -195,7 +195,7 @@ def test_ambari_absent_is_none() -> None:
 
 def test_ambari_gateway_url_has_no_port_and_keeps_its_path() -> None:
     config = parse_hadoop_config(
-        {"distribution": "hdi", "ambari": {"url": "https://sim.azurehdinsight.net/", "auth": "none"}}
+        {"distribution": "hdp", "ambari": {"url": "https://sim.azurehdinsight.net/", "auth": "none"}}
     )
 
     assert config.ambari is not None

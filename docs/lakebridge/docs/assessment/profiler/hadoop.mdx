@@ -31,9 +31,15 @@ access to the cluster's file system or Hive metastore. It covers:
 - **Ambari** (optional, HDP and HDInsight): the cluster blueprint, hosts, services, host components, stack version, and
   the NameNode, DataNode, ResourceManager and NodeManager. See [Ambari](#ambari).
 
-Supported distributions are Apache Hadoop (`oth`), MapR (`mapr`), Cloudera CDH (`cdh`), Hortonworks HDP (`hdp`) and
-Azure HDInsight (`hdi`). The distribution is recorded in the extract. Every distribution uses the same YARN and Spark REST APIs; the
-Cloudera Manager steps apply to CDH and CDP clusters.
+The distribution is one of the original profiler's three `DISTRIBUTION` values, and it is recorded in the extract:
+
+| Distribution | Clusters |
+|--------------|----------|
+| `cdh` | Cloudera CDH and CDP Private Cloud Base (Cloudera Manager) |
+| `hdp` | Hortonworks HDP and Azure HDInsight (Ambari). For HDInsight, give the cluster's gateway URLs and its login. |
+| `oth` | Vanilla Apache Hadoop, MapR and other distributions (YARN and Spark History only) |
+
+Every distribution uses the same YARN and Spark REST APIs; the Cloudera Manager steps apply to CDH and CDP clusters.
 
 ## Prerequisites
 
@@ -120,7 +126,7 @@ databricks labs lakebridge configure-database-profiler
 Select **`hadoop`** as the source system. The wizard asks for:
 
 1. The secret vault type (`local` or `env`).
-2. The distribution (`oth`, `mapr`, `cdh`, `hdp` or `hdi`).
+2. The distribution: `cdh`, `hdp` or `oth`, as the original profiler's `DISTRIBUTION` (see above).
 3. The YARN ResourceManager URL or URLs, comma-separated. For high availability, list every ResourceManager.
 4. The YARN authentication (`none`, `basic` or `kerberos`). For `basic`, the username and password. For `kerberos`, an
    optional keytab path and the principal (leave the keytab empty to use an existing ticket).
@@ -155,7 +161,7 @@ The wizard writes the following to `~/.databricks/labs/lakebridge/.credentials.y
 secret_vault_type: local
 secret_vault_name: null
 hadoop:
-  distribution: cdh              # oth | mapr | cdh | hdp | hdi
+  distribution: cdh              # cdh | hdp | oth, as the original profiler's DISTRIBUTION
   yarn:
     urls:                        # every ResourceManager in HA; a gateway URL may include a path
       - http://rm1.example.com:8088
