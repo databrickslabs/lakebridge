@@ -13,8 +13,8 @@ summary AS (
         COUNT(*) AS attempt_count,
         ANY_VALUE(att->>'$.sparkUser') AS spark_user,
         ANY_VALUE(att->>'$.appSparkVersion') AS spark_version,
-        MIN(CAST(att->>'$.startTimeEpoch' AS BIGINT)) AS first_start_ms,
-        MAX(NULLIF(CAST(att->>'$.endTimeEpoch' AS BIGINT), -1)) AS last_end_ms,
+        MIN(spark_time_ms(att, 'startTime')) AS first_start_ms,
+        MAX(spark_time_ms(att, 'endTime')) AS last_end_ms,
         BOOL_AND(CAST(att->>'$.completed' AS BOOLEAN)) AS completed
     FROM attempts
     GROUP BY application_id

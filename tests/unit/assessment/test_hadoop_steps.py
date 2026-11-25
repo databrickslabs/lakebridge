@@ -2,6 +2,7 @@ import json
 import sys
 import threading
 from collections.abc import Iterator
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
@@ -67,7 +68,7 @@ def test_cluster_metrics_vanilla_and_cdh(tmp_path: Path) -> None:
         cdh = _rows(conn, "SELECT apps_submitted, total_nodes, decommissioning_nodes FROM yarn_cluster_metrics")
 
     assert vanilla == [(6, 1, 1, 4096)]
-    # CDH 5.7 does not report decommissioning nodes, so the column is NULL rather than an error.
+    # The captured CDH ResourceManager does not report decommissioning nodes, so the column is NULL rather than an error.
     assert cdh == [(2, 1, None)]
 
 
@@ -120,7 +121,7 @@ def test_scheduler_fair_tree_is_read_from_child_queues(tmp_path: Path) -> None:
 
 
 def test_scheduler_fair_tree_reads_hadoop3_wrapped_child_queues(tmp_path: Path) -> None:
-    """Hadoop 2.8+ (CDH 6, CDP) wraps fair-scheduler children as childQueues: {"queue": [...]}."""
+    """Hadoop 2.8+ wraps fair-scheduler children as childQueues: {"queue": [...]}."""
     leaf = "fairSchedulerLeafQueueInfo"
     doc = {
         "scheduler": {
@@ -467,7 +468,7 @@ class _HadoopHandler(BaseHTTPRequestHandler):
         return self._send(404, "{}")
 
     def _cloudera(self, path: str, query: dict) -> None:
-        """Cloudera Manager v12 from the captured fixtures. CM 5.7 does not know the two Impala metrics below."""
+        """Cloudera Manager from the captured fixtures. That CM does not know the two Impala metrics below."""
         if path == "/api/version":
             return self._send(200, "v12\n", "text/plain")
         if path == "/api/v12/clusters":
@@ -724,3 +725,71 @@ def test_a_fair_scheduler_has_no_partitions_but_keeps_its_fair_shares(tmp_path: 
 
     assert partitions == [(0,)]
     assert shares[0][0] > 0
+
+
+# A Spark History Server may report attempt times only as text, with no epoch fields or duration; -1 is
+# 1969-12-31T23:59:59.999GMT. Without a reported duration the duration stays NULL, as in the original's output.
+_SPARK_TEXT_TIME_APPS = [
+    {
+        "id": "application_1_0001",
+        "name": "fail-2attempts",
+        "attempts": [
+            {
+                "attemptId": "2",
+                "startTime": "2026-11-25T10:38:20.500GMT",
+                "endTime": "2026-11-25T10:38:40.000GMT",
+                "sparkUser": "etl",
+                "completed": True,
+            },
+            {
+                "attemptId": "1",
+                "startTime": "2026-11-25T10:38:01.000GMT",
+                "endTime": "2026-11-25T10:38:19.250GMT",
+                "sparkUser": "etl",
+                "completed": True,
+            },
+        ],
+    },
+    {
+        "id": "application_1_0002",
+        "name": "still-running",
+        "attempts": [
+            {
+                "attemptId": "1",
+                "startTime": "2026-11-25T10:39:13.015GMT",
+                "endTime": "1969-12-31T23:59:59.999GMT",
+                "sparkUser": "etl",
+                "completed": False,
+            },
+        ],
+    },
+]
+
+
+def _at(hour: int, minute: int, second: int, millis: int) -> datetime:
+    return datetime(2026, 11, 25, hour, minute, second, millis * 1000)
+
+
+def test_spark_text_times_become_timestamps_and_no_duration_is_derived(tmp_path: Path) -> None:
+    body = json.dumps(_SPARK_TEXT_TIME_APPS)
+    with _load("spark_application_attempts", [body], tmp_path) as conn:
+        attempts = _rows(
+            conn,
+            "SELECT application_id, attempt_id, started_time, ended_time, duration_ms, completed "
+            "FROM spark_application_attempts ORDER BY application_id, attempt_id",
+        )
+    with _load("spark_applications", [body], tmp_path / "apps") as conn:
+        apps = _rows(
+            conn,
+            "SELECT application_id, attempt_count, started_time, ended_time, completed FROM spark_applications ORDER BY 1",
+        )
+
+    assert attempts == [
+        ("application_1_0001", "1", _at(10, 38, 1, 0), _at(10, 38, 19, 250), None, True),
+        ("application_1_0001", "2", _at(10, 38, 20, 500), _at(10, 38, 40, 0), None, True),
+        ("application_1_0002", "1", _at(10, 39, 13, 15), None, None, False),
+    ]
+    assert apps == [
+        ("application_1_0001", 2, _at(10, 38, 1, 0), _at(10, 38, 40, 0), True),
+        ("application_1_0002", 1, _at(10, 39, 13, 15), None, False),
+    ]

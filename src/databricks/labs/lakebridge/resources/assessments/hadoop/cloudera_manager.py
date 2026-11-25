@@ -207,9 +207,13 @@ def path_segment(value: str) -> str:
     return quote(value, safe="")
 
 
+# CM reports an unknown timeseries metric with HTTP 400 or HTTP 500.
+_INVALID_METRIC_STATUSES = (400, 500)
+
+
 def invalid_metric_name(error: HadoopHttpError) -> str | None:
-    """The metric named by CM's ``Invalid metric 'x'`` error (HTTP 400), or None when the error is something else."""
-    if error.status_code != 400:
+    """The metric named by CM's ``Invalid metric 'x'`` error, or None when the error is something else."""
+    if error.status_code not in _INVALID_METRIC_STATUSES:
         return None
     match = _INVALID_METRIC.search(error.body)
     return match.group(1) if match else None

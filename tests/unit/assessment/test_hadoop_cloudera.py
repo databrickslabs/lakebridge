@@ -239,19 +239,30 @@ def test_an_alias_item_matches_by_its_expression_not_its_alias() -> None:
     assert metric_expression(cluster_memory[2]).startswith("100*total_physical_memory_used_across_hosts/")
 
 
-def test_only_400_invalid_metric_errors_are_retried() -> None:
-    not_400 = HadoopHttpError("x", status_code=500, body=_fixture("cm_timeseries_invalid_metric.json"))
-    other = HadoopHttpError("x", status_code=400, body='{"message": "Bad query"}')
+def test_an_invalid_metric_reported_with_http_500_names_the_metric() -> None:
+    """CM may answer an unknown metric with HTTP 500 instead of 400; both name the metric."""
+    error = HadoopHttpError("x", status_code=500, body=_fixture("cm_timeseries_invalid_metric.json"))
 
-    assert invalid_metric_name(not_400) is None
-    assert invalid_metric_name(other) is None
+    assert invalid_metric_name(error) == "impala_memory_rss"
+
+
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        (400, '{"message": "Bad query"}'),  # a 400 that is not about a metric
+        (500, '{"message": "Internal server error"}'),  # a server error that is not about a metric
+        (404, '{"message": "Invalid metric \'impala_memory_rss\' in \'select ...\'"}'),  # wrong status for it
+    ],
+)
+def test_other_errors_are_not_treated_as_an_invalid_metric(status: int, body: str) -> None:
+    assert invalid_metric_name(HadoopHttpError("x", status_code=status, body=body)) is None
 
 
 # ---- timeseries ----------------------------------------------------------------------------------------------------
 
 
 def _timeseries_cm(path: str, params: dict) -> str:
-    """CM 5.7 does not know impala_memory_rss or impala_memory_total_used. Every other metric is known."""
+    """The captured CM does not know impala_memory_rss or impala_memory_total_used. Every other metric is known."""
     if path != "/api/v12/timeseries":
         return _standard_cm(path, params)
     query = params["query"]

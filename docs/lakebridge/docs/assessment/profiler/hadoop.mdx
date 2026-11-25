@@ -302,9 +302,9 @@ returns Cloudera Manager's default recent window, as the original does.
 
 ### Time-series metrics that the Cloudera Manager version does not have
 
-Cloudera Manager rejects a whole timeseries query when it names one metric it does not know, with HTTP 400 and a
-message such as `Invalid metric 'impala_memory_rss'`. Older versions, such as CM 5.7, do not have Impala daemon
-metrics that newer versions have. The profiler therefore drops that metric and sends the query again, until the
+Cloudera Manager rejects a whole timeseries query when it names one metric it does not know, with HTTP 400 or 500
+and a message such as `Invalid metric 'impala_memory_rss'`. Not every Cloudera Manager has every metric the queries
+name. The profiler therefore drops that metric and sends the query again, until the
 query succeeds. Each dropped metric is recorded in `cm_timeseries` with `status = 'unsupported_by_cm'` and no
 sample, so you can see which metrics this Cloudera Manager does not report.
 

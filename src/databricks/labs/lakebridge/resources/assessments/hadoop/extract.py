@@ -90,6 +90,15 @@ HELPER_MACROS: tuple[str, ...] = (
             regexp_extract_all(CAST(m AS VARCHAR), '"key"\s*:\s*"[^"]*"\s*,\s*"value"\s*:\s*"?-?[0-9]+"?'),
             e -> {'k': regexp_extract(e, '"key"\s*:\s*"([^"]*)"', 1),
                   'v': CAST(regexp_extract(e, '"value"\s*:\s*"?(-?[0-9]+)', 1) AS BIGINT)}))) AS VARCHAR) END)""",
+    # A Spark History Server attempt time in epoch milliseconds: <name>Epoch, or the text form (such as
+    # 2026-11-25T10:39:13.015GMT) when the server reports only that. A time that is not set yet is -1 either way
+    # (1969-12-31T23:59:59.999GMT in text), which becomes NULL.
+    r"""CREATE TEMP MACRO spark_time_ms(att, name) AS (
+        NULLIF(COALESCE(
+            TRY_CAST(json_extract_string(att, '$.' || name || 'Epoch') AS BIGINT),
+            epoch_ms(try_strptime(regexp_replace(json_extract_string(att, '$.' || name), 'GMT$', ''),
+                                  '%Y-%m-%dT%H:%M:%S.%g'))
+        ), -1))""",
     # A scheduler queue's children: capacity schedulers nest them under queues.queue; fair schedulers under
     # childQueues, which Hadoop 2.8+ wraps as childQueues.queue (FairSchedulerQueueInfoList) and older YARN gives bare.
     """CREATE TEMP MACRO child_queues(node) AS (

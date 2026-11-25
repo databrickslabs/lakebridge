@@ -1,4 +1,6 @@
--- One row per Spark application attempt. A running attempt has no end time (Spark reports endTimeEpoch -1).
+-- One row per Spark application attempt. A running attempt has no end time (Spark reports -1). The times come from the
+-- epoch fields or, when the server reports only text, from the text times. The duration is the server's, NULL when the
+-- server does not report one, as in the original profiler's output.
 WITH apps AS (
     SELECT t.a AS a
     FROM (SELECT unnest(hadoop_records(doc, '$')) AS a FROM raw_documents) AS t
@@ -10,9 +12,9 @@ attempts AS (
 SELECT
     application_id,
     att->>'$.attemptId' AS attempt_id,
-    epoch_ms(CAST(att->>'$.startTimeEpoch' AS BIGINT)) AS started_time,
-    epoch_ms(NULLIF(CAST(att->>'$.endTimeEpoch' AS BIGINT), -1)) AS ended_time,
-    epoch_ms(NULLIF(CAST(att->>'$.lastUpdatedEpoch' AS BIGINT), -1)) AS last_updated_time,
+    epoch_ms(spark_time_ms(att, 'startTime')) AS started_time,
+    epoch_ms(spark_time_ms(att, 'endTime')) AS ended_time,
+    epoch_ms(spark_time_ms(att, 'lastUpdated')) AS last_updated_time,
     CAST(att->>'$.duration' AS BIGINT) AS duration_ms,
     att->>'$.sparkUser' AS spark_user,
     att->>'$.appSparkVersion' AS spark_version,
