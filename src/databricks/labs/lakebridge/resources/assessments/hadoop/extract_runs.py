@@ -11,10 +11,13 @@ no inventory already collected. The tracker is ``hadoop_extract_tracker.json`` n
   them, and the rest run again, which finishes a partly failed initial extract.
 
 A run that finds another run's unfinished initial extract starts it again. Deleting the tracker forces a new one.
+A run records into the tracker only while it is the one it resolved (same ``initial_run_db``, same completion), so
+overlapping runs in one folder cannot credit a step to a DuckDB file that does not hold its data.
 """
 
 import contextlib
 import json
+import logging
 import os
 import tempfile
 from collections.abc import Mapping
@@ -22,6 +25,8 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 TRACKER_FILE_NAME = "hadoop_extract_tracker.json"
 SKIPPED_INCREMENTAL = "skipped: incremental run (initial extract already collected)"
@@ -89,6 +94,8 @@ class ExtractRun:
     run_db: str
     initial: bool
     completed: frozenset[str] = frozenset()
+    # The tracker's initial_run_db when this run resolved it; a run records only while it is unchanged.
+    tracker_owner: str | None = None
 
 
 def resolve_run(db_path: str | Path) -> ExtractRun:
@@ -100,22 +107,28 @@ def resolve_run(db_path: str | Path) -> ExtractRun:
     if tracker is None or (not tracker["initial_completed"] and tracker["initial_run_db"] != run_db):
         tracker = _fresh_tracker(run_db)
         _write_tracker(tracker_path, tracker)
+    owner = tracker["initial_run_db"]
     if not tracker["initial_completed"]:
-        return ExtractRun(run_db=run_db, initial=True)
-    return ExtractRun(run_db=run_db, initial=False, completed=frozenset(tracker["completed_inventory_steps"]))
+        return ExtractRun(run_db=run_db, initial=True, tracker_owner=owner)
+    completed = frozenset(tracker["completed_inventory_steps"])
+    return ExtractRun(run_db=run_db, initial=False, completed=completed, tracker_owner=owner)
 
 
 def record_initial_gate(db_path: str | Path, run: ExtractRun) -> None:
     """Record that this run's yarn_cluster_info succeeded."""
     tracker_path = Path(db_path).parent / TRACKER_FILE_NAME
-    tracker = _require_tracker(tracker_path, run)
+    tracker = _require_tracker(tracker_path, run, "yarn_cluster_info")
+    if tracker is None:
+        return
     _write_tracker(tracker_path, {**tracker, "yarn_cluster_info_run_db": run.run_db})
 
 
 def record_inventory_step(db_path: str | Path, run: ExtractRun, step: str) -> None:
     """Record an inventory step's success, so incremental runs skip it."""
     tracker_path = Path(db_path).parent / TRACKER_FILE_NAME
-    tracker = _require_tracker(tracker_path, run)
+    tracker = _require_tracker(tracker_path, run, step)
+    if tracker is None:
+        return
     completed = sorted(set(tracker["completed_inventory_steps"]) | {step})
     _write_tracker(tracker_path, {**tracker, "completed_inventory_steps": completed})
 
@@ -147,10 +160,17 @@ def _fresh_tracker(run_db: str) -> dict[str, Any]:
     }
 
 
-def _require_tracker(tracker_path: Path, run: ExtractRun) -> dict[str, Any]:
+def _require_tracker(tracker_path: Path, run: ExtractRun, step: str) -> dict[str, Any] | None:
+    """The tracker this run resolved, or None when another run has since replaced it (nothing is recorded then)."""
     tracker = _read_tracker(tracker_path)
     if tracker is None:
         raise RuntimeError(f"{TRACKER_FILE_NAME} was removed during run {run.run_db}; the extract is not consistent")
+    if tracker["initial_run_db"] != run.tracker_owner or tracker["initial_completed"] is run.initial:
+        logger.warning(
+            f"{step} is not recorded in {TRACKER_FILE_NAME}: another run ({tracker['initial_run_db']}) replaced the "
+            f"tracker during run {run.run_db}; its data stays in {run.run_db}"
+        )
+        return None
     return tracker
 
 

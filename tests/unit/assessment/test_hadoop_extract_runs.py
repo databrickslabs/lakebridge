@@ -21,6 +21,7 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import
     ExtractRun,
     StepKind,
     finish_run,
+    record_initial_gate,
     record_inventory_step,
     resolve_run,
 )
@@ -218,6 +219,46 @@ def test_recording_fails_when_the_tracker_disappeared_mid_run(tmp_path: Path) ->
 
     with pytest.raises(RuntimeError, match="removed during run run_a.db"):
         record_inventory_step(db_file, run, "ambari_hosts")
+
+
+def test_an_overlapping_run_that_replaced_the_tracker_is_not_credited_with_the_other_runs_step(
+    tmp_path: Path,
+) -> None:
+    calls: list[str] = []
+    run_a = resolve_run(_db(tmp_path, "run_a.db"))
+    resolve_run(_db(tmp_path, "run_b.db"))  # run B starts while run A's step is still fetching
+
+    record_inventory_step(_db(tmp_path, "run_a.db"), run_a, "ambari_hosts")
+
+    assert _tracker(tmp_path)["initial_run_db"] == "run_b.db"
+    assert _tracker(tmp_path)["completed_inventory_steps"] == []
+    # Run B completes with its own steps only, so a later run still collects ambari_hosts.
+    _complete_initial(tmp_path, "run_b.db")
+    later = _run(tmp_path, "run_c.db", "ambari_hosts", "ambari", _ambari_hosts(calls))
+
+    assert later.startswith("ambari_hosts extracted")
+    assert calls == ["ambari_hosts"]
+
+
+def test_an_overlapping_run_cannot_mark_its_yarn_cluster_info_in_the_other_runs_tracker(tmp_path: Path) -> None:
+    run_a = resolve_run(_db(tmp_path, "run_a.db"))
+    resolve_run(_db(tmp_path, "run_b.db"))
+
+    record_initial_gate(_db(tmp_path, "run_a.db"), run_a)
+
+    assert _tracker(tmp_path)["yarn_cluster_info_run_db"] is None
+
+
+def test_an_incremental_run_records_nothing_into_a_new_initial_extract(tmp_path: Path) -> None:
+    _complete_initial(tmp_path, "run_a.db")
+    incremental = resolve_run(_db(tmp_path, "run_b.db"))
+    (tmp_path / TRACKER_FILE_NAME).unlink()
+    resolve_run(_db(tmp_path, "run_c.db"))  # a new initial extract starts while run B is still running
+
+    record_inventory_step(_db(tmp_path, "run_b.db"), incremental, "ambari_hosts")
+
+    assert _tracker(tmp_path)["initial_run_db"] == "run_c.db"
+    assert _tracker(tmp_path)["completed_inventory_steps"] == []
 
 
 # ---- completing the initial extract (the original's check of the active ResourceManager) ----------------------------
