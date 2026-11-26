@@ -1,0 +1,328 @@
+{
+  "items" : [ {
+    "name" : "ks_indexer",
+    "type" : "KS_INDEXER",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/ks_indexer",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/ks_indexer/instances",
+    "serviceState" : "STOPPED",
+    "healthSummary" : "DISABLED",
+    "healthChecks" : [ {
+      "name" : "KS_INDEXER_HBASE_INDEXERS_HEALTHY",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    } ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "Key-Value Store Indexer",
+    "entityStatus" : "STOPPED"
+  }, {
+    "name" : "sqoop",
+    "type" : "SQOOP",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/sqoop",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/sqoop/instances",
+    "serviceState" : "STOPPED",
+    "healthSummary" : "DISABLED",
+    "healthChecks" : [ {
+      "name" : "SQOOP_SQOOP_SERVER_HEALTH",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    } ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "Sqoop 2",
+    "entityStatus" : "STOPPED"
+  }, {
+    "name" : "zookeeper",
+    "type" : "ZOOKEEPER",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/zookeeper",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/zookeeper/instances",
+    "serviceState" : "STARTED",
+    "healthSummary" : "BAD",
+    "healthChecks" : [ {
+      "name" : "ZOOKEEPER_CANARY_HEALTH",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "ZOOKEEPER_SERVERS_HEALTHY",
+      "summary" : "BAD",
+      "suppressed" : false
+    } ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "ZooKeeper",
+    "entityStatus" : "BAD_HEALTH"
+  }, {
+    "name" : "hue",
+    "type" : "HUE",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/hue",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/hue/instances",
+    "serviceState" : "STOPPED",
+    "healthSummary" : "DISABLED",
+    "healthChecks" : [ {
+      "name" : "HUE_HUE_SERVERS_HEALTHY",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    } ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "Hue",
+    "entityStatus" : "STOPPED"
+  }, {
+    "name" : "impala",
+    "type" : "IMPALA",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/impala",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/impala/instances",
+    "serviceState" : "STARTED",
+    "healthSummary" : "BAD",
+    "healthChecks" : [ {
+      "name" : "IMPALA_ASSIGNMENT_LOCALITY",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    }, {
+      "name" : "IMPALA_CATALOGSERVER_HEALTH",
+      "summary" : "BAD",
+      "suppressed" : false
+    }, {
+      "name" : "IMPALA_IMPALADS_HEALTHY",
+      "summary" : "BAD",
+      "suppressed" : false
+    }, {
+      "name" : "IMPALA_STATESTORE_HEALTH",
+      "summary" : "BAD",
+      "suppressed" : false
+    } ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "Impala",
+    "entityStatus" : "BAD_HEALTH"
+  }, {
+    "name" : "oozie",
+    "type" : "OOZIE",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/oozie",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/oozie/instances",
+    "serviceState" : "STOPPED",
+    "healthSummary" : "DISABLED",
+    "healthChecks" : [ {
+      "name" : "OOZIE_OOZIE_SERVERS_HEALTHY",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    } ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "Oozie",
+    "entityStatus" : "STOPPED"
+  }, {
+    "name" : "hdfs",
+    "type" : "HDFS",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/hdfs",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/hdfs/instances",
+    "serviceState" : "STARTED",
+    "healthSummary" : "BAD",
+    "healthChecks" : [ {
+      "name" : "HDFS_BLOCKS_WITH_CORRUPT_REPLICAS",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "HDFS_CANARY_HEALTH",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "HDFS_DATA_NODES_HEALTHY",
+      "summary" : "BAD",
+      "suppressed" : false
+    }, {
+      "name" : "HDFS_FREE_SPACE_REMAINING",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "HDFS_HA_NAMENODE_HEALTH",
+      "summary" : "BAD",
+      "suppressed" : false
+    }, {
+      "name" : "HDFS_MISSING_BLOCKS",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "HDFS_UNDER_REPLICATED_BLOCKS",
+      "summary" : "GOOD",
+      "suppressed" : false
+    } ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "HDFS",
+    "entityStatus" : "BAD_HEALTH"
+  }, {
+    "name" : "solr",
+    "type" : "SOLR",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/solr",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/solr/instances",
+    "serviceState" : "STOPPED",
+    "healthSummary" : "DISABLED",
+    "healthChecks" : [ {
+      "name" : "SOLR_SOLR_SERVERS_HEALTHY",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    } ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "Solr",
+    "entityStatus" : "STOPPED"
+  }, {
+    "name" : "hbase",
+    "type" : "HBASE",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/hbase",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/hbase/instances",
+    "serviceState" : "STOPPED",
+    "healthSummary" : "DISABLED",
+    "healthChecks" : [ {
+      "name" : "HBASE_MASTER_HEALTH",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    }, {
+      "name" : "HBASE_REGION_SERVERS_HEALTHY",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    } ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "HBase",
+    "entityStatus" : "STOPPED"
+  }, {
+    "name" : "yarn",
+    "type" : "YARN",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/yarn",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/yarn/instances",
+    "serviceState" : "STARTED",
+    "healthSummary" : "BAD",
+    "healthChecks" : [ {
+      "name" : "YARN_JOBHISTORY_HEALTH",
+      "summary" : "BAD",
+      "suppressed" : false
+    }, {
+      "name" : "YARN_NODE_MANAGERS_HEALTHY",
+      "summary" : "BAD",
+      "suppressed" : false
+    }, {
+      "name" : "YARN_RESOURCEMANAGERS_HEALTH",
+      "summary" : "BAD",
+      "suppressed" : false
+    }, {
+      "name" : "YARN_USAGE_AGGREGATION_HEALTH",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    } ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "YARN (MR2 Included)",
+    "entityStatus" : "BAD_HEALTH"
+  }, {
+    "name" : "spark_on_yarn",
+    "type" : "SPARK_ON_YARN",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/spark_on_yarn",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/spark_on_yarn/instances",
+    "serviceState" : "STARTED",
+    "healthSummary" : "GOOD",
+    "healthChecks" : [ ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "Spark",
+    "entityStatus" : "GOOD_HEALTH"
+  }, {
+    "name" : "hive",
+    "type" : "HIVE",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/hive",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/hive/instances",
+    "serviceState" : "STARTED",
+    "healthSummary" : "BAD",
+    "healthChecks" : [ {
+      "name" : "HIVE_HIVEMETASTORES_HEALTHY",
+      "summary" : "BAD",
+      "suppressed" : false
+    }, {
+      "name" : "HIVE_HIVESERVER2S_HEALTHY",
+      "summary" : "BAD",
+      "suppressed" : false
+    } ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "Hive",
+    "entityStatus" : "BAD_HEALTH"
+  }, {
+    "name" : "sqoop_client",
+    "type" : "SQOOP_CLIENT",
+    "clusterRef" : {
+      "clusterName" : "Cloudera QuickStart"
+    },
+    "serviceUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/sqoop_client",
+    "roleInstancesUrl" : "http://quickstart.cloudera:7180/cmf/serviceRedirect/sqoop_client/instances",
+    "serviceState" : "NA",
+    "healthSummary" : "GOOD",
+    "healthChecks" : [ ],
+    "configStalenessStatus" : "FRESH",
+    "clientConfigStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "maintenanceOwners" : [ ],
+    "displayName" : "Sqoop 1 Client",
+    "entityStatus" : "NONE"
+  } ]
+}

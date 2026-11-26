@@ -1,0 +1,136 @@
+{
+  "configurations" : [
+    {
+      "hdfs-site" : {
+        "properties" : {
+          "dfs.namenode.https-address" : "%HOSTGROUP::host_group_1%:50470",
+          "dfs.namenode.http-address" : "%HOSTGROUP::host_group_1%:50070",
+          "dfs.namenode.rpc-address" : "%HOSTGROUP::host_group_1%:8020",
+          "dfs.namenode.secondary.http-address" : "%HOSTGROUP::host_group_1%:50090"
+        }
+      }
+    },
+    {
+      "yarn-site" : {
+        "properties" : {
+          "yarn.resourcemanager.zk-address" : "%HOSTGROUP::host_group_1%:2181",
+          "yarn.log.server.url" : "http://%HOSTGROUP::host_group_1%:19888/jobhistory/logs",
+          "yarn.resourcemanager.address" : "%HOSTGROUP::host_group_1%:8050",
+          "yarn.log.server.web-service.url" : "http://%HOSTGROUP::host_group_1%:8188/ws/v1/applicationhistory",
+          "yarn.timeline-service.reader.webapp.address" : "%HOSTGROUP::host_group_1%:8198",
+          "hadoop.registry.zk.quorum" : "%HOSTGROUP::host_group_1%:2181",
+          "yarn.timeline-service.leveldb-timeline-store.path" : "/hadoop/yarn/timeline",
+          "yarn.resourcemanager.admin.address" : "%HOSTGROUP::host_group_1%:8141",
+          "yarn.resourcemanager.resource-tracker.address" : "%HOSTGROUP::host_group_1%:8025",
+          "yarn.timeline-service.reader.webapp.https.address" : "%HOSTGROUP::host_group_1%:8199",
+          "yarn.resourcemanager.webapp.address" : "%HOSTGROUP::host_group_1%:8088",
+          "yarn.resourcemanager.webapp.https.address" : "%HOSTGROUP::host_group_1%:8090",
+          "yarn.timeline-service.webapp.https.address" : "%HOSTGROUP::host_group_1%:8190",
+          "yarn.resourcemanager.hostname" : "%HOSTGROUP::host_group_1%",
+          "yarn.resourcemanager.scheduler.address" : "%HOSTGROUP::host_group_1%:8030",
+          "yarn.timeline-service.address" : "%HOSTGROUP::host_group_1%:10200",
+          "yarn.timeline-service.webapp.address" : "%HOSTGROUP::host_group_1%:8188"
+        }
+      }
+    },
+    {
+      "mapred-site" : {
+        "properties" : {
+          "mapreduce.jobhistory.webapp.address" : "%HOSTGROUP::host_group_1%:19888",
+          "mapreduce.jobhistory.address" : "%HOSTGROUP::host_group_1%:10020"
+        }
+      }
+    },
+    {
+      "core-site" : {
+        "properties" : {
+          "fs.defaultFS" : "hdfs://%HOSTGROUP::host_group_1%:8020"
+        }
+      }
+    }
+  ],
+  "host_groups" : [
+    {
+      "components" : [
+        {
+          "name" : "NODEMANAGER"
+        },
+        {
+          "name" : "MAPREDUCE2_CLIENT"
+        },
+        {
+          "name" : "SPARK_CLIENT"
+        },
+        {
+          "name" : "YARN_CLIENT"
+        },
+        {
+          "name" : "HDFS_CLIENT"
+        },
+        {
+          "name" : "DATANODE"
+        },
+        {
+          "name" : "ZOOKEEPER_CLIENT"
+        }
+      ],
+      "name" : "host_group_2",
+      "cardinality" : "1"
+    },
+    {
+      "components" : [
+        {
+          "name" : "NODEMANAGER"
+        },
+        {
+          "name" : "SPARK_CLIENT"
+        },
+        {
+          "name" : "YARN_CLIENT"
+        },
+        {
+          "name" : "HDFS_CLIENT"
+        },
+        {
+          "name" : "HISTORYSERVER"
+        },
+        {
+          "name" : "NAMENODE"
+        },
+        {
+          "name" : "ZOOKEEPER_CLIENT"
+        },
+        {
+          "name" : "TIMELINE_READER"
+        },
+        {
+          "name" : "SECONDARY_NAMENODE"
+        },
+        {
+          "name" : "MAPREDUCE2_CLIENT"
+        },
+        {
+          "name" : "ZOOKEEPER_SERVER"
+        },
+        {
+          "name" : "DATANODE"
+        },
+        {
+          "name" : "SPARK_JOBHISTORYSERVER"
+        },
+        {
+          "name" : "APP_TIMELINE_SERVER"
+        },
+        {
+          "name" : "RESOURCEMANAGER"
+        }
+      ],
+      "name" : "host_group_1",
+      "cardinality" : "1"
+    }
+  ],
+  "Blueprints" : {
+    "stack_name" : "BIGTOP",
+    "stack_version" : "3.3.0"
+  }
+}

@@ -17,6 +17,7 @@ PROFILER_SOURCE_SYSTEM = sorted(
         "bigquery",
         "redshift",
         "teradata",
+        "hadoop",
     ]
 )
 

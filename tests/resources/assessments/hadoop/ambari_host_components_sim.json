@@ -1,0 +1,199 @@
+{
+  "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts?fields=host_components/host_name",
+  "items" : [
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim",
+      "Hosts" : {
+        "cluster_name" : "sim",
+        "host_name" : "agent1.ambari.sim"
+      },
+      "host_components" : [
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/APP_TIMELINE_SERVER",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "APP_TIMELINE_SERVER",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/DATANODE",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "DATANODE",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/HDFS_CLIENT",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "HDFS_CLIENT",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/HISTORYSERVER",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "HISTORYSERVER",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/MAPREDUCE2_CLIENT",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "MAPREDUCE2_CLIENT",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/NAMENODE",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "NAMENODE",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/NODEMANAGER",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "NODEMANAGER",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/RESOURCEMANAGER",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "RESOURCEMANAGER",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/SECONDARY_NAMENODE",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "SECONDARY_NAMENODE",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/SPARK_CLIENT",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "SPARK_CLIENT",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/SPARK_JOBHISTORYSERVER",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "SPARK_JOBHISTORYSERVER",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/TIMELINE_READER",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "TIMELINE_READER",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/YARN_CLIENT",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "YARN_CLIENT",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/ZOOKEEPER_CLIENT",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "ZOOKEEPER_CLIENT",
+            "host_name" : "agent1.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim/host_components/ZOOKEEPER_SERVER",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "ZOOKEEPER_SERVER",
+            "host_name" : "agent1.ambari.sim"
+          }
+        }
+      ]
+    },
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent2.ambari.sim",
+      "Hosts" : {
+        "cluster_name" : "sim",
+        "host_name" : "agent2.ambari.sim"
+      },
+      "host_components" : [
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent2.ambari.sim/host_components/DATANODE",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "DATANODE",
+            "host_name" : "agent2.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent2.ambari.sim/host_components/HDFS_CLIENT",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "HDFS_CLIENT",
+            "host_name" : "agent2.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent2.ambari.sim/host_components/MAPREDUCE2_CLIENT",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "MAPREDUCE2_CLIENT",
+            "host_name" : "agent2.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent2.ambari.sim/host_components/NODEMANAGER",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "NODEMANAGER",
+            "host_name" : "agent2.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent2.ambari.sim/host_components/SPARK_CLIENT",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "SPARK_CLIENT",
+            "host_name" : "agent2.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent2.ambari.sim/host_components/YARN_CLIENT",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "YARN_CLIENT",
+            "host_name" : "agent2.ambari.sim"
+          }
+        },
+        {
+          "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent2.ambari.sim/host_components/ZOOKEEPER_CLIENT",
+          "HostRoles" : {
+            "cluster_name" : "sim",
+            "component_name" : "ZOOKEEPER_CLIENT",
+            "host_name" : "agent2.ambari.sim"
+          }
+        }
+      ]
+    }
+  ]
+}

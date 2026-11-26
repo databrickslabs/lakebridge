@@ -1,0 +1,47 @@
+{
+  "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts?fields=Hosts/cpu_count,Hosts/disk_info,Hosts/total_mem,Hosts/os_type",
+  "items" : [
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent1.ambari.sim",
+      "Hosts" : {
+        "cluster_name" : "sim",
+        "cpu_count" : 11,
+        "disk_info" : [
+          {
+            "available" : "336787552",
+            "device" : "overlay",
+            "used" : "113151928",
+            "percent" : "26%",
+            "size" : "474095688",
+            "type" : "overlay",
+            "mountpoint" : "/"
+          }
+        ],
+        "host_name" : "agent1.ambari.sim",
+        "os_type" : "openeuler22",
+        "total_mem" : 12187624
+      }
+    },
+    {
+      "href" : "http://127.0.0.1:18090/api/v1/clusters/sim/hosts/agent2.ambari.sim",
+      "Hosts" : {
+        "cluster_name" : "sim",
+        "cpu_count" : 11,
+        "disk_info" : [
+          {
+            "available" : "336787552",
+            "device" : "overlay",
+            "used" : "113151928",
+            "percent" : "26%",
+            "size" : "474095688",
+            "type" : "overlay",
+            "mountpoint" : "/"
+          }
+        ],
+        "host_name" : "agent2.ambari.sim",
+        "os_type" : "openeuler22",
+        "total_mem" : 12187624
+      }
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+	"__common__": {
+		"process-name": "impalad",
+		"navbar": [{
+				"link": "/",
+				"title": "/"
+			}, {
+				"link": "/admission",
+				"title": "/admission"
+			}, {
+				"link": "/backends",
+				"title": "/backends"
+			}, {
+				"link": "/catalog",
+				"title": "/catalog"
+			}, {
+				"link": "/hadoop-varz",
+				"title": "/hadoop-varz"
+			}, {
+				"link": "/jmx",
+				"title": "/jmx"
+			}, {
+				"link": "/log_level",
+				"title": "/log_level"
+			}, {
+				"link": "/memz",
+				"title": "/memz"
+			}, {
+				"link": "/metrics",
+				"title": "/metrics"
+			}, {
+				"link": "/profile_docs",
+				"title": "/profile_docs"
+			}, {
+				"link": "/queries",
+				"title": "/queries"
+			}, {
+				"link": "/rpcz",
+				"title": "/rpcz"
+			}, {
+				"link": "/sessions",
+				"title": "/sessions"
+			}, {
+				"link": "/threadz",
+				"title": "/threadz"
+			}, {
+				"link": "/varz",
+				"title": "/varz"
+			}]
+	},
+	"backends": [{
+			"address": "172.24.0.5:27000",
+			"krpc_address": "172.24.0.5:27000",
+			"backend_id": "ec4fbb74d806a029:39156004c683a79a",
+			"webserver_url": "http://172.24.0.5:25000",
+			"is_coordinator": true,
+			"is_executor": true,
+			"is_quiescing": false,
+			"is_blacklisted": false,
+			"is_active": true,
+			"admit_mem_limit": "511.65 MB",
+			"mem_reserved": "0",
+			"mem_admitted": "0",
+			"admission_slots": 11,
+			"num_admitted": 0,
+			"admission_slots_in_use": 0,
+			"executor_groups": "default",
+			"process_start_time": "2026-11-24 05:52:53.851880000",
+			"version": "4.5.3-RELEASE RELEASE (build b3e78704d824efd8f9ecb884d4aa1c09d4e12017)"
+		}],
+	"num_active_backends": 1
+}

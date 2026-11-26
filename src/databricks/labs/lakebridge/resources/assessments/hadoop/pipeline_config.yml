@@ -1,0 +1,251 @@
+name: hadoop_assessment
+version: "1.0"
+steps:
+  - name: yarn_cluster_info
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_cluster_info.py
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: yarn_cluster_metrics
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_cluster_metrics.py
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: yarn_nodes
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_nodes.py
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: yarn_scheduler_queues
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_scheduler_queues.py
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: yarn_scheduler_queue_partitions
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_scheduler_queue_partitions.py
+    mode: overwrite
+    frequency: once
+    flag: active
+
+  - name: yarn_applications
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/yarn_applications.py
+    mode: overwrite
+    frequency: once
+    flag: active
+
+
+  # Optional: an unreachable or unconfigured Spark History Server does not fail the run.
+  - name: spark_applications
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/spark_applications.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: spark_application_attempts
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/spark_application_attempts.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  # Optional: Cloudera Manager steps run only with hadoop.cloudera_manager.
+  - name: cm_clusters
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_clusters.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: cm_services
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_services.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: cm_hosts
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_hosts.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: cm_host_config
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_host_config.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: cm_cluster_export
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_cluster_export.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: cm_timeseries
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_timeseries.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: cm_impala_queries
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_impala_queries.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  # Optional: Ranger steps run only with hadoop.ranger.
+  - name: ranger_services
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_services.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ranger_policies
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_policies.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ranger_policy_items
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_policy_items.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  # Optional: Impala daemon steps run only with hadoop.impala.
+  - name: impala_queries
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/impala_queries.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: impala_backends
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/impala_backends.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: impala_daemon_config
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/impala_daemon_config.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  # These also need hadoop.impala.catalogd_url or statestored_url.
+  - name: impala_catalog
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/impala_catalog.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: impala_statestore
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/impala_statestore.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  # Optional: Ambari steps run only with hadoop.ambari. A component whose service is absent adds no rows.
+  - name: ambari_blueprint
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_blueprint.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ambari_blueprint_configurations
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_blueprint_configurations.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ambari_hosts
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_hosts.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ambari_services
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_services.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ambari_host_components
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_host_components.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ambari_stack_versions
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_stack_versions.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  - name: ambari_component_metrics
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_component_metrics.py
+    mode: overwrite
+    frequency: once
+    flag: active
+    optional: true
+
+  # Last and not optional: records the run in the extract tracker (no table), so a failure here is a failed run.
+  - name: hadoop_extract_tracker
+    type: python
+    extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/hadoop_extract_tracker.py
+    mode: overwrite
+    frequency: once
+    flag: active

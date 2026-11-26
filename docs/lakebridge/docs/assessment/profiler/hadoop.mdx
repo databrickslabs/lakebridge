@@ -1,0 +1,318 @@
+---
+sidebar_position: 2
+title: Hadoop Profiler Details
+---
+import Admonition from '@theme/Admonition';
+
+# Hadoop Profiler Details
+
+- [What it collects](#what-it-collects)
+- [Tested with](#tested-with)
+- [Before you start](#before-you-start)
+- [Configure the connection](#configure-the-connection)
+- [Kerberos (optional)](#kerberos-optional)
+- [Run the profiler](#run-the-profiler)
+- [Initial and incremental runs](#initial-and-incremental-runs)
+- [Schedule the profiler](#schedule-the-profiler)
+- [Mask data](#mask-data)
+- [Profiler output](#profiler-output)
+- [Limitations](#limitations)
+
+The Hadoop profiler reads cluster and workload metadata through the cluster's REST APIs. It needs no database driver,
+and no access to HDFS or the Hive metastore. It only sends `GET` requests.
+
+## What it collects
+
+| Source | Required | What is collected |
+|--------|----------|-------------------|
+| YARN ResourceManager | Yes | Cluster info, metrics, NodeManagers, scheduler queues and applications |
+| Spark History Server | No | Spark applications and their attempts |
+| Cloudera Manager | No | Services, hosts, configuration, utilization time series and, if you turn it on, Impala queries |
+| Apache Ambari | No | Blueprint, hosts, services, host components, stack version and component metrics |
+| Apache Ranger | No | Services, policies and policy items |
+| Impala daemons (read directly) | No | Recent queries, backends, daemon settings, catalog tables and statestore subscribers |
+
+Any source you don't configure is skipped.
+
+You also choose a **distribution**:
+
+| Distribution | Use for |
+|--------------|---------|
+| `cdh` | Cloudera clusters managed by Cloudera Manager |
+| `hdp` | Ambari-managed clusters, including Azure HDInsight |
+| `oth` | Apache Hadoop clusters (YARN and Spark History Server) |
+
+## Tested with
+
+- Cloudera CDH (QuickStart), with Cloudera Manager and Impala
+- Azure HDInsight, through the cluster gateway, with Ambari
+- Apache Hadoop, including ResourceManager high availability
+- Standalone Apache Ranger and Apache Ambari servers
+- Kerberos (SPNEGO) for the YARN ResourceManager and the Spark History Server
+
+## Before you start
+
+**Lakebridge.** Install the Lakebridge CLI and configure it for your Databricks workspace, as for any other profiler
+source.
+
+**Network access.** The machine that runs the profiler must reach every service you configure. The default ports are:
+
+| Service | Default port |
+|---------|--------------|
+| YARN ResourceManager | 8088 (HTTP), 8090 (HTTPS) |
+| Spark History Server | 18080 or 18081 |
+| Cloudera Manager | 7180 (HTTP), 7183 (HTTPS) |
+| Ambari | 8080 |
+| Ranger Admin | 6080 (HTTP), 6182 (HTTPS) |
+| Impala web UIs | impalad 25000, statestore 25010, catalogd 25020 |
+
+Azure HDInsight is reached through its HTTPS gateway, without a port. For example, YARN is
+`https://<cluster>.azurehdinsight.net/yarnui`.
+
+**Permissions.** Read access to the REST APIs is enough. For example, a read-only Cloudera Manager user works.
+
+**Authentication.** Each service can use:
+
+- `none`: the API is open, as on many development clusters.
+- `basic`: a username and password, for example the HDInsight cluster login or a Cloudera Manager user.
+- `kerberos`: for the YARN ResourceManager and the Spark History Server only. See [Kerberos (optional)](#kerberos-optional).
+
+<Admonition type="warning" title="Sensitive data">
+Application names, error messages, query text, and user, queue and host names are stored as the cluster reports them.
+To hide them, turn on masking (see [Mask data](#mask-data)), and check the extract before you share it.
+</Admonition>
+
+## Configure the connection
+
+```bash
+databricks labs lakebridge configure-database-profiler
+```
+
+Choose **`hadoop`** as the source. The wizard then asks for:
+
+1. **Secret vault type**: `local` stores passwords in the credentials file; `env` reads each password from an
+   environment variable that you name.
+2. **Distribution**: `cdh`, `hdp` or `oth`.
+3. **YARN ResourceManager URLs**: comma-separated. With high availability, list every ResourceManager. The profiler
+   finds the active one.
+4. **Authentication and TLS** for YARN. For HTTPS you can keep certificate checks on (the default) and give a CA bundle.
+5. **An application filter** (optional), such as `user=etl` or `queue=root.prod`. Press Enter to collect every
+   application.
+6. **Spark History Server** (optional): its URL and authentication.
+7. **Cloudera Manager** (optional): its URL, login and cluster name. You can also turn on Impala queries here, and set
+   how many days to read and the time slice.
+8. **Apache Ranger** (optional): the Ranger Admin URL and login.
+9. **Impala daemons** (optional): the web UI URL of every Impala coordinator, and optionally the catalogd and statestore
+   URLs.
+10. **Ambari** (optional): its URL and login. For HDInsight, use the gateway URL `https://<cluster>.azurehdinsight.net`.
+11. **Masking** (optional). See [Mask data](#mask-data).
+12. **Connection test**: the wizard calls each configured service and reports any problem.
+
+Leave a cluster or service name empty and the profiler finds it when there is only one.
+
+The answers are saved to `~/.databricks/labs/lakebridge/.credentials.yml`. You can also edit that file by hand:
+
+```yaml
+secret_vault_type: local          # local | env
+secret_vault_name: null
+hadoop:
+  distribution: cdh               # cdh | hdp | oth
+  yarn:
+    urls:                         # list every ResourceManager
+      - http://rm1.example.com:8088
+      - http://rm2.example.com:8088
+    auth: none                    # none | basic | kerberos
+    app_filter: ""                # optional, for example "user=etl"
+  spark_history:                  # optional
+    url: http://spark-hs.example.com:18081
+    auth: none
+  cloudera_manager:               # optional
+    url: https://cm.example.com:7183
+    auth: basic
+    username: profiler
+    password: ...                 # with secret_vault_type env: the name of an environment variable
+    verify_ssl: true              # true | false | path to a CA bundle
+    cluster: ""                   # optional; found automatically when there is only one
+    extract_impala_queries: false # turn on to collect Impala queries
+    impala_lookback_days: 1       # days the first run reads
+    impala_interval_minutes: 60   # time slice: 1, 2, 3, 6, 10, 20, 30 or 60
+    impala_max_pages: 2           # pages of 1,000 queries per slice
+  ranger:                         # optional
+    url: https://ranger.example.com:6182
+    auth: basic
+    username: profiler
+    password: ...
+  impala:                         # optional: read the Impala daemons directly
+    urls: [http://impalad1.example.com:25000, http://impalad2.example.com:25000]
+    catalogd_url: http://catalogd.example.com:25020       # optional
+    statestored_url: http://statestored.example.com:25010 # optional
+  ambari:                         # optional
+    url: http://ambari.example.com:8080
+    auth: basic
+    username: admin
+    password: ...
+  search_replace_file: ~/.databricks/labs/lakebridge/hadoop-masking-rules.txt   # optional: masking rules
+```
+
+Each service block also accepts `auth`, `username`, `password` and `verify_ssl` in the same way.
+
+<Admonition type="info" title="Impala: Cloudera Manager or direct?">
+On a cluster that Cloudera Manager manages, use the Cloudera Manager Impala queries: Cloudera Manager stores the query
+history for the days you choose. Reading the Impala daemons directly works without Cloudera Manager, but each daemon
+keeps only its most recent queries (200 by default). List every coordinator, because each one only knows the queries it
+ran.
+</Admonition>
+
+## Kerberos (optional)
+
+If the YARN ResourceManager or the Spark History Server requires Kerberos (SPNEGO), set `auth: kerberos` on that block.
+The profiler uses the system `curl`, `kinit` and `klist`, so these must be installed and on `PATH`, and `curl` must
+support SPNEGO (`curl -V` lists `SPNEGO` or `GSS-API`).
+
+Give the profiler a ticket in one of two ways:
+
+- **A keytab** (best for scheduled runs): set `keytab` and `principal`. The profiler runs `kinit` itself and keeps the
+  ticket in its own cache, so your own ticket cache is not changed.
+- **An existing ticket**: leave out `keytab` and run `kinit <principal>` before the profiler. The profiler stops with a
+  clear message if there is no valid ticket.
+
+```yaml
+  yarn:
+    urls: [https://rm1.example.com:8090]
+    auth: kerberos
+    principal: profiler@EXAMPLE.COM
+    keytab: /etc/security/keytabs/profiler.keytab   # optional; without it, an existing ticket is used
+    ccache: FILE:/tmp/krb5cc_profiler              # optional ticket cache
+    krb5_config: /etc/krb5.conf                    # optional Kerberos configuration
+```
+
+Use the host name that the service is registered under in Kerberos, not an IP address or an alias. Otherwise the
+service answers HTTP 401. Kerberos is set per block, so YARN can use Kerberos while the Spark History Server uses `none`.
+
+## Run the profiler
+
+```bash
+databricks labs lakebridge execute-database-profiler --source-tech hadoop --output-folder /path/to/output
+```
+
+`--output-folder` is optional. Without it you are asked for a folder, with
+`~/.databricks/labs/lakebridge_profilers/hadoop_assessment` as the default. Use `--cred-file-path` to use a credentials
+file other than the default one.
+
+Each run writes a new DuckDB file in the output folder:
+
+```text
+profiler_extract_hadoop_<version>_<YYYYMMDDTHHMMSSZ>.db
+```
+
+If a YARN step fails, the run fails. If an optional source fails, that step is marked as absent and the run still
+completes. Steps for sources you did not configure are reported as skipped.
+
+## Initial and incremental runs
+
+The first run in an output folder is the **initial** run. It collects the cluster inventory (configuration, nodes,
+queues, services, hosts, Ambari and Ranger) and the recent history. Every later run in the same folder is
+**incremental**: it collects recent history again, and skips the inventory it already has.
+
+| Data | Initial run | Incremental run |
+|------|-------------|-----------------|
+| YARN applications | All the ResourceManager still holds | Same |
+| Spark applications | Last 7 days | Since yesterday |
+| Cloudera Manager Impala queries | Today and the previous `impala_lookback_days` days | Yesterday |
+| Cloudera Manager time series | Last month | Same |
+| Inventory | Yes | Skipped once collected |
+
+The profiler keeps track of this in `hadoop_extract_tracker.json` in the output folder:
+
+- If a run stops before it finishes, the next run does the initial run again.
+- If an inventory step fails, a later run collects it again.
+- To collect the inventory again, for example after cluster changes, delete `hadoop_extract_tracker.json`.
+
+**Overlapping runs are safe.** If two runs use the same output folder at the same time, for example a scheduled run and
+a manual one, they take turns updating the tracker, using a lock file next to it
+(`hadoop_extract_tracker.json.lock`). Leave that file in place. Each run still writes its own complete DuckDB file. When
+runs overlap during the initial run, the initial run may not be marked complete, and the next run does it again. The
+last step's message says why.
+
+## Schedule the profiler
+
+Run the profiler regularly, usually once a day for 7 to 28 days. YARN keeps only a limited number of finished
+applications (10,000 by default), and a ResourceManager restart can clear them. On a busy cluster, run it more often,
+for example every hour, so no application is missed between runs.
+
+Always use the same `--output-folder`, because the tracker lives there. A daily cron entry at 01:30 looks like this:
+
+```text
+30 1 * * * PATH=/usr/local/bin:/usr/bin:/bin DATABRICKS_CONFIG_PROFILE=<profile> databricks labs lakebridge execute-database-profiler --source-tech hadoop --cred-file-path /opt/lakebridge/hadoop/.credentials.yml --output-folder /opt/lakebridge/hadoop/out >> /opt/lakebridge/hadoop/cron.log 2>&1
+```
+
+Cron runs with few environment variables, so set the Databricks profile and `PATH` in the entry. With
+`secret_vault_type: env`, also export the password variables there.
+
+## Mask data
+
+Masking changes every response before anything is stored, so masked values never reach the extract. The wizard asks:
+
+1. Whether to mask the extract.
+2. Whether to use an existing masking rules file.
+3. Domains to mask in host names. `rm1.corp.example.com` becomes `rm1.masked-1`.
+4. Whether to mask IP addresses. `10.20.3.7` becomes `x.x.3.7`. Version numbers are kept.
+5. Whether to redact user names. Per-user analysis is then not possible.
+6. Whether to redact query text and job names. Workload classification is then less precise.
+
+The answers are saved as rules in `~/.databricks/labs/lakebridge/hadoop-masking-rules.txt`. You can edit that file;
+the next run uses your changes. Each line is a `sed`-style rule, `s/<text to find>/<replacement>/g`, applied to each line
+of every response. An existing `sed.txt` masking file in this format works unchanged.
+
+```text
+s/corp\.example\.com/masked-1/g
+s/"\(user\|sparkUser\)"[[:space:]]*:[[:space:]]*"[^"]*"/"\1":"redacted"/g
+```
+
+A rule with a syntax error stops the run, with the line number in the message.
+
+## Profiler output
+
+Each table is named after the step that writes it:
+
+| Source | Tables |
+|--------|--------|
+| YARN | `yarn_cluster_info`, `yarn_cluster_metrics`, `yarn_nodes`, `yarn_scheduler_queues`, `yarn_scheduler_queue_partitions`, `yarn_applications` |
+| Spark History Server | `spark_applications`, `spark_application_attempts` |
+| Cloudera Manager | `cm_clusters`, `cm_services`, `cm_hosts`, `cm_host_config`, `cm_cluster_export`, `cm_timeseries`, `cm_impala_queries` |
+| Ambari | `ambari_blueprint`, `ambari_blueprint_configurations`, `ambari_hosts`, `ambari_services`, `ambari_host_components`, `ambari_stack_versions`, `ambari_component_metrics` |
+| Ranger | `ranger_services`, `ranger_policies`, `ranger_policy_items` |
+| Impala (direct) | `impala_queries`, `impala_backends`, `impala_daemon_config`, `impala_catalog`, `impala_statestore` |
+| All sources | `hadoop_raw_responses`: every response as received (after masking), so no field is lost |
+
+Times are in UTC. A column is empty (NULL) when the cluster does not report that value.
+
+An incremental run's file has only the tables that run wrote. The inventory tables are in the initial run's file. To
+combine the history from several runs, attach the files in DuckDB and keep the latest row per application:
+
+```sql
+ATTACH '/opt/lakebridge/hadoop/out/profiler_extract_hadoop_<version>_20261124T010000Z.db' AS run_20261124 (READ_ONLY);
+ATTACH '/opt/lakebridge/hadoop/out/profiler_extract_hadoop_<version>_20261125T010000Z.db' AS run_20261125 (READ_ONLY);
+
+CREATE OR REPLACE TABLE yarn_applications_all AS
+SELECT * EXCLUDE (run_rank) FROM (
+    SELECT *, row_number() OVER (PARTITION BY application_id ORDER BY run_name DESC) AS run_rank
+    FROM (
+        SELECT 'run_20261124' AS run_name, * FROM run_20261124.yarn_applications
+        UNION ALL
+        SELECT 'run_20261125' AS run_name, * FROM run_20261125.yarn_applications
+    )
+) WHERE run_rank = 1;
+```
+
+## Limitations
+
+- **Kerberos** is supported for the YARN ResourceManager and the Spark History Server only. Cloudera Manager, Ambari,
+  Ranger and the Impala web UIs use `none` or `basic`. Kerberos on Windows is not tested.
+- **YARN history** is limited to the finished applications the ResourceManager still holds. See
+  [Schedule the profiler](#schedule-the-profiler).
+- **Ambari metrics** have values only when the Ambari Metrics service is installed.
+- **Not collected:** Ranger audit logs, Impala query profiles, application logs and HDFS contents.
+- **CDP Public Cloud** is not supported.
+
+[Back to Configure Profiler](../#configure-profiler)

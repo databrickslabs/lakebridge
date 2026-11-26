@@ -1,0 +1,185 @@
+{
+  "href" : "http://hn1-hdi.hdi.example.internal:8080/api/v1/clusters/hdi-cluster/hosts?fields=Hosts/cpu_count,Hosts/disk_info,Hosts/total_mem,Hosts/os_type",
+  "items" : [
+    {
+      "href" : "http://hn1-hdi.hdi.example.internal:8080/api/v1/clusters/hdi-cluster/hosts/hn0-hdi.hdi.example.internal",
+      "Hosts" : {
+        "cluster_name" : "hdi-cluster",
+        "cpu_count" : 8,
+        "disk_info" : [
+          {
+            "available" : "84254444",
+            "device" : "/dev/sda1",
+            "used" : "45615300",
+            "percent" : "36%",
+            "size" : "129886128",
+            "type" : "ext4",
+            "mountpoint" : "/"
+          },
+          {
+            "available" : "187453692",
+            "device" : "/dev/sdb1",
+            "used" : "7356244",
+            "percent" : "4%",
+            "size" : "205311976",
+            "type" : "ext4",
+            "mountpoint" : "/mnt"
+          }
+        ],
+        "host_name" : "hn0-hdi.hdi.example.internal",
+        "os_type" : "ubuntu18",
+        "total_mem" : 65852152
+      }
+    },
+    {
+      "href" : "http://hn1-hdi.hdi.example.internal:8080/api/v1/clusters/hdi-cluster/hosts/hn1-hdi.hdi.example.internal",
+      "Hosts" : {
+        "cluster_name" : "hdi-cluster",
+        "cpu_count" : 8,
+        "disk_info" : [
+          {
+            "available" : "84214176",
+            "device" : "/dev/sdb1",
+            "used" : "45655568",
+            "percent" : "36%",
+            "size" : "129886128",
+            "type" : "ext4",
+            "mountpoint" : "/"
+          },
+          {
+            "available" : "187469856",
+            "device" : "/dev/sda1",
+            "used" : "7340080",
+            "percent" : "4%",
+            "size" : "205311976",
+            "type" : "ext4",
+            "mountpoint" : "/mnt"
+          }
+        ],
+        "host_name" : "hn1-hdi.hdi.example.internal",
+        "os_type" : "ubuntu18",
+        "total_mem" : 65852156
+      }
+    },
+    {
+      "href" : "http://hn1-hdi.hdi.example.internal:8080/api/v1/clusters/hdi-cluster/hosts/wn0-hdi.hdi.example.internal",
+      "Hosts" : {
+        "cluster_name" : "hdi-cluster",
+        "cpu_count" : 8,
+        "disk_info" : [
+          {
+            "available" : "84836608",
+            "device" : "/dev/sdb1",
+            "used" : "45033136",
+            "percent" : "35%",
+            "size" : "129886128",
+            "type" : "ext4",
+            "mountpoint" : "/"
+          },
+          {
+            "available" : "186533708",
+            "device" : "/dev/sda1",
+            "used" : "8276228",
+            "percent" : "5%",
+            "size" : "205311976",
+            "type" : "ext4",
+            "mountpoint" : "/mnt"
+          }
+        ],
+        "host_name" : "wn0-hdi.hdi.example.internal",
+        "os_type" : "ubuntu18",
+        "total_mem" : 65852148
+      }
+    },
+    {
+      "href" : "http://hn1-hdi.hdi.example.internal:8080/api/v1/clusters/hdi-cluster/hosts/zk0-hdi.hdi.example.internal",
+      "Hosts" : {
+        "cluster_name" : "hdi-cluster",
+        "cpu_count" : 2,
+        "disk_info" : [
+          {
+            "available" : "85098476",
+            "device" : "/dev/sda1",
+            "used" : "44771268",
+            "percent" : "35%",
+            "size" : "129886128",
+            "type" : "ext4",
+            "mountpoint" : "/"
+          },
+          {
+            "available" : "12059284",
+            "device" : "/dev/sdb1",
+            "used" : "7340068",
+            "percent" : "38%",
+            "size" : "20464208",
+            "type" : "ext4",
+            "mountpoint" : "/mnt"
+          }
+        ],
+        "host_name" : "zk0-hdi.hdi.example.internal",
+        "os_type" : "ubuntu18",
+        "total_mem" : 4014272
+      }
+    },
+    {
+      "href" : "http://hn1-hdi.hdi.example.internal:8080/api/v1/clusters/hdi-cluster/hosts/zk2-hdi.hdi.example.internal",
+      "Hosts" : {
+        "cluster_name" : "hdi-cluster",
+        "cpu_count" : 2,
+        "disk_info" : [
+          {
+            "available" : "85098464",
+            "device" : "/dev/sda1",
+            "used" : "44771280",
+            "percent" : "35%",
+            "size" : "129886128",
+            "type" : "ext4",
+            "mountpoint" : "/"
+          },
+          {
+            "available" : "12059284",
+            "device" : "/dev/sdb1",
+            "used" : "7340068",
+            "percent" : "38%",
+            "size" : "20464208",
+            "type" : "ext4",
+            "mountpoint" : "/mnt"
+          }
+        ],
+        "host_name" : "zk2-hdi.hdi.example.internal",
+        "os_type" : "ubuntu18",
+        "total_mem" : 4014272
+      }
+    },
+    {
+      "href" : "http://hn1-hdi.hdi.example.internal:8080/api/v1/clusters/hdi-cluster/hosts/zk4-hdi.hdi.example.internal",
+      "Hosts" : {
+        "cluster_name" : "hdi-cluster",
+        "cpu_count" : 2,
+        "disk_info" : [
+          {
+            "available" : "85099496",
+            "device" : "/dev/sda1",
+            "used" : "44770248",
+            "percent" : "35%",
+            "size" : "129886128",
+            "type" : "ext4",
+            "mountpoint" : "/"
+          },
+          {
+            "available" : "12059284",
+            "device" : "/dev/sdb1",
+            "used" : "7340068",
+            "percent" : "38%",
+            "size" : "20464208",
+            "type" : "ext4",
+            "mountpoint" : "/mnt"
+          }
+        ],
+        "host_name" : "zk4-hdi.hdi.example.internal",
+        "os_type" : "ubuntu18",
+        "total_mem" : 4014272
+      }
+    }
+  ]
+}

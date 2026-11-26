@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import shutil
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -27,6 +28,48 @@ from databricks.labs.lakebridge.connections.snowflake_auth import (
     Pat,
 )
 from databricks.labs.lakebridge.connections.synapse_connection_helpers import validate_synapse_pools
+from databricks.labs.lakebridge.resources.assessments.hadoop.ambari import AmbariError, resolve_ambari_cluster
+from databricks.labs.lakebridge.resources.assessments.hadoop.cloudera_manager import (
+    ClouderaManagerError,
+    api_root,
+    resolve_cluster,
+    resolve_impala_service,
+)
+from databricks.labs.lakebridge.resources.assessments.hadoop.endpoints import (
+    IMPALA_BACKENDS_PATH,
+    IMPALA_CATALOG_PATH,
+    IMPALA_SUBSCRIBERS_PATH,
+)
+from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
+    DEFAULT_IMPALA_INTERVAL_MINUTES,
+    DEFAULT_IMPALA_LOOKBACK_DAYS,
+    DEFAULT_IMPALA_MAX_PAGES,
+    DISTRIBUTIONS,
+    IMPALA_INTERVAL_OPTIONS,
+    MAX_IMPALA_LOOKBACK_DAYS,
+    MAX_IMPALA_PAGES,
+    AmbariConfig,
+    ClouderaManagerConfig,
+    HadoopConfig,
+    HadoopConfigError,
+    ImpalaConfig,
+    RestEndpoint,
+    parse_app_filter,
+    parse_hadoop_config,
+)
+from databricks.labs.lakebridge.resources.assessments.hadoop.masking import (
+    DOMAIN_PATTERN,
+    MaskingRulesError,
+    default_rules_file,
+    guided_rules_text,
+    load_masking_rules,
+    write_rules_file,
+)
+from databricks.labs.lakebridge.resources.assessments.hadoop.ranger import list_services
+from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import (
+    HadoopApiError,
+    find_active_resource_manager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -492,6 +535,375 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         _save_to_disk(credential, cred_file)
 
 
+# blueprint's question() takes a blank answer only with a non-empty default, so optional prompts default to "none".
+NO_ANSWER = "none"
+# The answers blueprint's confirm() accepts, for a yes/no question that defaults to yes.
+YES_NO_PATTERN = re.compile(r"[Yy][Ee][Ss]|[Nn][Oo]")
+MASKING_RULES_ATTEMPTS = 10
+
+
+class ConfigureHadoopAssessment(AssessmentConfigurator):
+    """Hadoop (YARN, Spark History Server, Cloudera Manager, Apache Ranger, Impala and Ambari) assessment configuration."""
+
+    def _check_connection(self, raw_config: dict) -> None:
+        try:
+            self._check_sources(parse_hadoop_config(raw_config))
+        except (HadoopConfigError, HadoopApiError, ClouderaManagerError, AmbariError) as e:
+            raise ConnectionError(str(e)) from e
+
+    def _check_sources(self, config: HadoopConfig) -> None:
+        if config.yarn is not None:
+            find_active_resource_manager(config.yarn.urls, make_client=config.yarn.client)
+        if config.spark_history is not None:
+            self._check_spark_history(config.spark_history)
+        if config.cloudera_manager is not None:
+            self._check_cloudera_manager(config.cloudera_manager)
+        if config.ranger is not None:
+            self._check_ranger(config.ranger)
+        if config.impala is not None:
+            self._check_impala(config.impala)
+        if config.ambari is not None:
+            self._check_ambari(config.ambari)
+
+    @staticmethod
+    def _check_ambari(ambari: AmbariConfig) -> None:
+        """Resolve the cluster, as the Ambari steps do."""
+        resolve_ambari_cluster(ambari.endpoint.client(ambari.endpoint.urls[0]), ambari.cluster)
+
+    @staticmethod
+    def _check_impala(impala: ImpalaConfig) -> None:
+        """Read each daemon, and catalogd and statestore when configured, as the Impala steps do."""
+        for url in impala.endpoint.urls:
+            impala.endpoint.client(url).get_json(IMPALA_BACKENDS_PATH)
+        if impala.catalogd_url is not None:
+            impala.endpoint.client(impala.catalogd_url).get_json(IMPALA_CATALOG_PATH)
+        if impala.statestored_url is not None:
+            impala.endpoint.client(impala.statestored_url).get_json(IMPALA_SUBSCRIBERS_PATH)
+
+    @staticmethod
+    def _check_spark_history(spark: RestEndpoint) -> None:
+        spark.client(spark.urls[0]).get_json("/api/v1/applications", {"limit": 1})
+
+    @staticmethod
+    def _check_ranger(ranger: RestEndpoint) -> None:
+        """Read the service list, as the Ranger services step does."""
+        list_services(ranger.client(ranger.urls[0]))
+
+    @staticmethod
+    def _check_cloudera_manager(cloudera: ClouderaManagerConfig) -> None:
+        """Resolve the API version, the cluster and, when extracted, the Impala service, as the CM steps do."""
+        client = cloudera.endpoint.client(cloudera.endpoint.urls[0])
+        root = api_root(client, cloudera)
+        cluster = resolve_cluster(client, root, cloudera.cluster)
+        if cloudera.extract_impala_queries:
+            resolve_impala_service(client, root, cluster, cloudera.impala_service)
+
+    def _configure_credentials(self) -> None:
+        cred_file = self._credential_file
+        source = self._source_name
+
+        logger.info(
+            "\n(local | env) \nlocal means values are read as plain text \nenv means values are read "
+            "from environment variables fall back to plain text if not variable is not found\n",
+        )
+        secret_vault_type = str(self.prompts.choice("Enter secret vault type (local | env)", ["local", "env"])).lower()
+
+        distribution = str(self.prompts.choice("Select the Hadoop distribution", list(DISTRIBUTIONS), sort=False))
+
+        logger.info(
+            "YARN ResourceManager: for high availability list every ResourceManager. For Azure HDInsight use the "
+            "gateway URL, which includes its path (for example https://<cluster>.azurehdinsight.net/yarnui)."
+        )
+        source_creds: dict[str, Any] = {
+            "distribution": distribution,
+            "yarn": self._prompt_endpoint(secret_vault_type, multiple_urls=True, allow_kerberos=True),
+        }
+        app_filter = self._prompt_app_filter()
+        if app_filter:
+            source_creds["yarn"]["app_filter"] = app_filter
+        if self.prompts.confirm("Configure a Spark History Server?"):
+            source_creds["spark_history"] = self._prompt_endpoint(
+                secret_vault_type, multiple_urls=False, allow_kerberos=True
+            )
+        if self.prompts.confirm("Configure Cloudera Manager (CDH and CDP clusters)?"):
+            source_creds["cloudera_manager"] = self._prompt_cloudera_manager(secret_vault_type)
+
+        if self.prompts.confirm("Configure Apache Ranger (services and policies)?"):
+            source_creds["ranger"] = self._prompt_ranger(secret_vault_type)
+
+        if self.prompts.confirm("Read Impala daemons directly (query history from each impalad web UI)?"):
+            source_creds["impala"] = self._prompt_impala(secret_vault_type)
+
+        if self.prompts.confirm("Configure Ambari (blueprint, hosts, services and components)?"):
+            source_creds["ambari"] = self._prompt_ambari(secret_vault_type)
+
+        masking_rules = self._prompt_masking()
+        if masking_rules is not None:
+            source_creds["search_replace_file"] = masking_rules
+
+        credential = {
+            "secret_vault_type": secret_vault_type,
+            "secret_vault_name": None,
+            source: source_creds,
+        }
+        _save_to_disk(credential, cred_file)
+
+    def _prompt_masking(self) -> str | None:
+        """Guided masking. Returns the rules file to save, or None when the extract is not masked."""
+        if not self.prompts.confirm("Mask data in the extract?"):
+            return None
+        if self.prompts.confirm("Use an existing masking rules file?"):
+            return self._prompt_existing_rules_file()
+
+        path = default_rules_file()
+        if path.exists() and not self.prompts.confirm(f"{path} already exists. Overwrite it?"):
+            logger.info(f"Kept the existing masking rules file {path}")
+            return str(path)
+        domains = self._prompt_masking_domains()
+        mask_ips = self.prompts.confirm(
+            "Mask IP addresses (replaces the first two numbers, e.g. 10.20.3.7 -> x.x.3.7)?"
+        )
+        redact_users = self.prompts.confirm("Redact user names?")
+        redact_queries = self.prompts.confirm("Redact query text and job names?")
+
+        write_rules_file(
+            path,
+            guided_rules_text(domains, redact_users=redact_users, redact_queries=redact_queries, mask_ips=mask_ips),
+            overwrite=path.exists(),
+        )
+        if domains:
+            logger.info(
+                "Host names keep their own first label and stay unique, because each domain gets its own number."
+            )
+        if mask_ips:
+            logger.info(
+                "IP addresses keep their last two numbers, so addresses that differ only in the first two look the same."
+            )
+        if redact_users:
+            logger.info("User names are redacted, so per-user workload analysis will not be possible.")
+        if redact_queries:
+            logger.info("Query text and job names are redacted, so workload classification will be weaker.")
+        logger.info(f"Saved masking rules to {path} (edit it to add or change rules).")
+        return str(path)
+
+    def _prompt_existing_rules_file(self) -> str:
+        for _ in range(MASKING_RULES_ATTEMPTS):
+            path = Path(self.prompts.question("Path to the existing masking rules file").strip()).expanduser()
+            try:
+                load_masking_rules(path)
+            except MaskingRulesError as e:
+                logger.error(str(e))
+                continue
+            return str(path.absolute())
+        raise ValueError(f"No valid masking rules file was given in {MASKING_RULES_ATTEMPTS} attempts")
+
+    def _prompt_masking_domains(self) -> list[str]:
+        for _ in range(MASKING_RULES_ATTEMPTS):
+            answer = self._optional_answer("Domain(s) to mask in host names (comma-separated, blank to skip)")
+            if not answer:
+                return []
+            domains = [part.strip().lstrip(".") for part in answer.split(",") if part.strip()]
+            invalid = [domain for domain in domains if not DOMAIN_PATTERN.fullmatch(domain)]
+            if invalid:
+                logger.error(f"Not a domain name: {', '.join(invalid)}")
+                continue
+            return list(dict.fromkeys(domains))
+        raise ValueError(f"No valid domain names were given in {MASKING_RULES_ATTEMPTS} attempts")
+
+    def _prompt_app_filter(self) -> str:
+        """The original's RM_APP_FILTER, a YARN REST query string; empty means every application."""
+        for _ in range(MASKING_RULES_ATTEMPTS):
+            answer = self._optional_answer(
+                "Filter the YARN applications with a YARN REST query string, for example user=etl or "
+                "queue=root.prod&applicationTypes=SPARK (the original RM_APP_FILTER; leave empty for every application)"
+            )
+            if not answer:
+                return ""
+            try:
+                parse_app_filter(answer)
+            except HadoopConfigError as e:
+                logger.error(str(e))
+                continue
+            return answer.lstrip("?")
+        raise ValueError(f"No valid YARN application filter was given in {MASKING_RULES_ATTEMPTS} attempts")
+
+    def _prompt_whole_number(self, text: str, default: int, maximum: int) -> int:
+        for _ in range(MASKING_RULES_ATTEMPTS):
+            value = int(self.prompts.question(text, default=str(default), valid_number=True))
+            if 1 <= value <= maximum:
+                return value
+            logger.error(f"Enter a whole number from 1 to {maximum}")
+        raise ValueError(f"No number from 1 to {maximum} was given in {MASKING_RULES_ATTEMPTS} attempts")
+
+    def _confirm_default_yes(self, text: str) -> bool:
+        """A yes/no question where Enter means yes; blueprint's confirm always defaults to no."""
+        answer = self.prompts.question(text, default="yes", valid_regex=YES_NO_PATTERN)
+        return answer.strip().lower() == "yes"
+
+    def _optional_answer(self, text: str) -> str:
+        """An optional value: Enter or "none" gives an empty string."""
+        answer = self.prompts.question(text, default=NO_ANSWER).strip()
+        return "" if answer.lower() == NO_ANSWER else answer
+
+    def _prompt_ambari(self, secret_vault_type: str) -> dict[str, Any]:
+        logger.info(
+            "Ambari: the Ambari Server URL. For Azure HDInsight use the cluster gateway, with no port: "
+            "https://<cluster>.azurehdinsight.net. The cluster is detected when Ambari manages exactly one cluster. "
+            "Component metrics need the Ambari Metrics service."
+        )
+        ambari = self._prompt_endpoint(
+            secret_vault_type,
+            multiple_urls=False,
+            name="Ambari Server",
+            example="http://ambari.example.com:8080",
+        )
+        cluster = self._optional_answer(
+            "Enter the Ambari cluster name (leave empty to detect it when Ambari manages one cluster)",
+        )
+        if cluster:
+            ambari["cluster"] = cluster
+        return ambari
+
+    def _prompt_impala(self, secret_vault_type: str) -> dict[str, Any]:
+        logger.info(
+            "Impala daemons: list every coordinator's impalad web UI (port 25000 by default). Each daemon only knows "
+            "the queries it coordinated, so all of them are read. Each daemon keeps only its last query_log_size "
+            "queries (200 by default), so schedule the profiler run often enough. Cloudera Manager's Impala extract "
+            "keeps more history when Cloudera Manager manages the cluster."
+        )
+        impala = self._prompt_endpoint(
+            secret_vault_type,
+            multiple_urls=True,
+            name="Impala daemon",
+            example="http://impalad.example.com:25000",
+        )
+        catalogd = self._optional_answer(
+            "Enter the Impala catalogd web UI URL (for example http://catalogd.example.com:25020), "
+            "or leave empty to skip the catalog step",
+        )
+        if catalogd:
+            impala["catalogd_url"] = catalogd
+        statestored = self._optional_answer(
+            "Enter the Impala statestore web UI URL (for example http://statestored.example.com:25010), "
+            "or leave empty to skip the statestore step",
+        )
+        if statestored:
+            impala["statestored_url"] = statestored
+        return impala
+
+    def _prompt_ranger(self, secret_vault_type: str) -> dict[str, Any]:
+        logger.info(
+            "Apache Ranger: the Ranger Admin URL. The account needs to read the services and policies. "
+            "Ranger masks passwords in service configurations as '*****'."
+        )
+        return self._prompt_endpoint(
+            secret_vault_type,
+            multiple_urls=False,
+            name="Apache Ranger",
+            example="https://ranger.example.com:6182",
+        )
+
+    def _prompt_cloudera_manager(self, secret_vault_type: str) -> dict[str, Any]:
+        logger.info(
+            "Cloudera Manager: the API version, the cluster and the Impala service are detected when they are left "
+            "empty. Impala query extraction is optional because it is slow on busy clusters."
+        )
+        cloudera = self._prompt_endpoint(
+            secret_vault_type,
+            multiple_urls=False,
+            name="Cloudera Manager",
+            example="https://cm.example.com:7183",
+        )
+        cluster = self._optional_answer(
+            "Enter the Cloudera Manager cluster name (leave empty to detect it when CM manages one cluster)",
+        )
+        if cluster:
+            cloudera["cluster"] = cluster
+        if self.prompts.confirm("Extract Impala queries?"):
+            cloudera["extract_impala_queries"] = True
+            interval = self.prompts.choice(
+                "Select the Impala query interval in minutes",
+                [str(option) for option in IMPALA_INTERVAL_OPTIONS],
+                sort=False,
+            )
+            cloudera["impala_interval_minutes"] = int(interval) if interval else DEFAULT_IMPALA_INTERVAL_MINUTES
+            cloudera["impala_lookback_days"] = self._prompt_whole_number(
+                "Enter the number of days the initial run reads Impala queries for, today included "
+                "(the original CM_IMPALA_NUMBER_OF_DAYS; an incremental run reads yesterday)",
+                DEFAULT_IMPALA_LOOKBACK_DAYS,
+                MAX_IMPALA_LOOKBACK_DAYS,
+            )
+            cloudera["impala_max_pages"] = self._prompt_whole_number(
+                "Enter the number of pages of 1000 Impala queries to read per interval (the original CM_IMPALA_PAGES)",
+                DEFAULT_IMPALA_MAX_PAGES,
+                MAX_IMPALA_PAGES,
+            )
+            impala_service = self._optional_answer("Enter the Impala service name (leave empty to detect it)")
+            if impala_service:
+                cloudera["impala_service"] = impala_service
+        return cloudera
+
+    def _prompt_endpoint(
+        self,
+        secret_vault_type: str,
+        *,
+        multiple_urls: bool,
+        name: str | None = None,
+        example: str = "http://spark-hs:18081",
+        allow_kerberos: bool = False,
+    ) -> dict[str, Any]:
+        name = name or ("YARN ResourceManager" if multiple_urls else "Spark History Server")
+        endpoint: dict[str, Any] = {}
+        if multiple_urls:
+            raw_urls = self.prompts.question(f"Enter the {name} URL(s), comma-separated")
+            urls = [url.strip() for url in raw_urls.split(",") if url.strip()]
+            endpoint["urls"] = urls
+        else:
+            urls = [self.prompts.question(f"Enter the {name} URL (for example {example})")]
+            endpoint["url"] = urls[0]
+
+        # Kerberos only where the original supports it, listed last so the other choices keep their numbers.
+        methods = ["none", "basic", "kerberos"] if allow_kerberos else ["none", "basic"]
+        auth = str(
+            self.prompts.choice(f"Select the {name} authentication ({' | '.join(methods)})", methods, sort=False)
+        )
+        endpoint["auth"] = auth.lower()
+        if endpoint["auth"] == "basic":
+            endpoint["username"] = self.prompts.question(f"Enter the {name} username")
+            if secret_vault_type == "env":
+                endpoint["password"] = self.prompts.question(
+                    f"Enter the environment variable name holding the {name} password"
+                )
+            else:
+                endpoint["password"] = self.prompts.password(f"Enter the {name} password")
+        elif endpoint["auth"] == "kerberos":
+            logger.info(
+                f"{name} Kerberos: give a keytab and principal so the profiler runs kinit itself, or leave the keytab "
+                "empty to use a ticket that kinit already obtained. curl with SPNEGO and the Kerberos tools must be on "
+                "PATH."
+            )
+            keytab = self._optional_answer(
+                f"Enter the path to the keytab for the {name} principal (leave empty to use an existing ticket)",
+            )
+            if keytab:
+                endpoint["keytab"] = keytab
+                endpoint["principal"] = self.prompts.question(
+                    f"Enter the Kerberos principal for the {name} (for example profiler@EXAMPLE.COM)"
+                ).strip()
+
+        if any(url.lower().startswith("https://") for url in urls):
+            # Verification is on by default; the CA bundle is asked only when it is used.
+            if self._confirm_default_yes(f"Verify the {name} TLS certificate?"):
+                ca_bundle = self._optional_answer(
+                    f"Enter the path to a CA bundle for the {name} certificate (leave empty for the system trust store)",
+                )
+                endpoint["verify_ssl"] = ca_bundle or True
+            else:
+                logger.warning(f"TLS certificate verification is off for the {name}")
+                endpoint["verify_ssl"] = False
+        return endpoint
+
+
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]
 
 
@@ -585,6 +997,7 @@ def create_assessment_configurator(
         "oracle": ConfigureOracleAssessment,
         "teradata": ConfigureTeradataAssessment,
         "bigquery": ConfigureBigQueryAssessment,
+        "hadoop": ConfigureHadoopAssessment,
     }
 
     if source_system not in configurators:

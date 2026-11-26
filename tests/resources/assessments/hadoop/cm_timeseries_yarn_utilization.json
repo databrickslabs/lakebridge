@@ -1,0 +1,604 @@
+{
+  "items" : [ {
+    "timeSeries" : [ {
+      "metadata" : {
+        "metricName" : "allocated_memory_mb",
+        "entityName" : "root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root"
+        },
+        "unitNumerators" : [ "megabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_memory_mb WHERE entityName = \"yarn:root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "allocated_memory_mb",
+        "entityName" : "root.default (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.default",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.default",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.default"
+        },
+        "unitNumerators" : [ "megabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_memory_mb WHERE entityName = \"yarn:root.default\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "allocated_memory_mb",
+        "entityName" : "root.root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.root"
+        },
+        "unitNumerators" : [ "megabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_memory_mb WHERE entityName = \"yarn:root.root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "allocated_memory_mb_cumulative",
+        "entityName" : "root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root"
+        },
+        "unitNumerators" : [ "megabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_memory_mb_cumulative WHERE entityName = \"yarn:root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "allocated_memory_mb_cumulative",
+        "entityName" : "root.default (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.default",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.default",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.default"
+        },
+        "unitNumerators" : [ "megabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_memory_mb_cumulative WHERE entityName = \"yarn:root.default\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "allocated_memory_mb_cumulative",
+        "entityName" : "root.root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.root"
+        },
+        "unitNumerators" : [ "megabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_memory_mb_cumulative WHERE entityName = \"yarn:root.root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "available_memory_mb",
+        "entityName" : "root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root"
+        },
+        "unitNumerators" : [ "megabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT available_memory_mb WHERE entityName = \"yarn:root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "available_memory_mb",
+        "entityName" : "root.default (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.default",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.default",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.default"
+        },
+        "unitNumerators" : [ "megabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT available_memory_mb WHERE entityName = \"yarn:root.default\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "available_memory_mb",
+        "entityName" : "root.root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.root"
+        },
+        "unitNumerators" : [ "megabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT available_memory_mb WHERE entityName = \"yarn:root.root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "allocated_memory_gb",
+        "entityName" : "NodeManager (quickstart.cloudera)",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "rackId" : "/default",
+          "roleConfigGroup" : "NodeManager Default Group",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "hostname" : "quickstart.cloudera",
+          "hostId" : "quickstart.cloudera",
+          "roleName" : "yarn-NODEMANAGER",
+          "serviceType" : "YARN",
+          "entityName" : "yarn-NODEMANAGER",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "category" : "ROLE",
+          "roleType" : "NODEMANAGER",
+          "active" : "true",
+          "serviceDisplayName" : "YARN (MR2 Included)"
+        },
+        "unitNumerators" : [ "gigabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_memory_gb WHERE entityName = \"yarn-NODEMANAGER\" AND category = ROLE",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "available_memory_mb",
+        "entityName" : "root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root"
+        },
+        "unitNumerators" : [ "megabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT available_memory_mb WHERE entityName = \"yarn:root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "available_memory_mb",
+        "entityName" : "root.default (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.default",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.default",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.default"
+        },
+        "unitNumerators" : [ "megabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT available_memory_mb WHERE entityName = \"yarn:root.default\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "available_memory_mb",
+        "entityName" : "root.root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.root"
+        },
+        "unitNumerators" : [ "megabytes" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT available_memory_mb WHERE entityName = \"yarn:root.root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "available_vcores",
+        "entityName" : "root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root"
+        },
+        "unitNumerators" : [ "vcores" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT available_vcores WHERE entityName = \"yarn:root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "available_vcores",
+        "entityName" : "root.default (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.default",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.default",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.default"
+        },
+        "unitNumerators" : [ "vcores" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT available_vcores WHERE entityName = \"yarn:root.default\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "available_vcores",
+        "entityName" : "root.root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.root"
+        },
+        "unitNumerators" : [ "vcores" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT available_vcores WHERE entityName = \"yarn:root.root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "allocated_vcores",
+        "entityName" : "root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root"
+        },
+        "unitNumerators" : [ "vcores" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_vcores WHERE entityName = \"yarn:root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "allocated_vcores",
+        "entityName" : "root.default (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.default",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.default",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.default"
+        },
+        "unitNumerators" : [ "vcores" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_vcores WHERE entityName = \"yarn:root.default\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "allocated_vcores",
+        "entityName" : "root.root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.root"
+        },
+        "unitNumerators" : [ "vcores" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_vcores WHERE entityName = \"yarn:root.root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "allocated_vcores_cumulative",
+        "entityName" : "root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root"
+        },
+        "unitNumerators" : [ "vcores" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_vcores_cumulative WHERE entityName = \"yarn:root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "allocated_vcores_cumulative",
+        "entityName" : "root.default (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.default",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.default",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.default"
+        },
+        "unitNumerators" : [ "vcores" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_vcores_cumulative WHERE entityName = \"yarn:root.default\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    }, {
+      "metadata" : {
+        "metricName" : "allocated_vcores_cumulative",
+        "entityName" : "root.root (YARN (MR2 Included))",
+        "startTime" : "2026-10-23T00:00:00.000Z",
+        "endTime" : "2026-11-23T00:00:00.000Z",
+        "attributes" : {
+          "clusterName" : "Cloudera QuickStart",
+          "category" : "YARN_POOL",
+          "poolName" : "root.root",
+          "clusterDisplayName" : "Cloudera QuickStart",
+          "schedulerType" : "FAIR",
+          "queueName" : "root.root",
+          "active" : "true",
+          "serviceType" : "YARN",
+          "serviceDisplayName" : "YARN (MR2 Included)",
+          "version" : "CDH 5.7.0",
+          "serviceName" : "yarn",
+          "entityName" : "yarn:root.root"
+        },
+        "unitNumerators" : [ "vcores" ],
+        "unitDenominators" : [ ],
+        "expression" : "SELECT allocated_vcores_cumulative WHERE entityName = \"yarn:root.root\" AND category = YARN_POOL",
+        "metricCollectionFrequencyMs" : 60000,
+        "rollupUsed" : "HOURLY"
+      },
+      "data" : [ ]
+    } ],
+    "warnings" : [ ],
+    "timeSeriesQuery" : "select allocated_memory_mb,allocated_memory_mb_cumulative,available_memory_mb,allocated_memory_gb,available_memory_mb,available_vcores,allocated_vcores,allocated_vcores_cumulative"
+  } ]
+}

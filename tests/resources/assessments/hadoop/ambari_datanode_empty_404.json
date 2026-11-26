@@ -1,0 +1,4 @@
+{
+  "status" : 404,
+  "message" : "Parent Service resource doesn't exist..  Service not found, clusterName=sim, serviceName=HDFS.  Service not found, clusterName=sim, serviceName=HDFS"
+}
