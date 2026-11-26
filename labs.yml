@@ -44,6 +44,12 @@ commands:
         description: (Optional) Catalog `name`, only used when validating converted code
       - name: schema-name
         description: (Optional) Schema `name`, only used when validating converted code
+      - name: agentic
+        description: (Optional) Whether to convert with the agentic code converter in your workspace ('true') instead of an installed transpiler ('false')
+      - name: transpiler
+        description: (Optional) The transpiler to convert with; 'agentic' selects the agentic code converter, like '--agentic true'
+      - name: skills
+        description: (Optional) Comma-separated workspace `paths` of custom skill folders for the agentic code converter (at most 10)
     table_template: |-
       total_files_processed\ttotal_queries_processed\tanalysis_error_count\tparsing_error_count\tvalidation_error_count\tgeneration_error_count\terror_log_file
       {{range .}}{{.total_files_processed}}\t{{.total_queries_processed}}\t{{.analysis_error_count}}\t{{.parsing_error_count}}\t{{.validation_error_count}}\t{{.generation_error_count}}\t{{.error_log_file}}
