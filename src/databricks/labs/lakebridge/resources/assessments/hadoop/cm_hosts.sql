@@ -1,4 +1,4 @@
--- Cloudera Manager: one row per host that CM manages. Hosts are not filtered by cluster, as in the original.
+-- Cloudera Manager: one row per managed host, not filtered by cluster, as in the original.
 SELECT
     h->>'$.hostId' AS host_id,
     h->>'$.hostname' AS hostname,

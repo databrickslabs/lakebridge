@@ -67,7 +67,7 @@ def test_cluster_metrics_vanilla_and_cdh(tmp_path: Path) -> None:
         cdh = _rows(conn, "SELECT apps_submitted, total_nodes, decommissioning_nodes FROM yarn_cluster_metrics")
 
     assert vanilla == [(6, 1, 1, 4096)]
-    # The captured CDH ResourceManager does not report decommissioning nodes, so the column is NULL rather than an error.
+    # The CDH capture does not report decommissioning nodes, so the column is NULL, not an error.
     assert cdh == [(2, 1, None)]
 
 
@@ -120,7 +120,7 @@ def test_scheduler_fair_tree_is_read_from_child_queues(tmp_path: Path) -> None:
 
 
 def test_scheduler_fair_tree_reads_hadoop3_wrapped_child_queues(tmp_path: Path) -> None:
-    """Hadoop 2.8+ wraps fair-scheduler children as childQueues: {"queue": [...]}."""
+    """Fair-scheduler children wrapped as childQueues: {"queue": [...]}."""
     leaf = "fairSchedulerLeafQueueInfo"
     doc = {
         "scheduler": {
@@ -153,7 +153,7 @@ def test_scheduler_fair_tree_reads_hadoop3_wrapped_child_queues(tmp_path: Path) 
 
 
 def test_scheduler_capacity_children_without_queue_path_get_full_paths(tmp_path: Path) -> None:
-    """HDInsight 5.1 (Hadoop 3.3.4) reports neither the root's nor the children's queuePath, only short names."""
+    """A scheduler that reports no queuePath for the root or its children, only short names."""
     with _load("yarn_scheduler_queues", [_fixture("yarn_scheduler_hdi_capacity.json")], tmp_path) as conn:
         rows = _rows(conn, "SELECT queue_path, parent_queue_path, depth FROM yarn_scheduler_queues ORDER BY queue_path")
 
@@ -161,7 +161,7 @@ def test_scheduler_capacity_children_without_queue_path_get_full_paths(tmp_path:
 
 
 def test_scheduler_capacity_root_without_queue_path_uses_its_queue_name(tmp_path: Path) -> None:
-    """Older capacity schedulers (Hadoop 2.x / 3.1) name the root only by queueName."""
+    """A capacity scheduler that names the root only by queueName."""
     doc = {
         "scheduler": {
             "schedulerInfo": {
@@ -570,7 +570,7 @@ def test_spark_client_is_a_plain_rest_client_with_no_discovery(monkeypatch: pyte
 
 
 def test_pipeline_extracts_cloudera_manager_over_http(hadoop_server: str, tmp_path: Path) -> None:
-    """The Cloudera steps against a real HTTP server: the cluster name is URL-encoded and the Invalid-metric retry runs."""
+    """Cloudera steps over real HTTP: the cluster name is URL-encoded and the invalid-metric retry runs."""
     creds = tmp_path / ".credentials.yml"
     cloudera = {"url": f"{hadoop_server}/cm", "auth": "none"}
     creds.write_text(yaml.safe_dump({"hadoop": {"distribution": "cdh", "cloudera_manager": cloudera}}))
@@ -669,7 +669,7 @@ def test_cluster_metrics_keep_utilization_and_partition_totals(tmp_path: Path) -
 
 
 def _capacity_queues(info: dict, parent: str | None, out: dict[str, dict]) -> dict[str, dict]:
-    """Every queue of a capacity scheduler tree by path (the RM names children by their short name on Hadoop 3.3)."""
+    """Every queue of a capacity scheduler tree by path, when the RM names children by their short name."""
     name = info.get("queuePath") or info["queueName"]
     path = name if parent is None or name.startswith(parent + ".") else f"{parent}.{name}"
     out[path] = info
@@ -725,8 +725,8 @@ def test_a_fair_scheduler_has_no_partitions_but_keeps_its_fair_shares(tmp_path: 
     assert shares[0][0] > 0
 
 
-# A Spark History Server may report attempt times only as text, with no epoch fields or duration; -1 is
-# 1969-12-31T23:59:59.999GMT. Without a reported duration the duration stays NULL, as in the original's output.
+# Attempt times reported only as text, with no epoch fields or duration (-1 is 1969-12-31T23:59:59.999GMT). The
+# duration then stays NULL, as in the original's output.
 _SPARK_TEXT_TIME_APPS = [
     {
         "id": "application_1_0001",

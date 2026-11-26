@@ -1,18 +1,12 @@
 """REST client shared by the Hadoop profiler steps.
 
-Every step reads from a YARN ResourceManager (``/ws/v1/cluster/...``) or a Spark History Server (``/api/v1/...``)
-through this client. It provides:
+- one ``requests`` session per base URL, with optional basic auth and TLS verification on, off or against a CA bundle;
+- connect and read timeouts, and a short retry on connection errors only;
+- ``HadoopApiError`` for unreachable services, HTTP errors, timeouts and non-JSON bodies (such as a login page);
+- ResourceManager HA: the client for the RM whose ``haState`` is ``ACTIVE``.
 
-- one ``requests`` session per base URL, with optional HTTP basic auth and TLS verification on, off, or against a
-  CA bundle;
-- explicit connect and read timeouts, and a short retry on connection errors only;
-- ``HadoopApiError`` for unreachable endpoints, HTTP errors, timeouts and non-JSON bodies (for example a gateway's
-  HTML login page);
-- ResourceManager HA: the client for the RM whose ``/ws/v1/cluster/info`` reports ``haState == "ACTIVE"``.
-
-A base URL may carry a path and no port. An HDInsight gateway, for example, is
-``https://<cluster>.azurehdinsight.net/yarnui``. The YARN ResourceManager and the Spark History Server can also be
-read with Kerberos (SPNEGO); that transport lives in ``kerberos.py`` and subclasses ``RestClient``.
+A base URL may carry a path, as an HDInsight gateway does (``https://<cluster>.azurehdinsight.net/yarnui``). Kerberos
+(SPNEGO) is in ``kerberos.py``, a ``RestClient`` subclass.
 """
 
 import json
@@ -27,10 +21,13 @@ import requests
 logger = logging.getLogger(__name__)
 
 CONNECT_TIMEOUT_SECONDS = 10.0
-# Application dumps on busy clusters are large and slow to render, so the read timeout is generous.
+# Generous: application dumps on busy clusters are large and slow.
 READ_TIMEOUT_SECONDS = 300.0
 MAX_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 2.0
+
+# The characters a JSON text can start with.
+JSON_FIRST_CHARACTERS = frozenset('{["-0123456789tfn')
 
 CLUSTER_INFO_PATH = "/ws/v1/cluster/info"
 ACTIVE_HA_STATE = "ACTIVE"
@@ -43,7 +40,7 @@ _HTTP_STATUS_HINTS = {
 
 
 class HttpResponse(Protocol):
-    """The part of a response the client reads. ``requests.Response`` and the Kerberos transport both satisfy it."""
+    """The part of a response the client reads (``requests.Response`` or the Kerberos transport's)."""
 
     @property
     def status_code(self) -> int: ...
@@ -56,8 +53,22 @@ class HadoopApiError(RuntimeError):
     """A Hadoop service is unreachable, returned an error status, or did not return JSON."""
 
 
+def not_json_error(path: str, base_url: str) -> HadoopApiError:
+    return HadoopApiError(
+        f"GET {path} from {base_url} did not return JSON; check the URL (a gateway may need its path) and the credentials"
+    )
+
+
+def parse_json(text: str, path: str, base_url: str) -> Any:
+    """Parse a ``get_text`` body, reporting malformed JSON as ``get_json`` does."""
+    try:
+        return json.loads(text)
+    except ValueError as e:
+        raise not_json_error(path, base_url) from e
+
+
 class HadoopHttpError(HadoopApiError):
-    """A Hadoop service returned an HTTP error status. The status and body let a caller handle a known error."""
+    """A Hadoop service returned an HTTP error status, kept with the body so callers can handle known errors."""
 
     def __init__(self, message: str, *, status_code: int, body: str) -> None:
         super().__init__(message)
@@ -66,10 +77,9 @@ class HadoopHttpError(HadoopApiError):
 
 
 def normalize_base_url(url: str) -> str:
-    """Validate a service base URL and return it without a trailing slash.
+    """Validate a ``http(s)://host[:port][/path]`` base URL and return it without a trailing slash.
 
-    The URL must be ``http(s)://host[:port][/path]``. Credentials are rejected here so they cannot leak into error
-    messages; they belong in the ``username`` and ``password`` settings.
+    Credentials in the URL are rejected so they cannot leak into error messages.
     """
     parts = urlsplit(url.strip())
     if parts.scheme not in ("http", "https") or not parts.hostname:
@@ -112,19 +122,21 @@ class RestClient:
         return self._base_url
 
     def get_text(self, path: str, params: Mapping[str, str | int] | None = None) -> str:
-        """GET ``path`` and return the response body, which is checked to be JSON."""
+        """GET ``path`` and return the body, which must look like JSON.
+
+        Only the first character is checked, which catches login pages and plain text; large bodies are parsed once, by
+        DuckDB, which rejects malformed JSON when storing them.
+        """
         text = self.get_plain_text(path, params)
-        try:
-            json.loads(text)
-        except ValueError as e:
-            raise HadoopApiError(
-                f"GET {path} from {self._base_url} did not return JSON; check the URL "
-                "(a gateway may need its path) and the credentials"
-            ) from e
+        if text.lstrip()[:1] not in JSON_FIRST_CHARACTERS:
+            raise self._not_json(path)
         return text
 
+    def _not_json(self, path: str) -> HadoopApiError:
+        return not_json_error(path, self._base_url)
+
     def get_plain_text(self, path: str, params: Mapping[str, str | int] | None = None) -> str:
-        """GET ``path`` and return the body as is, for endpoints that answer in plain text (Cloudera's /api/version)."""
+        """GET ``path`` and return the body as is, for plain-text endpoints (Cloudera Manager's /api/version)."""
         response = self._get(path, params)
         if response.status_code >= 400:
             raise HadoopHttpError(
@@ -139,7 +151,7 @@ class RestClient:
         return f"GET {path} from {self._base_url} returned HTTP {status_code}{hint}"
 
     def get_json(self, path: str, params: Mapping[str, str | int] | None = None) -> Any:
-        return json.loads(self.get_text(path, params))
+        return parse_json(self.get_text(path, params), path, self._base_url)
 
     def _get(self, path: str, params: Mapping[str, str | int] | None) -> HttpResponse:
         url = f"{self._base_url}{path}"
@@ -169,12 +181,10 @@ def find_active_resource_manager(
     verify: bool | str = True,
     make_client: Callable[[str], RestClient] | None = None,
 ) -> RestClient:
-    """Return the client for the ResourceManager in HA state ACTIVE.
+    """Return the client for the ResourceManager in HA state ACTIVE (a non-HA RM reports ACTIVE too).
 
-    The URLs are tried in order. A non-HA cluster also reports ``haState`` ACTIVE, so it needs no special case.
-    Unreachable or standby ResourceManagers are skipped, and the error lists why each one was rejected.
-    ``make_client`` builds the client for each URL (for example a Kerberos client); by default it is a basic-auth or
-    anonymous ``RestClient``.
+    URLs are tried in order; unreachable or standby RMs are skipped, and the error says why each was rejected.
+    ``make_client`` builds each client (for example a Kerberos one); the default is a plain ``RestClient``.
     """
     build = make_client or (lambda url: RestClient(url, username=username, password=password, verify=verify))
     failures: list[str] = []

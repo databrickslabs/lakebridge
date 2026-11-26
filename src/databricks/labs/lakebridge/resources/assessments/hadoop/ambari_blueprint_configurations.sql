@@ -1,5 +1,4 @@
--- Ambari blueprint configurations: one row per property of each config type, value kept as Ambari returns it (text).
--- Each configuration object holds one config type; its properties are read with the property names as JSON keys.
+-- Ambari blueprint configurations: one row per property of each config type, values as Ambari returns them (text).
 SELECT
     t.config_type,
     p.property,

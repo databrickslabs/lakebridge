@@ -1,4 +1,4 @@
--- Ranger: one row per service (repository). configs is kept as Ranger returns it: Ranger masks passwords as '*****'.
+-- Ranger: one row per service; configs as returned (Ranger masks passwords as '*****').
 SELECT
     CAST(s->>'$.id' AS BIGINT) AS id,
     s->>'$.name' AS name,

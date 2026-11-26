@@ -1,6 +1,5 @@
--- Ranger: one row per policy item. item_kind is allow, deny, allow_exception, deny_exception, data_mask or row_filter.
--- users, groups, roles, accesses and conditions are JSON text lists. mask_type is set for data_mask items and
--- row_filter_expr for row_filter items.
+-- Ranger: one row per policy item (allow, deny, allow_exception, deny_exception, data_mask, row_filter). Users, groups,
+-- roles, accesses and conditions are JSON text lists; mask_type and row_filter_expr are set for their kinds.
 WITH policies AS (
     SELECT p AS pol FROM (SELECT unnest(hadoop_records(doc, '$')) AS p FROM raw_documents) AS t
 ),

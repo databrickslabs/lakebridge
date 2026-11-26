@@ -1,5 +1,4 @@
--- Impala statestore web UI /subscribers: one row per registered subscriber (impalad and catalogd).
--- secs_since_heartbeat is the time since the subscriber last reported, in seconds.
+-- Impala statestore /subscribers: one row per subscriber (impalad, catalogd), with seconds since its last heartbeat.
 SELECT
     coordinator AS statestore_url,
     s->>'$.id' AS subscriber_id,

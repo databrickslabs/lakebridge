@@ -1,5 +1,5 @@
--- Ranger: one row per policy. policy_type maps 0 to access, 1 to masking and 2 to row_filter. The policy's items are in
--- ranger_policy_items; resources, conditions and validity schedules are kept as JSON text.
+-- Ranger: one row per policy (policy_type 0 access, 1 masking, 2 row_filter); items are in ranger_policy_items.
+-- Resources, conditions and validity schedules are JSON text.
 SELECT
     CAST(p->>'$.id' AS BIGINT) AS id,
     p->>'$.guid' AS guid,

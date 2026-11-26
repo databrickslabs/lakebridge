@@ -1,4 +1,4 @@
--- Ambari stack version of the cluster. host_states and repository_versions are kept as JSON text, as Ambari returns them.
+-- The cluster's Ambari stack version; host_states and repository_versions kept as JSON text.
 SELECT
     s->>'$.cluster_name' AS cluster_name,
     CAST(s->>'$.id' AS BIGINT) AS id,

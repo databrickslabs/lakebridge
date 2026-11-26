@@ -78,8 +78,11 @@ runs the system `curl --negotiate -u :` and the system `kinit` and `klist`, so t
 - **curl with SPNEGO support** (`curl -V` lists `SPNEGO` or `GSS-API`). The profiler checks this before its first request.
 - **Kerberos client tools**: `kinit` and `klist` (MIT krb5 or Heimdal).
 - **A ticket**, in one of two ways:
-  - a **keytab**: set `keytab` and `principal`. The profiler runs `kinit -kt <keytab> <principal>` once per run, before
-    its first request. A wrong keytab or principal fails with kinit's message.
+  - a **keytab**: set `keytab` and `principal`. Before its first request the profiler runs
+    `kinit -kt <keytab> <principal>`, unless the ticket cache already holds a valid ticket for that principal, so the
+    steps of a run share one ticket. Without `ccache` the ticket goes to a cache of the profiler's own,
+    `lakebridge-hadoop-krb5cc-<account>-<principal>` in the temporary directory, and the default ticket cache of the
+    account running the profiler is left alone. A wrong keytab or principal fails with kinit's message.
   - **an existing ticket**: leave out `keytab`. Run `kinit <principal>` beforehand. The profiler checks the ticket with
     `klist -s` and stops with a clear message if there is none or it has expired. Long runs can outlive a ticket, so a
     keytab is more reliable for scheduled runs.
@@ -130,7 +133,8 @@ Select **`hadoop`** as the source system. The wizard asks for:
 3. The YARN ResourceManager URL or URLs, comma-separated. For high availability, list every ResourceManager.
 4. The YARN authentication (`none`, `basic` or `kerberos`). For `basic`, the username and password. For `kerberos`, an
    optional keytab path and the principal (leave the keytab empty to use an existing ticket).
-5. Whether to verify the YARN TLS certificate, and an optional CA bundle path.
+5. For `https` URLs, whether to verify the YARN TLS certificate (Enter keeps verification on), and then, if it is on,
+   an optional CA bundle path.
 6. An optional filter for the YARN applications: a YARN REST query string such as `user=etl` or
    `queue=root.prod&applicationTypes=SPARK`, the original profiler's `RM_APP_FILTER`. Press Enter to extract every
    application.
@@ -207,7 +211,7 @@ hadoop:
 | `yarn.auth` / `username` / `password` | no | `auth` defaults to `basic` when a username is set, otherwise `none`. `kerberos` takes no username or password. |
 | `yarn.principal` | with `keytab` | The Kerberos principal, for example `profiler@EXAMPLE.COM`. Optional with an existing ticket. |
 | `yarn.keytab` | no | A keytab file that must exist. The profiler runs `kinit -kt` with it. Without it, an existing ticket is used. |
-| `yarn.ccache` | no | The ticket cache, such as `FILE:/tmp/krb5cc_profiler`. Sets `KRB5CCNAME` for curl and kinit/klist. Recommended with a keytab: without it, kinit replaces the default ticket cache of the account running the profiler (as the original profiler's kinit did). |
+| `yarn.ccache` | no | The ticket cache, such as `FILE:/tmp/krb5cc_profiler`. Sets `KRB5CCNAME` for curl and kinit/klist. With a keytab and no `ccache`, the profiler uses a cache of its own in the temporary directory, so the default ticket cache of the account running it is left alone. |
 | `yarn.krb5_config` | no | A `krb5.conf` file that must exist. Sets `KRB5_CONFIG`. |
 | `yarn.verify_ssl` | no (true) | `false` disables certificate checks and logs a warning. |
 | `yarn.app_filter` | no | Query parameters for the YARN applications request, for example `user=etl&queue=root.prod` (a leading `?` is allowed). Same as `RM_APP_FILTER` in the original profiler. The request is the full application list with this filter, on every run. |
@@ -633,10 +637,12 @@ lines stay off until you remove the `#`.
   as in sed. `\(`, `\)`, `\{m,n\}`, `\|`, `\+` and `\?` are operators, while bare `( ) { } | + ?` are literal text.
   `\w`, `\s`, `\b`, `\<`, `\>` and `\n` also work. A delimiter inside a bracket expression is literal.
 - **Replacement.** `&` is the whole match, `\1` to `\9` are groups, `\&` is a literal `&`, and `\n` is a new line.
-- **Flags.** `g` changes every match in a response. Without `g`, only the first match in each response changes. `I`
-  ignores case. Any other flag is an error.
-- **Whole responses.** A rule matches the whole response, not each line, so `^` and `$` mark the start and end of the
-  response. The Spark History Server writes pretty-printed JSON, so use `g` for rules that must reach every value.
+- **Flags.** `g` changes every match on a line. Without `g`, only the first match on each line changes. `I` ignores
+  case. Any other flag is an error.
+- **Line by line.** Rules run on each line of a response, as `sed -f` runs them, so the output matches the original
+  profiler's. `^` and `$` mark the start and end of a line, and a match never spans two lines, so `\n` in the text to
+  find never matches. The Spark History Server writes pretty-printed JSON with one key and value per line, so write
+  rules that match a key and its value on the same line.
 
 Syntax errors stop the run, and the message names the file, the line and the expected form, for example
 `line 3: ... each line must look like s/<text to find>/<replacement>/g`.

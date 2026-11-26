@@ -1,16 +1,10 @@
-"""Apache Ranger Admin helpers shared by the ``ranger_*`` steps (see endpoints.py).
+"""Apache Ranger Admin helpers shared by the ``ranger_*`` steps.
 
-Ranger 2.x serves two policy APIs. The original profiler reads the legacy v1 API (``/service/public/api/repository``
-and ``/service/public/api/policy``). On Ranger 2.9.0 the v1 policy list returns 20 of 24 policies although its
-``totalCount`` says 24, and the v1 repository list leaves out the YARN and tag services. The v1 calls therefore
-under-report, so this profiler reads the v2 API. It uses v1 only when v2 answers 404 (very old Ranger releases), and
-logs a warning that the result may be incomplete.
+The original profiler reads the legacy v1 API, which under-reports: it leaves out the YARN and tag services and some
+policies, despite its ``totalCount``. So the v2 API is read, and v1 only when v2 answers 404, with a warning.
 
-The v2 list endpoints return a top-level JSON array. The v1 endpoints wrap their list in ``vXRepositories`` or
-``vXPolicies`` with a ``totalCount``. The v1 bodies are translated to the v2 shape here, so the step SQL reads one
-shape. v1 has no deny, exception, masking or row-filter items, so a translated v1 policy has only its allow items.
-
-Like the original, the profiler reads the services and the policies only (no users, groups or service definitions).
+v1 bodies (``vXRepositories``/``vXPolicies``) are translated to the v2 array shape, so the SQL reads one shape; v1 has
+only allow items. As the original, only services and policies are read.
 """
 
 import json
@@ -35,12 +29,12 @@ _V1_WARNING = (
     "On Ranger 2.x the v1 API under-reports YARN and tag services and policies; the result may be incomplete."
 )
 
-# A page fetcher: given a start index, returns the rows on that page and the total the server reports (or None).
+# A page fetcher: start index -> (rows, the server's total or None).
 PageFetch = Callable[[int], tuple[list[Any], int | None]]
 
 
 def list_services(client: RestClient) -> list[dict[str, Any]]:
-    """Every Ranger service (repository), in the v2 shape. Falls back to v1 when v2 is not there."""
+    """Every Ranger service, in the v2 shape (v1 when v2 is absent)."""
     try:
         return _page_through(_list_page(client, V2_SERVICE_PATH))
     except HadoopHttpError as e:
@@ -52,7 +46,7 @@ def list_services(client: RestClient) -> list[dict[str, Any]]:
 
 
 def list_policies(client: RestClient) -> list[dict[str, Any]]:
-    """Every policy of every service, in the v2 shape. Falls back to v1 (translated) when v2 is not there."""
+    """Every policy, in the v2 shape (v1, translated, when v2 is absent)."""
     try:
         return _page_through(_list_page(client, V2_POLICY_PATH))
     except HadoopHttpError as e:
@@ -87,11 +81,10 @@ def _wrapped_page(client: RestClient, path: str, key: str) -> PageFetch:
 
 
 def _page_through(fetch_page: PageFetch) -> list[dict[str, Any]]:
-    """Read pages until a page adds no new rows or the total is reached. Rows are deduplicated by ``id``.
+    """Read pages until one adds no new rows or the total is reached, deduplicating by ``id``.
 
-    The next start index is the number of rows the server returned, so a server that caps the page size below
-    ``PAGE_SIZE`` is still read to the end. A server that ignores ``startIndex`` repeats its rows, which is caught
-    as "no new rows" rather than looping.
+    The next start is the count returned, so a smaller server page size still reads to the end, and a server that
+    ignores ``startIndex`` stops instead of looping.
     """
     collected: list[dict[str, Any]] = []
     seen: set[Any] = set()
@@ -118,11 +111,7 @@ def _page_through(fetch_page: PageFetch) -> list[dict[str, Any]]:
 
 
 def _policy_as_v2(policy: dict[str, Any]) -> dict[str, Any]:
-    """A v1 policy as the v2 policy shape the policy steps read.
-
-    v1 lists resources by kind (databases, tables, columns, udfs) or by one resource name, and grants access with
-    ``permMapList``, where ``admin`` means delegate admin.
-    """
+    """A v1 policy in the v2 shape. v1 lists resources by kind or name; ``permMapList`` ``admin`` is delegate admin."""
     resources: dict[str, Any] = {}
     if policy.get("resourceName"):
         resources["resourceName"] = {"values": [policy["resourceName"]]}
@@ -184,7 +173,7 @@ def _int_or_none(value: Any) -> int | None:
 
 
 def _epoch_ms(text: Any) -> int | None:
-    """An ISO-8601 UTC timestamp (as v1 reports it) as epoch milliseconds, the v2 form."""
+    """A v1 ISO-8601 UTC timestamp as v2's epoch milliseconds."""
     if not isinstance(text, str) or not text:
         return None
     try:
@@ -197,7 +186,7 @@ def _epoch_ms(text: Any) -> int | None:
 
 
 def _json_object(text: Any) -> dict[str, Any]:
-    """v1 sends a repository's configs as a JSON string inside the JSON body."""
+    """A v1 repository's configs, which v1 sends as a JSON string."""
     if isinstance(text, dict):
         return text
     if not isinstance(text, str) or not text:

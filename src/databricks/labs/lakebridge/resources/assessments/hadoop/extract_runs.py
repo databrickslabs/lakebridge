@@ -1,24 +1,16 @@
-"""Initial and incremental runs, decided the way the original profiler decides them.
+"""Initial and incremental runs, decided as the original profiler decides them.
 
-The original profiler runs an initial extract when ``ExtractTracker/initialrun.txt`` is absent. It writes that tracker
-only at the end of an initial run, after the YARN ResourceManager check. A run that aborts writes no tracker, so the
-next run is initial again. Every run after a completed initial extract is incremental: it reads only the recent history,
-and skips the inventory that the initial extract already collected. Here the tracker is
-``hadoop_extract_tracker.json`` in the output folder, next to the run's DuckDB file.
+As with the original's ``ExtractTracker/initialrun.txt``, the initial extract is recorded only when a run completes it
+after the ResourceManager check; until then every run is initial. Later runs are incremental: recent history only, and
+no inventory already collected. The tracker is ``hadoop_extract_tracker.json`` next to the run's DuckDB file:
 
-The tracker holds:
+* ``initial_run_db``: the file of the run doing, or last doing, the initial extract, so a run's steps agree.
+* ``initial_completed``: set by the final step when this initial run's ``yarn_cluster_info`` succeeded.
+* ``yarn_cluster_info_run_db``: the run whose ``yarn_cluster_info`` last succeeded.
+* ``completed_inventory_steps``: inventory steps (``STEP_KINDS``) done in the initial extract; incremental runs skip
+  them, and the rest run again, which finishes a partly failed initial extract.
 
-* ``initial_run_db``: the DuckDB file name of the run that is, or last was, doing the initial extract. Every step of that
-  run finds the same answer, so the steps of one run agree on whether it is initial.
-* ``initial_completed``: true once the run's final step (``hadoop_extract_tracker``) finds that this initial run's
-  ``yarn_cluster_info`` succeeded, the equivalent of the original's check of the active ResourceManager.
-* ``yarn_cluster_info_run_db``: the run whose ``yarn_cluster_info`` step last succeeded.
-* ``completed_inventory_steps``: the inventory steps (see ``STEP_KINDS``) that have succeeded in the current initial
-  extract. An incremental run skips these. An inventory step that has not succeeded yet runs again, which is how an
-  initial extract that failed part way is finished by the next run.
-
-A run is initial until ``initial_completed`` is true. A run that finds an unfinished initial extract by another run
-starts the initial extract again from scratch. Deleting the tracker forces a new initial extract on the next run.
+A run that finds another run's unfinished initial extract starts it again. Deleting the tracker forces a new one.
 """
 
 import contextlib
@@ -33,14 +25,14 @@ from typing import Any
 
 TRACKER_FILE_NAME = "hadoop_extract_tracker.json"
 SKIPPED_INCREMENTAL = "skipped: incremental run (initial extract already collected)"
-# The step whose success decides that an initial extract is complete (the original's check of the active RM).
+# Its success completes the initial extract (the original's active-RM check).
 INITIAL_GATE_STEP = "yarn_cluster_info"
-# The final step of a run. It writes no table; it only records the run in the tracker.
+# A run's final step: it writes no table, only the tracker.
 RECORD_STEP = "hadoop_extract_tracker"
 
 
 class StepKind(Enum):
-    """When a step runs: on every run, or on the initial run only (the inventory)."""
+    """When a step runs: every run, or the initial run only (inventory)."""
 
     EVERY_RUN = "every_run"
     INITIAL_ONLY = "initial_only"
@@ -58,10 +50,10 @@ STEP_KINDS: Mapping[str, StepKind] = {
     "yarn_nodes": _I,
     "yarn_scheduler_queues": _I,
     "yarn_scheduler_queue_partitions": _I,
-    # Spark History Server: the windows differ between the initial and incremental runs, so both steps run every time.
+    # Spark History Server: every run, with a shorter window on incremental runs.
     "spark_applications": _E,
     "spark_application_attempts": _E,
-    # Cloudera Manager: the version and cluster checks, the timeseries and the Impala queries run every time.
+    # Cloudera Manager: clusters, timeseries and Impala queries run every time.
     "cm_clusters": _E,
     "cm_timeseries": _E,
     "cm_impala_queries": _E,
@@ -100,8 +92,7 @@ class ExtractRun:
 
 
 def resolve_run(db_path: str | Path) -> ExtractRun:
-    """This run's kind. A run is initial until an initial extract completes. A run that starts while the last initial
-    extract is unfinished takes it over and starts the initial extract again, as the original does after an abort."""
+    """This run's kind. A run that finds an unfinished initial extract starts it again, as the original does."""
     path = Path(db_path)
     run_db = path.name
     tracker_path = path.parent / TRACKER_FILE_NAME
@@ -115,14 +106,14 @@ def resolve_run(db_path: str | Path) -> ExtractRun:
 
 
 def record_initial_gate(db_path: str | Path, run: ExtractRun) -> None:
-    """Note that this run's yarn_cluster_info succeeded, so the run may complete its initial extract."""
+    """Record that this run's yarn_cluster_info succeeded."""
     tracker_path = Path(db_path).parent / TRACKER_FILE_NAME
     tracker = _require_tracker(tracker_path, run)
     _write_tracker(tracker_path, {**tracker, "yarn_cluster_info_run_db": run.run_db})
 
 
 def record_inventory_step(db_path: str | Path, run: ExtractRun, step: str) -> None:
-    """Note that an inventory step has succeeded, so later incremental runs skip it."""
+    """Record an inventory step's success, so incremental runs skip it."""
     tracker_path = Path(db_path).parent / TRACKER_FILE_NAME
     tracker = _require_tracker(tracker_path, run)
     completed = sorted(set(tracker["completed_inventory_steps"]) | {step})
@@ -130,10 +121,9 @@ def record_inventory_step(db_path: str | Path, run: ExtractRun, step: str) -> No
 
 
 def finish_run(db_path: str | Path) -> str:
-    """The run's final step: complete the initial extract if this run is initial and its yarn_cluster_info succeeded.
+    """The final step: mark the initial extract complete if this initial run's yarn_cluster_info succeeded.
 
-    Returns the status message. A run that is not initial, or whose initial extract is not complete, writes nothing
-    unless it completes the initial extract now.
+    Returns the status message; any other run writes nothing.
     """
     run_db = Path(db_path).name
     tracker_path = Path(db_path).parent / TRACKER_FILE_NAME
@@ -193,7 +183,7 @@ def _read_tracker(tracker_path: Path) -> dict[str, Any] | None:
 
 
 def _write_tracker(tracker_path: Path, tracker: dict[str, Any]) -> None:
-    """Write the tracker through a temporary file in the same folder, so a reader never sees a partial file."""
+    """Write the tracker atomically, through a temporary file in the same folder."""
     fd, temp_name = tempfile.mkstemp(dir=tracker_path.parent, prefix=f".{TRACKER_FILE_NAME}.", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
@@ -201,7 +191,7 @@ def _write_tracker(tracker_path: Path, tracker: dict[str, Any]) -> None:
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
-        # mkstemp creates the file readable by its owner only; the other extract files are 0644.
+        # mkstemp makes it owner-only; match the extract's 0644.
         os.chmod(temp_name, 0o644)
         os.replace(temp_name, tracker_path)
     except BaseException:

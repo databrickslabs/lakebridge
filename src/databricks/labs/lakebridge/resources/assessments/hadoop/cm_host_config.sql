@@ -1,4 +1,4 @@
--- Cloudera Manager: one row per configuration item of all hosts (cm/allHosts/config). Values are as CM returns them.
+-- Cloudera Manager: one row per all-hosts configuration item (cm/allHosts/config), values as returned.
 SELECT
     c->>'$.name' AS config_name,
     c->>'$.value' AS config_value,

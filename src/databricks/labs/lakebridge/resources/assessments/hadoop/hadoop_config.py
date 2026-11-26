@@ -20,8 +20,8 @@ Example::
         verify_ssl: true
         # kerberos settings (yarn and spark_history only), with auth: kerberos:
         #   principal: profiler@EXAMPLE.COM   # required with keytab; optional otherwise
-        #   keytab: /etc/security/keytabs/profiler.keytab   # optional; kinit -kt runs before the steps
-        #   ccache: FILE:/tmp/krb5cc_profiler  # optional; the ticket cache (KRB5CCNAME)
+        #   keytab: /etc/security/keytabs/profiler.keytab   # optional; kinit -kt runs unless a valid ticket is cached
+        #   ccache: FILE:/tmp/krb5cc_profiler  # optional (KRB5CCNAME); a keytab without it uses the profiler's own cache
         #   krb5_config: /etc/krb5.conf         # optional; the Kerberos config (KRB5_CONFIG)
         # without a keytab, an existing ticket (kinit beforehand) is used and checked with klist.
       cloudera_manager:              # optional: the CM steps are skipped when this is absent (CDH and CDP)
@@ -82,17 +82,16 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.masking import (
 )
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import RestClient, normalize_base_url
 
-# The original profiler's DISTRIBUTION values: OTH (vanilla Apache Hadoop, MapR and others), CDH (Cloudera CDH and CDP
-# Private Cloud Base) and HDP (Hortonworks HDP and Azure HDInsight, which is reached through its gateway URLs).
+# The original profiler's DISTRIBUTION values: oth (Apache Hadoop, MapR, others), cdh (CDH, CDP Private Cloud Base) and
+# hdp (HDP, Azure HDInsight).
 DISTRIBUTIONS = ("oth", "cdh", "hdp")
 SUPPORTED_AUTH = ("none", "basic")
-# Kerberos (SPNEGO) is supported only where the original profiler supports it: the YARN ResourceManager and the Spark
-# History Server (RM_KERBERIZED and SPARK_HS_KERBERIZED).
+# Kerberos (SPNEGO) only where the original supports it: the ResourceManager and the Spark History Server.
 KERBEROS_SECTIONS = ("yarn", "spark_history")
-# The original profiler's CM_IMPALA_NUMBER_OF_DAYS=1: yesterday and today. Impala query history is large.
+# As the original's CM_IMPALA_NUMBER_OF_DAYS=1: yesterday and today.
 DEFAULT_IMPALA_LOOKBACK_DAYS = 1
 MAX_IMPALA_LOOKBACK_DAYS = 3650
-# The Impala interval must divide an hour, as in the original profiler (CM_IMPALA_INTERVAL_MINUTES).
+# Divisors of an hour, as the original's CM_IMPALA_INTERVAL_MINUTES.
 IMPALA_INTERVAL_OPTIONS = (1, 2, 3, 6, 10, 20, 30, 60)
 DEFAULT_IMPALA_INTERVAL_MINUTES = 60
 DEFAULT_IMPALA_MAX_PAGES = 2
@@ -114,7 +113,7 @@ class RestEndpoint:
     verify: bool | str = True
     # Extra query parameters for the YARN applications request (the original profiler's RM_APP_FILTER).
     app_filter: tuple[tuple[str, str], ...] = ()
-    # Set with auth: kerberos. The requests then go through curl with SPNEGO instead of requests.
+    # Set with auth: kerberos; requests then go through curl with SPNEGO.
     kerberos: KerberosSettings | None = None
 
     def client(self, url: str) -> RestClient:
@@ -131,7 +130,7 @@ class ClouderaManagerConfig:
     endpoint: RestEndpoint
     # Detected from /api/version when None, for example "v12".
     api_version: str | None = None
-    # Detected when CM manages exactly one cluster when None. Cluster names may contain spaces.
+    # None: detected when CM manages exactly one cluster. Names may contain spaces.
     cluster: str | None = None
     extract_impala_queries: bool = False
     impala_service: str | None = None
@@ -145,7 +144,7 @@ class AmbariConfig:
     """The Ambari Server, or an HDInsight gateway, that serves the cluster's blueprint, hosts and components."""
 
     endpoint: RestEndpoint
-    # Detected when Ambari manages exactly one cluster when None. Cluster names may contain spaces.
+    # None: detected when Ambari manages exactly one cluster. Names may contain spaces.
     cluster: str | None = None
 
 
@@ -153,7 +152,7 @@ class AmbariConfig:
 class ImpalaConfig:
     """Impala debug web UIs: one impalad per coordinator, plus optional catalogd and statestored."""
 
-    # The impalad web UIs (port 25000 by default). Each one is read on its own and the results are unioned.
+    # The impalad web UIs (port 25000 by default), read one by one and unioned.
     endpoint: RestEndpoint
     catalogd_url: str | None = None
     statestored_url: str | None = None
@@ -164,7 +163,7 @@ class HadoopConfig:
     distribution: str
     yarn: RestEndpoint | None
     spark_history: RestEndpoint | None
-    # The masking rules from hadoop.search_replace_file, in file order. Empty when no file is configured.
+    # The rules from hadoop.search_replace_file, in file order; empty without a file.
     search_replace: tuple[SearchReplaceRule, ...] = ()
     cloudera_manager: ClouderaManagerConfig | None = None
     ranger: RestEndpoint | None = None
@@ -199,7 +198,7 @@ def parse_hadoop_config(raw: Any) -> HadoopConfig:
 
 
 def load_hadoop_config(creds_file: Path) -> HadoopConfig:
-    """Load the ``hadoop`` section through the credential manager, so secrets resolve like other sources."""
+    """Load the ``hadoop`` section through the credential manager, so secrets resolve as for other sources."""
     manager = create_credential_manager(PRODUCT_NAME, EnvGetter(), creds_path=creds_file)
     try:
         raw = manager.get_credentials("hadoop")
@@ -402,7 +401,7 @@ def parse_app_filter(raw: Any, section: str = "yarn") -> tuple[tuple[str, str], 
 
 
 def _search_replace_rules(raw: Any) -> tuple[SearchReplaceRule, ...]:
-    """The masking rules file, read and parsed on every load. Blank means no masking, as in the original profiler."""
+    """The masking rules file, read on every load. Blank means no masking, as in the original."""
     if raw is None:
         return ()
     if not isinstance(raw, str):

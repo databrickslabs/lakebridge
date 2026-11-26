@@ -90,6 +90,38 @@ def test_non_json_body_is_raised_with_a_clear_message() -> None:
         client.get_text("/ws/v1/cluster/info")
 
 
+@pytest.mark.parametrize("body", ["", "   \n", "Unauthorized", "v12"])
+def test_an_empty_or_plain_text_body_is_not_json(body: str) -> None:
+    client = RestClient("https://c.example.net", session=_session(_response(body=body)))
+
+    with pytest.raises(HadoopApiError, match="did not return JSON"):
+        client.get_text("/ws/v1/cluster/apps")
+
+
+def test_get_text_does_not_parse_the_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A large application dump is parsed once, by DuckDB when it is stored, not also here."""
+
+    def no_parse(*_args, **_kwargs):
+        raise AssertionError("get_text must not parse the body")
+
+    monkeypatch.setattr(rest_client.json, "loads", no_parse)
+    client = RestClient("https://c.example.net", session=_session(_response(body=' {"apps": {"app": []}}')))
+
+    assert client.get_text("/ws/v1/cluster/apps") == ' {"apps": {"app": []}}'
+
+
+def test_get_json_reports_malformed_json_with_the_same_clear_message() -> None:
+    client = RestClient("https://c.example.net", session=_session(_response(body='{"apps": [1, 2')))
+
+    with pytest.raises(HadoopApiError, match=r"GET /ws/v1/cluster/apps from https://c.example.net did not return JSON"):
+        client.get_json("/ws/v1/cluster/apps")
+
+
+def test_parse_json_reports_malformed_json_with_the_same_clear_message() -> None:
+    with pytest.raises(HadoopApiError, match=r"GET /x from https://c.example.net did not return JSON"):
+        rest_client.parse_json("[1, 2", "/x", "https://c.example.net")
+
+
 def test_connection_error_is_retried_then_succeeds() -> None:
     sleep = MagicMock()
     session = _session(requests.ConnectionError("refused"), _response())

@@ -1,5 +1,5 @@
--- Ambari blueprint: one row per host group and component, with the stack from Blueprints. Cardinality is kept as Ambari
--- returns it (text). A host group with no components keeps one row, with a NULL component_name.
+-- Ambari blueprint: one row per host group and component, with the stack. Cardinality is text, as Ambari returns it;
+-- a host group with no components has one row with a NULL component_name.
 SELECT
     stack_name,
     stack_version,

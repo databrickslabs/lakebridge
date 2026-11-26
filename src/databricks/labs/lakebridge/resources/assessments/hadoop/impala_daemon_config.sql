@@ -1,6 +1,5 @@
--- Impala daemon web UI /varz: the curated flags that decide query-log retention, memory limits and admission control.
--- One row per daemon and flag. flag_value is the current value and default_value the built-in default. A flag the
--- daemon does not have (another Impala release) has no row.
+-- Impala /varz: the flags for query-log retention, memory limits and admission control, one row per daemon and flag
+-- (current and default value). A flag the daemon lacks has no row.
 SELECT
     coordinator AS coordinator_url,
     f->>'$.name' AS flag_name,

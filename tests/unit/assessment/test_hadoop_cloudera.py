@@ -183,6 +183,21 @@ def test_no_cluster_is_an_error() -> None:
         resolve_cluster(_client(lambda *_: '{"items": []}'), "/api/v12", None)
 
 
+@pytest.mark.parametrize("body", ['["Cloudera QuickStart"]', '"maintenance"', "42"])
+def test_a_clusters_body_that_is_not_an_object_is_a_clear_error(body: str) -> None:
+    """A proxy or gateway that answers instead of CM must give a ClouderaManagerError, not an AttributeError."""
+    with pytest.raises(ClouderaManagerError, match=r"GET /api/v12/clusters from .* not an object"):
+        resolve_cluster(_client(lambda *_: body), "/api/v12", None)
+
+
+def test_a_services_body_that_is_not_an_object_is_a_clear_error() -> None:
+    def services_as_list(path: str, params: dict) -> str:
+        return "[]" if path.endswith("/services") else _standard_cm(path, params)
+
+    with pytest.raises(ClouderaManagerError, match=r"/services from .* JSON list, not an object"):
+        resolve_impala_service(_client(services_as_list), "/api/v12", _CLUSTER, None)
+
+
 def test_impala_service_is_detected_by_type_and_checked_when_configured() -> None:
     client = _client(_standard_cm)
 
@@ -381,6 +396,15 @@ def test_impala_queries_come_from_the_resolved_cluster_and_service(fixed_clock: 
     assert "/api/v12/clusters/Cloudera%20QuickStart/services/impala/impalaQueries" in fake_cm.paths()
 
 
+def test_an_impala_page_that_is_not_an_object_is_a_clear_error(fixed_clock: None) -> None:
+    def impala_as_list(path: str, params: dict) -> str:
+        return "[]" if path.endswith("/impalaQueries") else _standard_cm(path, params)
+
+    config = _config(extract_impala_queries=True, impala_lookback_days=1)
+    with pytest.raises(ClouderaManagerError, match=r"/impalaQueries from .* not an object"):
+        list(endpoints.cm_impala_queries(_client(impala_as_list), config, RUN))
+
+
 def test_impala_scan_limit_warning_is_logged(fixed_clock: None, caplog: pytest.LogCaptureFixture) -> None:
     def impala(path: str, params: dict) -> str:
         if path.endswith("/impalaQueries"):
@@ -507,6 +531,14 @@ def test_cm_clusters_fetch_selects_the_auto_detected_cluster(tmp_path: Path) -> 
     assert json.loads(envelope)["selected_cluster"] == _CLUSTER
     with _load("cm_clusters", [envelope], tmp_path) as conn:
         assert conn.execute("SELECT cluster_name, is_selected FROM cm_clusters").fetchall() == [(_CLUSTER, True)]
+
+
+def test_cm_clusters_reads_the_cluster_list_once() -> None:
+    fake_cm = _Cm(_standard_cm)
+
+    endpoints.cm_clusters(cast(RestClient, fake_cm), _config(), RUN)
+
+    assert fake_cm.paths().count("/api/v12/clusters") == 1
 
 
 def test_cm_clusters_fetch_with_an_ambiguous_choice_selects_none() -> None:

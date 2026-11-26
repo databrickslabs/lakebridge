@@ -1,8 +1,6 @@
--- Impala daemon web UI: one row per query each coordinator knows, completed (its query log) or in flight.
--- Each daemon only lists the queries it coordinated, so the rows of every listed daemon are unioned. A query that is
--- in both lists of one daemon keeps its completed row. The durations are in milliseconds, the sizes in bytes; the
--- timestamps are local times as Impala prints them. query_json keeps the whole record as Impala returned it.
--- Impala's completed-query log holds only the last query_log_size queries (200 by default) for each daemon.
+-- Impala web UI: one row per query each coordinator knows, completed or in flight, unioned across daemons. A query in
+-- both lists keeps its completed row. Durations in ms, sizes in bytes, local timestamps; query_json keeps the record.
+-- Each daemon's log holds only its last query_log_size queries (200 by default).
 WITH queries AS (
     SELECT doc->>'$.coordinator' AS coordinator_url, unnest(hadoop_records(doc, '$.body.completed_queries')) AS q, FALSE AS is_in_flight
     FROM raw_documents

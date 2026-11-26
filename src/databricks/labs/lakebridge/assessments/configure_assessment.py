@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import shutil
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -67,7 +68,6 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.masking import (
 from databricks.labs.lakebridge.resources.assessments.hadoop.ranger import list_services
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import (
     HadoopApiError,
-    RestClient,
     find_active_resource_manager,
 )
 
@@ -535,9 +535,10 @@ class ConfigureTeradataAssessment(AssessmentConfigurator):
         _save_to_disk(credential, cred_file)
 
 
-# blueprint's question() accepts a blank answer only when the prompt has a non-empty default, so an optional prompt
-# defaults to "none": pressing Enter (or typing none) leaves the value out.
+# blueprint's question() takes a blank answer only with a non-empty default, so optional prompts default to "none".
 NO_ANSWER = "none"
+# The answers blueprint's confirm() accepts, for a yes/no question that defaults to yes.
+YES_NO_PATTERN = re.compile(r"[Yy][Ee][Ss]|[Nn][Oo]")
 MASKING_RULES_ATTEMPTS = 10
 
 
@@ -566,24 +567,18 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
 
     @staticmethod
     def _check_ambari(ambari: AmbariConfig) -> None:
-        """Resolve the cluster the Ambari steps resolve (the configured one, or the only one Ambari manages)."""
-        client = RestClient(
-            ambari.endpoint.urls[0],
-            username=ambari.endpoint.username,
-            password=ambari.endpoint.password,
-            verify=ambari.endpoint.verify,
-        )
-        resolve_ambari_cluster(client, ambari.cluster)
+        """Resolve the cluster, as the Ambari steps do."""
+        resolve_ambari_cluster(ambari.endpoint.client(ambari.endpoint.urls[0]), ambari.cluster)
 
     @staticmethod
     def _check_impala(impala: ImpalaConfig) -> None:
-        """Read each daemon's backends, and catalogd and statestore when configured, as the Impala steps do."""
+        """Read each daemon, and catalogd and statestore when configured, as the Impala steps do."""
         for url in impala.endpoint.urls:
-            _impala_client(url, impala).get_json(IMPALA_BACKENDS_PATH)
+            impala.endpoint.client(url).get_json(IMPALA_BACKENDS_PATH)
         if impala.catalogd_url is not None:
-            _impala_client(impala.catalogd_url, impala).get_json(IMPALA_CATALOG_PATH)
+            impala.endpoint.client(impala.catalogd_url).get_json(IMPALA_CATALOG_PATH)
         if impala.statestored_url is not None:
-            _impala_client(impala.statestored_url, impala).get_json(IMPALA_SUBSCRIBERS_PATH)
+            impala.endpoint.client(impala.statestored_url).get_json(IMPALA_SUBSCRIBERS_PATH)
 
     @staticmethod
     def _check_spark_history(spark: RestEndpoint) -> None:
@@ -591,20 +586,13 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
 
     @staticmethod
     def _check_ranger(ranger: RestEndpoint) -> None:
-        """Read the service list, as the Ranger services step does (v2, or v1 when v2 is absent)."""
-        list_services(
-            RestClient(ranger.urls[0], username=ranger.username, password=ranger.password, verify=ranger.verify)
-        )
+        """Read the service list, as the Ranger services step does."""
+        list_services(ranger.client(ranger.urls[0]))
 
     @staticmethod
     def _check_cloudera_manager(cloudera: ClouderaManagerConfig) -> None:
-        """Resolve what the steps resolve: the API version, the cluster, and the Impala service when it is extracted."""
-        client = RestClient(
-            cloudera.endpoint.urls[0],
-            username=cloudera.endpoint.username,
-            password=cloudera.endpoint.password,
-            verify=cloudera.endpoint.verify,
-        )
+        """Resolve the API version, the cluster and, when extracted, the Impala service, as the CM steps do."""
+        client = cloudera.endpoint.client(cloudera.endpoint.urls[0])
         root = api_root(client, cloudera)
         cluster = resolve_cluster(client, root, cloudera.cluster)
         if cloudera.extract_impala_queries:
@@ -723,7 +711,7 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
         raise ValueError(f"No valid domain names were given in {MASKING_RULES_ATTEMPTS} attempts")
 
     def _prompt_app_filter(self) -> str:
-        """The original profiler's RM_APP_FILTER: a YARN REST query string. Empty extracts every application."""
+        """The original's RM_APP_FILTER, a YARN REST query string; empty means every application."""
         for _ in range(MASKING_RULES_ATTEMPTS):
             answer = self._optional_answer(
                 "Filter the YARN applications with a YARN REST query string, for example user=etl or "
@@ -747,8 +735,13 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
             logger.error(f"Enter a whole number from 1 to {maximum}")
         raise ValueError(f"No number from 1 to {maximum} was given in {MASKING_RULES_ATTEMPTS} attempts")
 
+    def _confirm_default_yes(self, text: str) -> bool:
+        """A yes/no question where Enter means yes; blueprint's confirm always defaults to no."""
+        answer = self.prompts.question(text, default="yes", valid_regex=YES_NO_PATTERN)
+        return answer.strip().lower() == "yes"
+
     def _optional_answer(self, text: str) -> str:
-        """An optional value: Enter (the "none" default) or "none" gives an empty string."""
+        """An optional value: Enter or "none" gives an empty string."""
         answer = self.prompts.question(text, default=NO_ANSWER).strip()
         return "" if answer.lower() == NO_ANSWER else answer
 
@@ -869,8 +862,7 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
             urls = [self.prompts.question(f"Enter the {name} URL (for example {example})")]
             endpoint["url"] = urls[0]
 
-        # Kerberos is offered only where the original profiler supports it; it is the last choice so the others keep
-        # their positions.
+        # Kerberos only where the original supports it, listed last so the other choices keep their numbers.
         methods = ["none", "basic", "kerberos"] if allow_kerberos else ["none", "basic"]
         auth = str(
             self.prompts.choice(f"Select the {name} authentication ({' | '.join(methods)})", methods, sort=False)
@@ -900,20 +892,16 @@ class ConfigureHadoopAssessment(AssessmentConfigurator):
                 ).strip()
 
         if any(url.lower().startswith("https://") for url in urls):
-            ca_bundle = self._optional_answer(
-                f"Enter the path to a CA bundle for the {name} certificate (leave empty for the system trust store)",
-            )
-            if self.prompts.confirm(f"Verify the {name} TLS certificate?"):
-                endpoint["verify_ssl"] = ca_bundle.strip() or True
+            # Verification is on by default; the CA bundle is asked only when it is used.
+            if self._confirm_default_yes(f"Verify the {name} TLS certificate?"):
+                ca_bundle = self._optional_answer(
+                    f"Enter the path to a CA bundle for the {name} certificate (leave empty for the system trust store)",
+                )
+                endpoint["verify_ssl"] = ca_bundle or True
             else:
+                logger.warning(f"TLS certificate verification is off for the {name}")
                 endpoint["verify_ssl"] = False
         return endpoint
-
-
-def _impala_client(url: str, impala: ImpalaConfig) -> RestClient:
-    return RestClient(
-        url, username=impala.endpoint.username, password=impala.endpoint.password, verify=impala.endpoint.verify
-    )
 
 
 ConfiguratorFactory = Callable[[str, Prompts, str, Path | str | None], AssessmentConfigurator]

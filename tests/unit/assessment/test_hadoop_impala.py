@@ -1,9 +1,8 @@
-"""The direct Impala extracts (hadoop.impala): the config block, the parsing of Impala's values, the step SQL over the
-captured Impala 4.5.3 web UI bodies, the union over several daemons, the skip rules, and the pipeline over HTTP.
+"""Direct Impala extracts (hadoop.impala): config, value parsing, step SQL, the union over daemons, skips, and the
+pipeline over HTTP.
 
-The fixtures named ``impala_*.json`` are real captures. ``impala_queries.json`` is one daemon's completed query log (20
-queries, 3 in EXCEPTION). ``impala_queries_inflight.json`` is a later capture of another daemon's log (28 completed, 8 in
-EXCEPTION) taken while a query was still running (1 in flight).
+Fixtures (impala_*.json) are web UI captures: ``impala_queries.json`` has 20 completed queries (3 EXCEPTION);
+``impala_queries_inflight.json`` has 28 completed (8 EXCEPTION) and 1 in flight.
 """
 
 import json

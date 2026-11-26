@@ -1,26 +1,21 @@
-"""Search/replace masking rules for the Hadoop profiler, read from the customer's rules file.
+"""Search/replace masking rules, in the original profiler's ``sed.txt`` form, applied in Python (sed is never run).
 
-The file holds the same ``s/<find>/<replace>/g`` lines as the original profiler's ``sed.txt``. The profiler reads it on
-every run and applies the rules, in order, to every raw REST response before the response is parsed or stored. The rules
-are parsed and applied here in Python; the ``sed`` binary is never run.
-
-Each line that is not blank and does not start with ``#`` (after optional whitespace) must be one substitution:
+The file is read on every run; its rules run in order on every raw REST response before it is parsed or stored. Each line
+that is not blank and does not start with ``#`` must be one substitution:
 
 - ``s<d>find<d>replace<d>[flags]``, where ``<d>`` is any single character that is not a letter, digit or backslash
   (``/``, ``|``, ``#``, ``,`` and so on). ``\\<d>`` is a literal delimiter inside ``find`` and ``replace``.
 - ``find`` is a POSIX basic regular expression, read as sed reads it: ``\\(`` ``\\)`` ``\\{m,n\\}`` ``\\|`` ``\\+`` and ``\\?``
   are operators, and bare ``( ) { } | + ?`` are literals. ``.``, ``*``, ``^``, ``$``, bracket expressions, ``\\1``-``\\9``,
   ``\\w``, ``\\W``, ``\\s``, ``\\S``, ``\\b``, ``\\B``, ``\\<``, ``\\>``, ``\\n`` and ``\\t`` work as in sed. A delimiter inside a
-  bracket expression is literal (``s/[a-z/]//g`` is valid here, although GNU sed would stop at the ``/``), and ``\\-``
-  inside brackets is a hyphen, as sed users write it.
+  bracket expression is literal (``s/[a-z/]//g`` is valid here; GNU sed stops at the ``/``), and ``\\-`` inside brackets
+  is a hyphen.
 - ``replace`` takes ``&`` for the whole match, ``\\1``-``\\9`` for a group, ``\\&`` for a literal ``&``, and ``\\n`` and
   ``\\t`` for a newline and a tab.
-- ``flags``: ``g`` replaces every match in a response. Without ``g``, only the first match in each response is replaced.
-  ``I`` ignores case. Any other flag is rejected.
+- ``flags``: ``g`` replaces every match on a line, otherwise only the first. ``I`` ignores case. Others are rejected.
 
-Differences from sed: responses are matched as one string, not line by line, so ``^`` and ``$`` anchor the whole response,
-and a rule without ``g`` replaces only the first match in the whole response (sed replaced the first match on each line).
-Use ``g`` for every rule that must reach every occurrence, such as the pretty-printed Spark History Server JSON.
+Rules apply line by line, as ``sed -f``: ``^`` and ``$`` anchor to the line and no match crosses a line break (``\\n`` in
+``find`` never matches), so the output equals the original profiler's ``SEARCH_REPLACE`` output.
 """
 
 import os
@@ -47,14 +42,13 @@ _SIMPLE_ESCAPES: dict[str, str] = {"n": "\n", "t": "\t"}
 # The value of a JSON string, escapes included: "a \\"b" is one value. Written in the rules file's BRE syntax.
 _JSON_STRING = r'"\(\\.\|[^"\\]\)\+"'
 _SPACE = "[[:space:]]*"
-# JSON keys whose values are user names: YARN, Spark History, Impala and Cloudera Manager users, and Ranger's audit
-# fields. The guided user rule and the tests share this list.
+# JSON keys whose values are user names (YARN, Spark History, Impala, CM, Ranger audit fields). Shared with the tests.
 USER_KEYS = (
     "user",
     "sparkUser",
     "effective_user",
     "connected_user",
-    # Impala's delegated user (a proxy user acting for another) and CM's per-user YARN pool metrics.
+    # Impala's delegated (proxy) user and CM's per-user YARN pool metrics.
     "delegated_user",
     "userName",
     "original_user",
@@ -66,30 +60,28 @@ USER_KEYS = (
 _USER_KEY_ALTERNATION = "\\|".join(USER_KEYS)
 _USER_RULES = (
     f's/"\\({_USER_KEY_ALTERNATION}\\)"{_SPACE}:{_SPACE}{_JSON_STRING}/"\\1":"redacted"/g',
-    # Lists of user names: Ranger v2 policy items ("users") and the legacy v1 API's permission maps ("userList").
+    # User lists: Ranger v2 policy items ("users") and v1 permission maps ("userList").
     f's/"\\(users\\|userList\\)"{_SPACE}:{_SPACE}\\[{_SPACE}{_JSON_STRING}\\({_SPACE},{_SPACE}{_JSON_STRING}\\)*{_SPACE}\\]/"\\1":["redacted"]/g',
-    # The same user keys inside an escaped JSON string, such as a Ranger v1 service "config":"{\\"username\\":\\"hdfs\\"}".
+    # The same keys inside an escaped JSON string, e.g. a Ranger v1 "config":"{\\"username\\":\\"hdfs\\"}".
     f's/\\\\"\\({_USER_KEY_ALTERNATION}\\)\\\\":\\\\"[^\\\\"]*\\\\"/\\\\"\\1\\\\":\\\\"redacted\\\\"/g',
-    # Users in a Ranger service's audit filters, a string written with single quotes: {'users':['hive','hue'],...}.
+    # Users in Ranger audit filters, a single-quoted string: {'users':['hive','hue'],...}.
     f"s/'users'{_SPACE}:{_SPACE}\\[{_SPACE}'[^']*'\\({_SPACE},{_SPACE}'[^']*'\\)*{_SPACE}\\]/'users':['redacted']/g",
 )
-# An IPv4 address is four 1-3 digit numbers with no digit, letter, dot, underscore or hyphen on either side. So version
-# strings such as 3.3.4.5.1.8.42, 2.6.1.0-129 or 5.1.3000.0 are kept. Without lookarounds the rule captures the characters
-# around the address and writes them back. The first two numbers become x.x. Two addresses separated by one character
-# need two passes, because the first pass uses that character, so the rule is listed twice.
+# An IPv4 address: four 1-3 digit numbers with no digit, letter, dot, underscore or hyphen on either side, so strings
+# like 3.3.4.5.1.8.42 or 2.6.1.0-129 are kept. BRE has no lookarounds, so the rule captures and restores the neighbours;
+# the first two numbers become x.x. Listed twice: two addresses one character apart need a second pass.
 _IP_RULE = (
     r"s/\([^0-9A-Za-z._-]\)[0-9]\{1,3\}\.[0-9]\{1,3\}\.\([0-9]\{1,3\}\.[0-9]\{1,3\}\)\([^0-9A-Za-z._-]\)/\1x.x.\2\3/g"
 )
-# An address at the very start or end of a response has no character on one side, so those cases get their own rules.
+# An address at the start or end of a line has no neighbour on one side.
 _IP_START_RULE = r"s/^[0-9]\{1,3\}\.[0-9]\{1,3\}\.\([0-9]\{1,3\}\.[0-9]\{1,3\}\)\([^0-9A-Za-z._-]\)/x.x.\1\2/"
 _IP_END_RULE = r"s/\([^0-9A-Za-z._-]\)[0-9]\{1,3\}\.[0-9]\{1,3\}\.\([0-9]\{1,3\}\.[0-9]\{1,3\}\)$/\1x.x.\2/"
-# An address that ends a sentence is followed by a full stop and then a character that cannot continue an address.
+# An address that ends a sentence: a full stop, then a character that cannot continue it.
 _IP_SENTENCE_RULE = (
     r"s/\([^0-9A-Za-z._-]\)[0-9]\{1,3\}\.[0-9]\{1,3\}\.\([0-9]\{1,3\}\.[0-9]\{1,3\}\)\(\.[^0-9A-Za-z._-]\)/\1x.x.\2\3/g"
 )
-# A four-number version under a key whose name contains "version" (Ambari's "desired_version": "5.1.8.42",
-# "min_ambari_metrics_hadoop_sink_version": "2.7.0.0") looks exactly like an address. Versions are not personal data and
-# the assessment needs them, so its dots are swapped for a marker before the address rules run and restored after.
+# A four-number value under a key containing "version" (e.g. Ambari's "desired_version") looks like an address but is
+# needed by the assessment, so its dots are swapped for a marker before the address rules and restored after.
 _VERSION_MARK = "@lbver@"
 _VERSION_PROTECT_RULE = (
     r's/\("[A-Za-z0-9_.-]*[Vv][Ee][Rr][Ss][Ii][Oo][Nn][A-Za-z0-9_.-]*"[ ]*:[ ]*"\)'
@@ -109,11 +101,9 @@ _IP_RULES = (
 _QUERY_RULES = (
     f's/"\\(statement\\|stmt\\)"{_SPACE}:{_SPACE}{_JSON_STRING}/"\\1":"redacted"/g',
     f's/"diagnostics"{_SPACE}:{_SPACE}{_JSON_STRING}/"diagnostics":"redacted"/g',
-    # Applications are the only objects that pair an application_ id with a name, so the name follows its id. This
-    # matches when both are on one line, as in the ResourceManager's single-line JSON.
+    # An application name follows its application_ id on one line (the ResourceManager's single-line JSON).
     f's/\\("id"{_SPACE}:{_SPACE}"application_[^"]*"[^}}]*"name"{_SPACE}:{_SPACE}"\\)\\(\\\\.\\|[^"\\\\]\\)\\+"/\\1redacted"/g',
-    # The Spark History Server prints one key per line; an application's name is the only "name" indented by exactly
-    # two spaces, the top level of its application list.
+    # The Spark History Server prints one key per line; only an application's "name" is indented by exactly two spaces.
     f's/^\\(  "name"{_SPACE}:{_SPACE}"\\)\\(\\\\.\\|[^"\\\\]\\)\\+"/\\1redacted"/',
 )
 _RULES_HEADER = """# Hadoop profiler masking rules. One rule per line: s/<text to find>/<replacement>/g
@@ -137,7 +127,7 @@ def guided_rules_text(
     redact_queries: bool,
     mask_ips: bool = False,
 ) -> str:
-    """The rules file for the guided answers. Each domain is replaced by a numbered placeholder, so host names stay unique."""
+    """The rules file for the guided answers. Each domain gets a numbered placeholder, so host names stay unique."""
     lines = [_RULES_HEADER.rstrip("\n")]
     if domains:
         lines += [
@@ -145,7 +135,7 @@ def guided_rules_text(
             "# Host names: each domain becomes a numbered placeholder, so host names stay unique "
             "(rm1.corp.example.com becomes rm1.masked-1).",
         ]
-    # The longest domain first, so eu.corp.example.com is replaced before corp.example.com can match inside it.
+    # Longest first, so eu.corp.example.com is replaced before corp.example.com matches inside it.
     numbered = sorted(enumerate(domains, start=1), key=lambda pair: -len(pair[1]))
     for number, domain in numbered:
         escaped = re.sub(r"([.*\[\]^$\\/])", r"\\\1", domain)
@@ -170,7 +160,7 @@ def guided_rules_text(
 
 
 def write_rules_file(path: Path, text: str, *, overwrite: bool) -> None:
-    """Write a rules file that only its owner can read. Its directory is created if needed."""
+    """Write a rules file only its owner can read, creating its directory if needed."""
     path.parent.mkdir(parents=True, exist_ok=True)
     flags = os.O_WRONLY | os.O_CREAT | (os.O_TRUNC if overwrite else os.O_EXCL)
     descriptor = os.open(path, flags, 0o600)
@@ -184,12 +174,12 @@ class MaskingRulesError(ValueError):
 
 
 class _LineError(Exception):
-    """A line that is not a supported substitution. The message is the reason, reported with the file and line."""
+    """A line that is not a supported substitution; the message is the reason."""
 
 
 @dataclass(frozen=True)
 class SearchReplaceRule:
-    """One substitution: a compiled text-to-find pattern and its replacement, split into text and group numbers."""
+    """One substitution: the compiled pattern and its replacement as text parts and group numbers."""
 
     pattern: re.Pattern[str]
     # Literal text, or a group number: 0 is the whole match, as "&" is in sed.
@@ -217,10 +207,8 @@ class SearchReplaceRule:
 
 
 def apply_masking_rules(rules: tuple[SearchReplaceRule, ...], text: str) -> str:
-    """Apply the rules to one raw response exactly as ``sed -f`` does: line by line, each line through every rule in
-    file order. A rule never sees past the end of a line, a rule without g changes the first match of each line, and
-    ^ and $ anchor to the line. The output is therefore identical to piping the response through sed with this file,
-    as the original Hadoop profiler's SEARCH_REPLACE did."""
+    """Apply the rules to one raw response line by line, as ``sed -f`` does, so the output matches the original
+    profiler's SEARCH_REPLACE pipe."""
     if not rules:
         return text
     lines = text.split("\n")
@@ -232,7 +220,7 @@ def apply_masking_rules(rules: tuple[SearchReplaceRule, ...], text: str) -> str:
 
 
 def load_masking_rules(path: str | Path) -> tuple[SearchReplaceRule, ...]:
-    """Read and parse the rules file. A leading ~ is expanded. Any read or syntax problem raises MaskingRulesError."""
+    """Read and parse the rules file (a leading ~ is expanded). Raises MaskingRulesError on any read or syntax error."""
     rules_file = Path(path).expanduser()
     try:
         text = rules_file.read_text(encoding="utf-8-sig")
@@ -275,7 +263,7 @@ def _parse_substitution(line: str) -> SearchReplaceRule:
     pattern_source = translator.translate()
     try:
         pattern = re.compile(pattern_source, re.IGNORECASE if ignore_case else 0)
-    except re.error as e:  # pragma: no cover  (the translation is built to compile; this reports anything unforeseen)
+    except re.error as e:  # pragma: no cover  (the translation always compiles; this is a safety net)
         raise _LineError(f"the text to find is not a valid regular expression ({e})") from e
     return SearchReplaceRule(
         pattern=pattern,
@@ -377,8 +365,7 @@ class _FindTranslator:
         self.group_count = 0
         self._closed: set[int] = set()  # groups whose \) has been read: a back-reference may only name these
         self._open: list[int] = []
-        # The sed rules for where operators mean something: '*' is literal where nothing precedes it, '^' anchors only at
-        # the start of the expression, and a '*' after a repeat is accepted (a** is a*).
+        # As sed: '*' is literal with nothing before it, '^' anchors only at the start, and a** is a*.
         self._at_start = True
         self._expr_start = True
         self._repeated = False

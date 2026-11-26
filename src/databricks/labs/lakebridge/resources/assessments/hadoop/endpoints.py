@@ -1,7 +1,7 @@
-"""The REST calls each Hadoop step makes. Each returns the response bodies its step's SQL reads.
+"""The REST calls each Hadoop step makes, returning the bodies its SQL reads.
 
-Cloudera Manager bodies that a step needs to know more about (the API version, the selected cluster, the timeseries
-query name) are wrapped in a small JSON envelope built here, so the step's SQL reads one document per request.
+Some Cloudera Manager bodies are wrapped in a small envelope (API version, selected cluster, query name), so the SQL
+reads one document per request.
 """
 
 import calendar
@@ -26,10 +26,13 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.cloudera_manager im
     build_timeseries_query,
     invalid_metric_name,
     item_for_metric,
+    json_object,
     metric_expression,
+    names_in_clusters_body,
     path_segment,
     resolve_cluster,
     resolve_impala_service,
+    select_cluster,
 )
 from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import ExtractRun
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import (
@@ -41,16 +44,16 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.ranger import (
     list_policies,
     list_services,
 )
-from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import HadoopHttpError, RestClient
+from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import HadoopHttpError, RestClient, parse_json
 
 logger = logging.getLogger(__name__)
 
 YARN_APPS_PATH = "/ws/v1/cluster/apps"
-# The Spark History Server minDate, in days before today (UTC): the original's '-1 week' initial and '-1 day' scheduled.
+# Spark History Server minDate, in days before today (UTC), as the original's '-1 week' and '-1 day'.
 SPARK_INITIAL_DAYS = 7
 SPARK_INCREMENTAL_DAYS = 1
 
-# The page size and the marker CM puts in a response that hit its scan limit (the original profiler's CM_IMPALA_PAGES).
+# The page size (per CM_IMPALA_PAGES page) and CM's scan-limit marker.
 IMPALA_PAGE_LIMIT = 1000
 IMPALA_SCAN_LIMIT_MARKER = "Impala query scan limit reached"
 
@@ -72,22 +75,19 @@ def yarn_scheduler(client: RestClient, _config: HadoopConfig, _run: ExtractRun) 
 
 
 def yarn_applications(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
-    """Every application the ResourceManager lists, with the user's app filter if one is set (the original's
-    ``apps${RM_APP_FILTER}``). There is no time window: the ResourceManager keeps only the completed applications that
-    ``yarn.resourcemanager.max-completed-applications`` allows, so that is the history this returns."""
+    """Every application the RM lists, with the app filter (the original's ``apps${RM_APP_FILTER}``). No time window:
+    the RM keeps only ``yarn.resourcemanager.max-completed-applications`` completed applications."""
     return [client.get_text(YARN_APPS_PATH, dict(config.yarn.app_filter) if config.yarn else None)]
 
 
 def spark_applications(client: RestClient, _config: HadoopConfig, run: ExtractRun) -> list[str]:
-    """Spark History Server applications started since the window's first UTC day: a week back on the initial run and
-    yesterday on an incremental run, as the original profiler's minDate."""
+    """Spark applications since a week ago (initial) or yesterday (incremental), UTC, as the original's minDate."""
     days = SPARK_INITIAL_DAYS if run.initial else SPARK_INCREMENTAL_DAYS
     min_date = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
     return [client.get_text("/api/v1/applications", {"minDate": min_date})]
 
 
-# The Impala daemon, catalogd and statestore web UIs answer JSON when the request has a ``json`` parameter. Each body is
-# wrapped with the server's URL by the step runner (extract.py), so the step SQL knows which daemon a row came from.
+# The Impala web UIs answer JSON with a ``json`` parameter. extract.py wraps each body with the server's URL.
 IMPALA_QUERIES_PATH = "/queries?json"
 IMPALA_BACKENDS_PATH = "/backends?json"
 IMPALA_VARZ_PATH = "/varz?json"
@@ -96,7 +96,7 @@ IMPALA_SUBSCRIBERS_PATH = "/subscribers?json"
 
 
 def impala_queries(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
-    """Completed queries (the daemon's query log) and the queries in flight. The daemon keeps the last query_log_size."""
+    """The daemon's completed queries (the last query_log_size) and those in flight."""
     return [client.get_text(IMPALA_QUERIES_PATH)]
 
 
@@ -117,15 +117,16 @@ def impala_statestore(client: RestClient, _config: HadoopConfig, _run: ExtractRu
 
 
 def cm_clusters(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
-    """Every cluster Cloudera Manager manages, with the CM version. Never fails on an ambiguous cluster choice."""
+    """Every cluster CM manages, with the CM version. An ambiguous cluster choice is not an error here."""
     cm = _cm_config(config)
     root = api_root(client, cm)
-    clusters = client.get_text(f"{root}/clusters")
+    clusters_path = f"{root}/clusters"
+    clusters = client.get_text(clusters_path)
     version = client.get_text(f"{root}/cm/version")
-    # The cluster the other steps extract: the configured one, or the only one. When the choice is ambiguous the
-    # other CM steps fail with a clear message; this step still lists every cluster, with none selected.
+    names = names_in_clusters_body(parse_json(clusters, clusters_path, client.base_url), clusters_path, client.base_url)
+    # The cluster the other steps extract. If ambiguous, they fail clearly; this step lists all with none selected.
     try:
-        selected: str | None = resolve_cluster(client, root, cm.cluster)
+        selected: str | None = select_cluster(names, cm.cluster)
     except ClouderaManagerError:
         selected = None
     envelope = (
@@ -165,8 +166,8 @@ def cm_cluster_export(client: RestClient, config: HadoopConfig, _run: ExtractRun
 
 
 def cm_timeseries(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
-    """One envelope per timeseries query, over the last month as the original profiler does. Metrics that the CM version
-    does not know are dropped and recorded."""
+    """One envelope per timeseries query over the last month, as the original does. Unknown metrics are dropped and
+    recorded."""
     root = api_root(client, _cm_config(config))
     end = datetime.now(timezone.utc).date()
     start = one_month_before(end)
@@ -174,11 +175,9 @@ def cm_timeseries(client: RestClient, config: HadoopConfig, _run: ExtractRun) ->
 
 
 def cm_impala_queries(client: RestClient, config: HadoopConfig, run: ExtractRun) -> Iterator[str]:
-    """Impala queries by time interval and page, one body per page that has queries it has not yielded yet.
+    """Impala query pages by time interval, yielded lazily.
 
-    The initial run reads today and the previous ``impala_lookback_days`` days, up to now. An incremental run reads
-    yesterday only, as the original profiler's scheduled mode does. The bodies are yielded lazily so a large extract
-    never sits in memory as one list.
+    Initial: the last ``impala_lookback_days`` days and today, up to now. Incremental: yesterday only, as the original.
     """
     cm = _cm_config(config)
     root = api_root(client, cm)
@@ -200,13 +199,13 @@ def cm_impala_queries(client: RestClient, config: HadoopConfig, run: ExtractRun)
 
 
 def one_month_before(day: date) -> date:
-    """The original's ``date -d '-1 month'``: the same day of the previous month, or that month's last day if it is shorter."""
+    """The original's ``date -d '-1 month'``: the same day last month, clamped to that month's last day."""
     year, month = (day.year, day.month - 1) if day.month > 1 else (day.year - 1, 12)
     return date(year, month, min(day.day, calendar.monthrange(year, month)[1]))
 
 
 def _timeseries_envelope(client: RestClient, root: str, query: TimeseriesQuery, start: date, end: date) -> str:
-    """Run one timeseries query, dropping any metric CM rejects as unknown, and wrap the result with the dropped ones."""
+    """Run one timeseries query, dropping metrics CM rejects, and wrap the result with the dropped ones."""
     window: dict[str, str] = {}
     if query.windowed:
         window = {
@@ -250,11 +249,10 @@ def _impala_window(
     start: datetime,
     end: datetime,
 ) -> Iterator[str]:
-    """Page through one time window. A short page ends the window; ``impala_max_pages`` caps a busy one.
+    """Page through one window; a short page ends it and ``impala_max_pages`` caps it.
 
-    Each page that has queries is yielded exactly as Cloudera Manager returned it, warnings included, as the original
-    profiler saved it; a page without queries is skipped, as the original did. A query still running across several
-    windows is on several pages; the step keeps its most complete copy (see cm_impala_queries_after_load.sql).
+    Pages with queries are yielded as CM returned them and empty ones skipped, as the original does. A query on several
+    pages is deduplicated by cm_impala_queries_after_load.sql.
     """
     base = {"from": _iso_millis(start), "to": _iso_millis(end - timedelta(milliseconds=1)), "filter": ""}
     for page in range(cm.impala_max_pages):
@@ -264,7 +262,7 @@ def _impala_window(
                 f"Cloudera Manager hit the Impala query scan limit for {base['from']} to {base['to']}; "
                 "reduce hadoop.cloudera_manager.impala_interval_minutes and raise impala_max_pages to read every query"
             )
-        queries = json.loads(text).get("queries") or []
+        queries = json_object(parse_json(text, path, client.base_url), path, client.base_url).get("queries") or []
         if queries:
             yield text
         if len(queries) < IMPALA_PAGE_LIMIT:
@@ -284,7 +282,7 @@ def ranger_services(client: RestClient, _config: HadoopConfig, _run: ExtractRun)
 
 
 def ranger_policies(client: RestClient, _config: HadoopConfig, _run: ExtractRun) -> list[str]:
-    """Every policy. The policies step and the policy items step each read this same list."""
+    """Every policy; read by both the policies and the policy items steps."""
     return [json.dumps(list_policies(client))]
 
 
@@ -293,7 +291,7 @@ def _ambari_cluster(client: RestClient, config: HadoopConfig) -> str:
 
 
 def ambari_blueprint(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
-    """The cluster's blueprint (the original's ``?format=blueprint`` call). Used by both blueprint steps."""
+    """The cluster's blueprint (the original's ``?format=blueprint``), for both blueprint steps."""
     cluster = _ambari_cluster(client, config)
     return [client.get_text(f"{cluster_path(cluster)}?format=blueprint")]
 
@@ -320,8 +318,8 @@ def ambari_stack_versions(client: RestClient, config: HadoopConfig, _run: Extrac
 
 
 def ambari_component_metrics(client: RestClient, config: HadoopConfig, _run: ExtractRun) -> list[str]:
-    """The NameNode, DataNode, ResourceManager and NodeManager, each with its metric leaves. A missing service adds
-    nothing, as described in ``ambari.get_component``."""
+    """The NameNode, DataNode, ResourceManager and NodeManager with their metric leaves; a missing service adds
+    nothing (see ``ambari.get_component``)."""
     cluster = _ambari_cluster(client, config)
     envelopes = []
     for service, component, metrics in COMPONENT_CALLS:

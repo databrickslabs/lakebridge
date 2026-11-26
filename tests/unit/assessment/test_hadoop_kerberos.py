@@ -1,7 +1,6 @@
-"""The Kerberos (SPNEGO) transport: the curl and kinit/klist command lines, HTTP status handling, retries, and HA discovery.
+"""The Kerberos (SPNEGO) transport: curl and kinit/klist command lines, status handling, retries and HA discovery.
 
-The system tools are faked: ``shutil.which`` finds them and ``subprocess.run`` answers each command with a scripted
-result. curl writes the body to the ``-o`` file, as the real one does.
+The tools are faked: ``shutil.which`` finds them and ``subprocess.run`` scripts each result (curl writes ``-o``).
 """
 
 import subprocess
@@ -44,6 +43,7 @@ class FakeSystem:
         self.kinit_exit = 0
         self.kinit_stderr = ""
         self.klist_exit = 0
+        self.klist_listing = ""  # what a plain "klist" prints, such as "Default principal: profiler@HADOOP.SIM"
         self.curl_version = _SPNEGO_CURL_V
         self.missing: set[str] = set()
 
@@ -68,7 +68,8 @@ class FakeSystem:
         if tool == "kinit":
             return subprocess.CompletedProcess(argv, self.kinit_exit, "", self.kinit_stderr)
         if tool == "klist":
-            return subprocess.CompletedProcess(argv, self.klist_exit, "", "")
+            listing = self.klist_listing if argv[1:] == [] else ""
+            return subprocess.CompletedProcess(argv, self.klist_exit, listing, "")
         raise AssertionError(f"unexpected command {argv}")
 
     def curl_requests(self) -> list[list[str]]:
@@ -264,15 +265,72 @@ def real_prepare(system: FakeSystem) -> FakeSystem:
     return system
 
 
-def test_keytab_runs_kinit_with_an_argument_list_and_no_klist(system: FakeSystem, real_prepare, tmp_path: Path) -> None:
+def test_keytab_runs_kinit_with_an_argument_list_when_there_is_no_valid_ticket(
+    system: FakeSystem, real_prepare, tmp_path: Path
+) -> None:
     keytab = tmp_path / "profiler.keytab"
     keytab.write_text("synthetic", encoding="utf-8")
+    system.klist_exit = 1  # no valid ticket in the cache
     system.curl_outcomes = [(0, "200", "{}")]
 
     _client(keytab=str(keytab), principal="profiler@HADOOP.SIM").get_text(_INFO_PATH)
 
     assert system.tool_calls("kinit") == [["/usr/bin/kinit", "-kt", str(keytab), "profiler@HADOOP.SIM"]]
-    assert system.tool_calls("klist") == []
+    assert system.tool_calls("klist") == [["/usr/bin/klist", "-s"]]
+
+
+@pytest.mark.parametrize(
+    "listing",
+    [
+        "Ticket cache: FILE:/tmp/x\nDefault principal: profiler@HADOOP.SIM\n",  # MIT krb5
+        "Credentials cache: FILE:/tmp/x\n        Principal: profiler@HADOOP.SIM\n",  # Heimdal (macOS)
+    ],
+)
+def test_keytab_reuses_a_valid_ticket_for_the_same_principal(
+    system: FakeSystem, real_prepare, tmp_path: Path, listing: str
+) -> None:
+    """Each pipeline step is its own process: a run's steps share one ticket instead of each asking the KDC."""
+    keytab = tmp_path / "profiler.keytab"
+    keytab.write_text("synthetic", encoding="utf-8")
+    system.klist_listing = listing
+    system.curl_outcomes = [(0, "200", "{}")]
+
+    _client(keytab=str(keytab), principal="profiler@HADOOP.SIM").get_text(_INFO_PATH)
+
+    assert system.tool_calls("kinit") == []
+
+
+def test_keytab_runs_kinit_when_the_valid_ticket_is_another_principal(
+    system: FakeSystem, real_prepare, tmp_path: Path
+) -> None:
+    keytab = tmp_path / "profiler.keytab"
+    keytab.write_text("synthetic", encoding="utf-8")
+    system.klist_listing = "Default principal: someone.else@HADOOP.SIM\n"
+    system.curl_outcomes = [(0, "200", "{}")]
+
+    _client(keytab=str(keytab), principal="profiler@HADOOP.SIM").get_text(_INFO_PATH)
+
+    assert len(system.tool_calls("kinit")) == 1
+
+
+def test_keytab_without_a_ccache_uses_the_profiler_s_own_cache_not_the_default(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("KRB5CCNAME", "FILE:/tmp/krb5cc_the_operator")
+    monkeypatch.setattr(kerberos.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(kerberos.getpass, "getuser", lambda: "etl")
+
+    env = KerberosSettings(keytab="/k/profiler.keytab", principal="profiler@HADOOP.SIM").environment()
+
+    assert env["KRB5CCNAME"] == f"FILE:{tmp_path}/lakebridge-hadoop-krb5cc-etl-profiler_HADOOP.SIM"
+
+
+def test_a_configured_ccache_is_used_as_given_with_a_keytab(monkeypatch: pytest.MonkeyPatch) -> None:
+    env = KerberosSettings(
+        keytab="/k/profiler.keytab", principal="profiler@HADOOP.SIM", ccache="FILE:/tmp/krb5cc_profiler"
+    ).environment()
+
+    assert env["KRB5CCNAME"] == "FILE:/tmp/krb5cc_profiler"
 
 
 def test_kinit_failure_is_a_clear_error_with_kinit_s_message(system: FakeSystem, real_prepare, tmp_path: Path) -> None:

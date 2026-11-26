@@ -1,15 +1,11 @@
 """Shared runner for the Hadoop profiler steps.
 
-A step script fetches REST bodies, loads them into a temporary DuckDB table of JSON documents, runs its own
-``<step>.sql`` over them, and writes the result into the profiler extract as a table typed by ``<step>_ddl.sql``.
-It prints one JSON status line last, which ``pipeline.py`` reads.
+A step fetches REST bodies, loads them as JSON documents into a temporary DuckDB table, runs ``<step>.sql`` over them and
+writes the result as a table typed by ``<step>_ddl.sql`` (the SQL produces the columns in the DDL's order). It prints
+one JSON status line last, for ``pipeline.py``.
 
-Column names and types come from the DDL, so the SQL only has to produce the columns in the DDL's order.
-
-The Impala extracts are written one body at a time: their SQL must then produce rows from one document on its own. The
-direct Impala extracts (``impala_daemons``, ``impala_catalogd``, ``impala_statestored``) wrap each body in a
-``{"coordinator": <base URL>, "body": ...}`` envelope, so the rows say which daemon they came from. The Cloudera Manager
-Impala extract is large, so it is written the same way. Every other step reads all its bodies at once.
+The Impala steps are streamed one body at a time, so their SQL must work on one document. The direct Impala steps wrap
+each body as ``{"coordinator": <base URL>, "body": ...}`` so rows name their daemon.
 """
 
 import json
@@ -59,63 +55,63 @@ Endpoint = Literal[
     "impala_statestored",
     "ambari",
 ]
-# The Impala daemon web UIs, read directly (hadoop.impala), as opposed to the Cloudera Manager "impala" endpoint.
+# The Impala web UIs read directly (hadoop.impala), not through Cloudera Manager.
 IMPALA_DIRECT_ENDPOINTS: tuple[str, ...] = ("impala_daemons", "impala_catalogd", "impala_statestored")
 Fetch = Callable[[RestClient, HadoopConfig, ExtractRun], Iterable[str]]
 
-# Every REST response body a step read, after masking, exactly as the original profiler saved it to its Output files.
-# The typed step tables keep the fields the analysis uses; this table keeps the rest, so nothing the original kept is
-# lost. Each step replaces its own rows, in the same transaction as its typed table.
+# Every masked response body a step read, as the original profiler saved it, so nothing it kept is lost. Each step
+# replaces its own rows in the same transaction as its table.
 RAW_RESPONSES_TABLE = "hadoop_raw_responses"
 RAW_RESPONSES_DDL = (
     f"CREATE TABLE IF NOT EXISTS {RAW_RESPONSES_TABLE} "
     "(step VARCHAR, sequence INTEGER, extracted_at TIMESTAMP, body JSON)"
 )
+# Steps that read the same response as an earlier step: they reuse its stored bodies from this run's extract instead
+# of asking the service again, and fetch only when it stored none (it failed, or an incremental run skipped it).
+SHARED_RESPONSE_STEPS: dict[str, str] = {
+    "yarn_scheduler_queue_partitions": "yarn_scheduler_queues",
+    "ranger_policy_items": "ranger_policies",
+    "ambari_blueprint_configurations": "ambari_blueprint",
+}
 
-# Session-scoped (TEMP) so they never persist into the profiler extract. Each takes a JSON value.
+# TEMP macros, so they never persist into the extract. Each takes a JSON value.
 HELPER_MACROS: tuple[str, ...] = (
-    # The RM's JSON gives a list as an array when it has several items, but as an object when it has one, and as a
-    # string ("\n") or null when it is empty. Anything other than an array or an object yields an empty list.
+    # The RM writes a list as an array, a single object, or "\n"/null when empty; anything else is an empty list.
     """CREATE TEMP MACRO hadoop_records(doc, path) AS (
         CASE json_type(doc, path)
             WHEN 'ARRAY' THEN CAST(json_extract(doc, path) AS JSON[])
             WHEN 'OBJECT' THEN [json_extract(doc, path)]
             ELSE CAST([] AS JSON[])
         END)""",
-    # A YARN resource map (resourceSecondsMap, preemptedResourceSecondsMap) as a JSON object {"memory-mb":n,...}. The RM
-    # writes the entries as repeated "entry" keys in one object, which a JSON parser collapses to the last, or as an
-    # array, so the pairs are read from the text. Values may be quoted. NULL when the map is absent.
+    # A YARN resource map as {"memory-mb":n,...}. The RM may repeat "entry" keys (a parser keeps only the last), so the
+    # pairs are read from the text. Values may be quoted. NULL when absent.
     r"""CREATE TEMP MACRO yarn_resource_map(m) AS (
         CASE WHEN m IS NULL THEN NULL ELSE CAST(to_json(map_from_entries(list_transform(
             regexp_extract_all(CAST(m AS VARCHAR), '"key"\s*:\s*"[^"]*"\s*,\s*"value"\s*:\s*"?-?[0-9]+"?'),
             e -> {'k': regexp_extract(e, '"key"\s*:\s*"([^"]*)"', 1),
                   'v': CAST(regexp_extract(e, '"value"\s*:\s*"?(-?[0-9]+)', 1) AS BIGINT)}))) AS VARCHAR) END)""",
-    # A Spark History Server attempt time in epoch milliseconds: <name>Epoch, or the text form (such as
-    # 2026-11-25T10:39:13.015GMT) when the server reports only that. A time that is not set yet is -1 either way
-    # (1969-12-31T23:59:59.999GMT in text), which becomes NULL.
+    # A Spark attempt time in epoch ms: <name>Epoch, or the text form when only that is reported. An unset time
+    # (-1, or 1969-12-31T23:59:59.999GMT) becomes NULL.
     r"""CREATE TEMP MACRO spark_time_ms(att, name) AS (
         NULLIF(COALESCE(
             TRY_CAST(json_extract_string(att, '$.' || name || 'Epoch') AS BIGINT),
             epoch_ms(try_strptime(regexp_replace(json_extract_string(att, '$.' || name), 'GMT$', ''),
                                   '%Y-%m-%dT%H:%M:%S.%g'))
         ), -1))""",
-    # A scheduler queue's children: capacity schedulers nest them under queues.queue; fair schedulers under
-    # childQueues, which Hadoop 2.8+ wraps as childQueues.queue (FairSchedulerQueueInfoList) and older YARN gives bare.
+    # A queue's children: queues.queue (capacity scheduler), or childQueues, wrapped as childQueues.queue or bare (fair).
     """CREATE TEMP MACRO child_queues(node) AS (
         CASE
             WHEN json_type(node, '$.queues.queue') IS NOT NULL THEN hadoop_records(node, '$.queues.queue')
             WHEN json_type(node, '$.childQueues.queue') IS NOT NULL THEN hadoop_records(node, '$.childQueues.queue')
             ELSE hadoop_records(node, '$.childQueues')
         END)""",
-    # Impala's web UI prints a timestamp with up to nanoseconds ("2026-11-24 05:52:53.851880000"). DuckDB reads
-    # microseconds, so the extra digits are cut. Impala reports 1970-01-01 00:00:00 for a time that is not set yet.
+    # Impala prints up to nanoseconds; DuckDB reads microseconds, so the rest is cut. 1970-01-01 00:00:00 means unset.
     r"""CREATE TEMP MACRO impala_timestamp(s) AS (
         CASE
             WHEN s IS NULL OR trim(s) = '' OR trim(s) LIKE '1970-01-01 00:00:00%' THEN NULL
             ELSE TRY_CAST(regexp_replace(trim(s), '(\.[0-9]{6})[0-9]+$', '\1') AS TIMESTAMP)
         END)""",
-    # Impala's durations are compound and use the largest units that fit: "257.995ms", "1s156ms", "7s039ms", "0.000ns",
-    # "1m5s". A bare number (Impala prints "0" for zero) is taken as milliseconds. The result is in milliseconds.
+    # Impala's compound durations ("257.995ms", "1s156ms", "1m5s") in ms. A bare number, such as "0", is ms.
     r"""CREATE TEMP MACRO impala_duration_ms(s) AS (
         CASE
             WHEN s IS NULL OR trim(s) = '' THEN NULL
@@ -130,7 +126,7 @@ HELPER_MACROS: tuple[str, ...] = (
               + COALESCE(TRY_CAST(NULLIF(regexp_extract(trim(s), '^(?:([0-9]+)h)?(?:([0-9]+)m)?(?:([0-9]+(?:\.[0-9]+)?)s)?(?:([0-9]+(?:\.[0-9]+)?)ms)?(?:([0-9]+(?:\.[0-9]+)?)us)?(?:([0-9]+(?:\.[0-9]+)?)ns)?$', 6), '') AS DOUBLE), 0) / 1000000
             ELSE NULL
         END)""",
-    # Impala's sizes use binary units: "4.11 MB", "1.44 KB", "205.00 B", "0". The result is in bytes.
+    # Impala's binary-unit sizes ("4.11 MB", "205.00 B", "0") in bytes.
     r"""CREATE TEMP MACRO impala_bytes(s) AS (
         CASE
             WHEN s IS NULL OR trim(s) = '' THEN NULL
@@ -156,11 +152,9 @@ def run_step(
     db_path: str,
     creds_file: Path,
 ) -> str:
-    """Extract one step and return its status message. Raises on failure.
+    """Extract one step and return its status message; raises on failure.
 
-    The step first asks the run tracker whether this run is the initial one. An inventory step (``STEP_KINDS``) that
-    already succeeded in the initial run is skipped by an incremental run. Once an inventory step succeeds, it is recorded
-    so that later runs skip it.
+    An incremental run skips an inventory step (``STEP_KINDS``) that already succeeded; a success is recorded.
     """
     run = resolve_run(db_path)
     kind = STEP_KINDS[step]
@@ -192,14 +186,25 @@ def _extract(
     creds_file: Path,
     run: ExtractRun,
 ) -> tuple[str, bool]:
-    """Fetch and write the step. Returns its status message and whether it wrote a table (a skip does not)."""
+    """Fetch and write the step. Returns its status message and whether it wrote a table."""
     config = load_hadoop_config(creds_file)
+    source = SHARED_RESPONSE_STEPS.get(step)
+    shared = stored_bodies(db_path, source) if source else []
+    if source and shared:
+        # Already masked by the source step.
+        row_count = write_table(
+            step=step,
+            sql_dir=sql_dir,
+            db_path=db_path,
+            bodies=shared,
+            params={"distribution": config.distribution},
+        )
+        return f"{step} extracted {row_count} rows (from the {source} response)", True
     if endpoint in IMPALA_DIRECT_ENDPOINTS:
         clients = _impala_clients(endpoint, config.impala)
         if isinstance(clients, str):
             return clients, False
-        # Each daemon's body is wrapped with the daemon's URL so the step's rows say where they came from, then masked
-        # as a whole, so the masking rules also apply to the coordinator URL.
+        # Wrapped with the daemon's URL, then masked as a whole so the rules also reach that URL.
         bodies = (
             config.mask(coordinator_envelope(client.base_url, body))
             for client in clients
@@ -229,22 +234,16 @@ def _extract(
     elif endpoint == "ranger":
         if config.ranger is None:
             return "skipped: not configured (hadoop.ranger is absent)", False
-        ranger = config.ranger
-        client = RestClient(ranger.urls[0], username=ranger.username, password=ranger.password, verify=ranger.verify)
+        client = config.ranger.client(config.ranger.urls[0])
     else:
         cm = config.cloudera_manager
         if cm is None:
             return "skipped: not configured (hadoop.cloudera_manager is absent)", False
         if endpoint == "impala" and not cm.extract_impala_queries:
             return "skipped: not configured (hadoop.cloudera_manager.extract_impala_queries is false)", False
-        client = RestClient(
-            cm.endpoint.urls[0],
-            username=cm.endpoint.username,
-            password=cm.endpoint.password,
-            verify=cm.endpoint.verify,
-        )
+        client = cm.endpoint.client(cm.endpoint.urls[0])
 
-    # Masking runs on the raw responses before parsing, as the original profiler's SEARCH_REPLACE pipe did.
+    # Masked before parsing, as the original's SEARCH_REPLACE pipe.
     bodies = (config.mask(body) for body in fetch(client, config, run))
     row_count = write_table(
         step=step,
@@ -258,27 +257,18 @@ def _extract(
 
 
 def _impala_clients(endpoint: str, impala: ImpalaConfig | None) -> list[RestClient] | str:
-    """The clients an Impala step reads, or the message that says why the step is skipped."""
+    """The clients an Impala step reads, or why the step is skipped."""
     if impala is None:
         return "skipped: not configured (hadoop.impala is absent)"
     if endpoint == "impala_daemons":
-        return [_impala_client(url, impala) for url in impala.endpoint.urls]
+        return [impala.endpoint.client(url) for url in impala.endpoint.urls]
     if endpoint == "impala_catalogd":
         url, key = impala.catalogd_url, "catalogd_url"
     else:
         url, key = impala.statestored_url, "statestored_url"
     if url is None:
         return f"skipped: not configured (hadoop.impala.{key} is absent)"
-    return [_impala_client(url, impala)]
-
-
-def _impala_client(url: str, impala: ImpalaConfig) -> RestClient:
-    return RestClient(
-        url,
-        username=impala.endpoint.username,
-        password=impala.endpoint.password,
-        verify=impala.endpoint.verify,
-    )
+    return [impala.endpoint.client(url)]
 
 
 def coordinator_envelope(base_url: str, body: str) -> str:
@@ -286,7 +276,7 @@ def coordinator_envelope(base_url: str, body: str) -> str:
 
 
 def run_step_script(*, step: str, endpoint: Endpoint, fetch: Fetch, sql_dir: Path) -> None:
-    """Entry point for a step script: parse the pipeline's arguments, run the step, and print the status line."""
+    """Step script entry point: run the step and print its status line."""
     db_path, creds_file = arguments_loader(desc=f"Hadoop {step} extract")
     try:
         message = run_step(
@@ -305,7 +295,7 @@ def run_step_script(*, step: str, endpoint: Endpoint, fetch: Fetch, sql_dir: Pat
 
 
 def run_finish_script() -> None:
-    """Entry point for the run's final step: record the run in the tracker and print the status line."""
+    """The run's final step: record the run in the tracker and print the status line."""
     db_path, _creds_file = arguments_loader(desc="Hadoop extract tracker")
     try:
         message = finish_run(db_path)
@@ -314,6 +304,20 @@ def run_finish_script() -> None:
         print(json.dumps({"status": "error", "message": str(e)}))
         sys.exit(1)
     print(json.dumps({"status": "success", "message": message}))
+
+
+def stored_bodies(db_path: str, step: str) -> list[str]:
+    """The bodies ``step`` stored in this extract's ``hadoop_raw_responses``, in order."""
+    with connect_to_profiler_db(db_path) as conn:
+        exists = conn.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?", [RAW_RESPONSES_TABLE]
+        ).fetchone()
+        if not exists or not exists[0]:
+            return []
+        rows = conn.execute(
+            f"SELECT CAST(body AS VARCHAR) FROM {RAW_RESPONSES_TABLE} WHERE step = ? ORDER BY sequence", [step]
+        ).fetchall()
+    return [row[0] for row in rows]
 
 
 def write_table(
@@ -327,7 +331,7 @@ def write_table(
 ) -> int:
     sql = (sql_dir / f"{step}.sql").read_text(encoding="utf-8").strip().rstrip(";")
     ddl = (sql_dir / f"{step}_ddl.sql").read_text(encoding="utf-8").strip()
-    # DuckDB rejects named parameters the statement does not use, so bind only the ones it references.
+    # DuckDB rejects unused named parameters.
     bound = {name: value for name, value in params.items() if f"${name}" in sql} or None
     with connect_to_profiler_db(db_path) as conn:
         conn.begin()
@@ -360,8 +364,7 @@ def write_table(
                 )
                 conn.unregister("_bodies")
                 conn.execute(f"INSERT INTO {step} SELECT * FROM ({sql})", bound)
-            # A step can finish its table once every body is loaded, for work that spans bodies (streamed bodies are
-            # loaded one at a time), such as keeping one row per query when a query is on several pages.
+            # Optional work across all bodies, such as one row per query when a query is on several pages.
             after_load = sql_dir / f"{step}_after_load.sql"
             if after_load.exists():
                 conn.execute(after_load.read_text(encoding="utf-8"))

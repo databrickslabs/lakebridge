@@ -1,8 +1,6 @@
-"""The Hadoop profiler's steps are consistent: each step's SQL produces the columns its DDL declares, and the pipeline
-config matches the step scripts on disk.
+"""Each step's SQL produces its DDL's columns, and the pipeline config matches the step scripts.
 
-Each step's SQL is executed against an empty ``raw_documents`` table, with the same helper macros the step runner
-installs, so the check is the real DuckDB result shape rather than a parse of the SQL text.
+The SQL runs against an empty ``raw_documents`` with the runner's macros, so the real DuckDB result shape is checked.
 """
 
 from pathlib import Path
@@ -128,9 +126,9 @@ def test_pipeline_config_labels_and_optional_steps() -> None:
     labelled = {name for name, step in steps.items() if step.label}
     optional = {name for name, step in steps.items() if step.optional}
 
-    # Like the original Hadoop profiler, nothing is redacted, so no step needs the `unredacted` label.
+    # As the original, nothing is redacted, so no step needs the `unredacted` label.
     assert not labelled
-    # The Spark History Server and Cloudera Manager are optional; the YARN ResourceManager is the core of the profile.
+    # The ResourceManager is the core; the Spark History Server and Cloudera Manager are optional.
     assert optional == (
         {"spark_applications", "spark_application_attempts"} | _CM_STEPS | _RANGER_STEPS | _IMPALA_STEPS | _AMBARI_STEPS
     )

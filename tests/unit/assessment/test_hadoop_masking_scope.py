@@ -1,11 +1,8 @@
-"""Masking changes only the values each guided option targets, in every real JSON fixture.
+"""Masking changes only the values each guided option targets, in every JSON fixture.
 
-For each option on its own, and for all options together, the generated rules are applied to every fixture. The masked
-JSON must parse, keep its structure, and change only leaves that the option targets. A leaf the option targets must not
-be left unchanged, so a rule that silently does nothing fails too.
-
-The domain option needs a host name under a domain, which the fixtures lack, so for those options "localhost" is
-replaced by DOMAIN_HOST first. Every other fixture value is left as it is.
+For each option, and all together, the masked JSON must parse, keep its structure, and change exactly the targeted
+leaves (a rule that does nothing fails too). The fixtures have no domain host names, so the domain options first
+replace "localhost" with DOMAIN_HOST.
 """
 
 import json

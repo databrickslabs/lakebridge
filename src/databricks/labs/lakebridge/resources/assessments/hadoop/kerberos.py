@@ -1,19 +1,21 @@
-"""Kerberos (SPNEGO) transport for the YARN ResourceManager and the Spark History Server.
+"""Kerberos (SPNEGO) transport for the ResourceManager and the Spark History Server.
 
-As in the original profiler (``check_kerberos`` and ``extract_spark_logs``), no Python Kerberos library is used. Requests
-run through the system ``curl --negotiate -u :`` and the ticket comes from the system Kerberos tools:
+As the original profiler, requests run through ``curl --negotiate -u :`` with the system Kerberos tools:
 
-- with a ``keytab``, ``kinit -kt <keytab> <principal>`` runs once per process before the first request;
-- without one, an existing ticket is required and ``klist -s`` checks that it is valid.
+- with a ``keytab``, ``kinit -kt`` runs unless the cache already holds a valid ticket for the principal, so a run's steps
+  (one process each) share one ticket. Without ``ccache`` the profiler uses its own cache (``profiler_ccache``), leaving
+  the account's default cache alone;
+- without one, ``klist -s`` must find a valid ticket.
 
-Every subprocess gets an argument list, never a shell string. curl exits 0 for an HTTP 401, so the HTTP status is
-captured separately (``-w``) and the body is written to a temporary file (``-o``). The environment carries
-``KRB5CCNAME`` and ``KRB5_CONFIG`` when they are configured.
+Subprocesses get argument lists, never shell strings. curl exits 0 on HTTP 401, so the status comes from ``-w`` and the
+body from an ``-o`` file.
 """
 
 import functools
+import getpass
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -36,9 +38,10 @@ logger = logging.getLogger(__name__)
 
 # curl's "-V" feature names that mean SPNEGO is available.
 SPNEGO_FEATURES = ("SPNEGO", "GSS-API", "Kerberos")
-# curl exit codes: 6 could not resolve host, 7 could not connect (both are retried, as connection errors are), 28 timed out.
+# curl exit codes: 6 unresolved host and 7 no connection (both retried), 28 timed out.
 CURL_EXIT_UNREACHABLE = (6, 7)
 CURL_EXIT_TIMEOUT = 28
+KLIST_PRINCIPAL = re.compile(r"^\s*(?:Default principal|Principal):\s*(\S+)", re.MULTILINE)
 NO_TICKET_MESSAGE = (
     "No valid Kerberos ticket{for_principal} (none in the ticket cache, or it expired). Run kinit for it, or set keytab "
     "and principal in the credentials file so the profiler runs kinit itself"
@@ -47,6 +50,16 @@ NO_TICKET_MESSAGE = (
 
 class KerberosError(HadoopApiError):
     """Kerberos cannot be used: a tool is missing, curl has no SPNEGO, or there is no valid ticket."""
+
+
+def profiler_ccache(principal: str) -> str:
+    """The profiler's own ticket cache, one per account and principal in the temporary directory."""
+    try:
+        account = getpass.getuser()
+    except (KeyError, OSError):  # no user name available
+        account = str(os.getuid()) if hasattr(os, "getuid") else "user"
+    name = re.sub(r"[^A-Za-z0-9._-]", "_", f"lakebridge-hadoop-krb5cc-{account}-{principal}")
+    return f"FILE:{os.path.join(tempfile.gettempdir(), name)}"
 
 
 @dataclass(frozen=True)
@@ -62,6 +75,8 @@ class KerberosSettings:
         env = dict(os.environ)
         if self.ccache:
             env["KRB5CCNAME"] = self.ccache
+        elif self.keytab and self.principal:
+            env["KRB5CCNAME"] = profiler_ccache(self.principal)
         if self.krb5_config:
             env["KRB5_CONFIG"] = self.krb5_config
         return env
@@ -74,7 +89,7 @@ class CurlResponse:
 
 
 class CurlFailure(Exception):
-    """A curl request failed before it produced an HTTP status. ``kind`` decides whether the request is retried."""
+    """A curl request failed without an HTTP status; ``kind`` decides whether it is retried."""
 
     def __init__(self, kind: Literal["unreachable", "timeout", "failed"], detail: str) -> None:
         super().__init__(detail)
@@ -104,11 +119,23 @@ def check_curl_has_spnego(env: Mapping[str, str]) -> None:
         )
 
 
+def cached_principal(env: Mapping[str, str]) -> str | None:
+    """The principal of the valid ticket in ``env``'s cache, or None. Reads MIT and Heimdal klist output."""
+    klist = shutil.which("klist")
+    if klist is None or _run([klist, "-s"], env, timeout=30).returncode != 0:
+        return None
+    match = KLIST_PRINCIPAL.search(_run([klist], env, timeout=30).stdout)
+    return match.group(1) if match else None
+
+
 def ensure_ticket(settings: KerberosSettings, env: Mapping[str, str]) -> None:
-    """Run ``kinit -kt`` when a keytab is configured, otherwise require an existing valid ticket."""
+    """With a keytab, reuse a valid ticket for the principal or run ``kinit -kt``; without one, require a valid ticket."""
     if settings.keytab:
         if not settings.principal:
             raise KerberosError("hadoop: a keytab needs a principal")
+        if cached_principal(env) == settings.principal:
+            logger.debug(f"Reusing the valid Kerberos ticket for {settings.principal}")
+            return
         kinit = _require_tool("kinit")
         result = _run([kinit, "-kt", settings.keytab, settings.principal], env, timeout=60)
         if result.returncode != 0:
@@ -126,7 +153,7 @@ def ensure_ticket(settings: KerberosSettings, env: Mapping[str, str]) -> None:
 
 @functools.lru_cache(maxsize=None)
 def prepare(settings: KerberosSettings) -> None:
-    """Check curl and the ticket once per process and settings. A failure is not cached, so the next call checks again."""
+    """Check curl and the ticket once per process and settings (failures are not cached)."""
     env = settings.environment()
     check_curl_has_spnego(env)
     ensure_ticket(settings, env)
@@ -134,8 +161,7 @@ def prepare(settings: KerberosSettings) -> None:
 
 
 def curl_argv(curl: str, url: str, *, verify: bool | str, body_path: str) -> list[str]:
-    """The curl command line. No ``-q``, so the user's ``.curlrc`` (and ``CURL_HOME``) still applies, as it does for the
-    original profiler."""
+    """The curl command line. No ``-q``, so ``.curlrc`` still applies, as for the original."""
     argv = [
         curl,
         "-sS",
@@ -162,7 +188,7 @@ def curl_argv(curl: str, url: str, *, verify: bool | str, body_path: str) -> lis
 
 
 def curl_get(url: str, *, verify: bool | str, env: Mapping[str, str]) -> CurlResponse:
-    """GET ``url`` with SPNEGO. Returns the HTTP status and body, including for error statuses such as 401."""
+    """GET ``url`` with SPNEGO, returning the status and body even for error statuses."""
     curl = _require_tool("curl")
     descriptor, body_path = tempfile.mkstemp(prefix="lakebridge-hadoop-", suffix=".body")
     os.close(descriptor)
@@ -190,7 +216,7 @@ def curl_get(url: str, *, verify: bool | str, env: Mapping[str, str]) -> CurlRes
 
 
 def _url_with_params(url: str, params: Mapping[str, str | int] | None) -> str:
-    """Append URL-encoded query parameters, keeping any query the path already carries (such as ``?json``)."""
+    """Append URL-encoded parameters, keeping any query already there (such as ``?json``)."""
     if not params:
         return url
     parts = urlsplit(url)
@@ -199,7 +225,7 @@ def _url_with_params(url: str, params: Mapping[str, str | int] | None) -> str:
 
 
 class KerberosRestClient(RestClient):
-    """The ``RestClient`` interface over curl with SPNEGO. Its public methods are the base class's."""
+    """``RestClient`` over curl with SPNEGO."""
 
     def __init__(
         self,

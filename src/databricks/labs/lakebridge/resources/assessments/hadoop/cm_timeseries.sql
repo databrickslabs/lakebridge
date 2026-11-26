@@ -1,7 +1,6 @@
--- Cloudera Manager: long-format timeseries, one row per sample. Rows with status 'unsupported_by_cm' name a metric the CM version rejected; they carry no sample.
--- Each level is unnested in the select list, and a series' own columns are computed (MATERIALIZED) before its points
--- are unnested, so no row carries a whole response or a series' data list: on a large cluster one response holds
--- hundreds of thousands of points.
+-- Cloudera Manager timeseries, one row per sample. 'unsupported_by_cm' rows name a metric CM rejected (no sample).
+-- Levels are unnested in the select list and series columns MATERIALIZED first, so no row copies a whole response or
+-- data list (a large cluster's response holds hundreds of thousands of points).
 WITH items AS (
     SELECT doc->>'$.query_name' AS query_name, unnest(hadoop_records(doc, '$.response.items')) AS item
     FROM raw_documents
@@ -38,8 +37,7 @@ samples AS (
         CAST(se.pt->>'$.value' AS DOUBLE) AS sample_value,
         se.rollup,
         se.unit,
-        -- An hourly rollup point summarises its samples: count, min, max, mean and standard deviation, and for a
-        -- cross-entity metric (..._across_hosts) the entities with the lowest and highest values.
+        -- Hourly rollup statistics; ..._across_hosts metrics also name the entities with the min and max values.
         CAST(se.pt->>'$.type' AS VARCHAR) AS point_type,
         CAST(se.pt->>'$.aggregateStatistics.count' AS BIGINT) AS aggregate_count,
         CAST(se.pt->>'$.aggregateStatistics.min' AS DOUBLE) AS aggregate_min,

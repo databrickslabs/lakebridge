@@ -1,5 +1,4 @@
--- Ambari hosts: cpu, memory and OS as Ambari reports them (total_mem as Ambari reports it, not converted). disk_info is
--- kept as returned, and its sizes are summed per host for the two totals.
+-- Ambari hosts: cpu, memory (total_mem unconverted) and OS as reported; disk_info kept, its sizes summed into totals.
 WITH hosts AS (
     SELECT h, h->>'$.Hosts.host_name' AS host_name
     FROM (SELECT unnest(hadoop_records(doc, '$.items')) AS h FROM raw_documents) AS t

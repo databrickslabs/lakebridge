@@ -1,4 +1,5 @@
--- Cloudera Manager: one row per Impala query. Typed columns come from CM's fields; attributes keeps every attribute as JSON text. Statements and users are kept as CM returns them.
+-- Cloudera Manager: one row per Impala query; attributes keeps every attribute as JSON text. Statements and users are
+-- kept as CM returns them.
 SELECT
     q->>'$.queryId' AS query_id,
     q->>'$.queryType' AS query_type,

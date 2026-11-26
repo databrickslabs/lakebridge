@@ -1,6 +1,5 @@
--- Ambari NameNode, DataNode, ResourceManager and NodeManager: one row per metric leaf of each component, or one row with
--- a NULL metric when the component has no metrics. Ambari reports metrics only when the Ambari Metrics service runs.
--- The metric_path is relative to the component's "metrics" object (for example dfs.namenode.CapacityTotal).
+-- Ambari NameNode, DataNode, ResourceManager and NodeManager: one row per metric leaf, or one NULL-metric row when the
+-- component has none (metrics need Ambari Metrics). metric_path is relative to "metrics".
 SELECT
     info->>'$.cluster_name' AS cluster_name,
     info->>'$.service_name' AS service_name,

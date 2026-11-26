@@ -1,6 +1,5 @@
--- One row per Impala query. A query that runs across several time windows is listed in each of them, each copy as it
--- was at that moment. Keep the most complete copy: a finished one (FINISHED or EXCEPTION) if there is one, otherwise the
--- one with the longest duration, which is the latest view. Every copy stays in hadoop_raw_responses, as CM returned it.
+-- One row per Impala query. A query spanning windows appears in each; keep a finished copy (FINISHED or
+-- EXCEPTION), else the longest-running one. Every copy stays in hadoop_raw_responses.
 DELETE FROM cm_impala_queries
 WHERE rowid IN (
     SELECT rowid

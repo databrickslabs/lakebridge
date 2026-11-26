@@ -18,8 +18,7 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.kerberos import Ker
 from databricks.labs.lakebridge.resources.assessments.hadoop.masking import parse_masking_rules
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import HadoopApiError
 
-# Questions every test answers with Enter unless it says otherwise: no masking, no YARN application filter, and the
-# original's Impala defaults (the defaults apply when the answer is empty).
+# Answered with Enter unless a test says otherwise: no masking, no app filter, the original's Impala defaults.
 _DEFAULT_ANSWERS = {
     r"Mask data in the extract": "no",
     r"Filter the YARN applications": "",
@@ -38,14 +37,14 @@ def _configurator(tmp_path: Path, answers: dict[str, str]) -> ConfigureHadoopAss
 
 
 def _check_connection(tmp_path: Path, raw: dict) -> None:
-    """The connection test the CLI runs: the configurator reads the saved profile and checks every configured service."""
+    """The CLI's connection test: read the saved profile and check every configured service."""
     creds = tmp_path / ".credentials.yml"
     creds.write_text(yaml.safe_dump({"secret_vault_type": "local", "hadoop": raw}), encoding="utf-8")
     _configurator(tmp_path, {}).test_connection()
 
 
 class _MaskingPrompts(MockPrompts):
-    """The configuration answers from a dict, and the masking questions from a script that is asked in order."""
+    """Answers from a dict, and the masking questions from a script, in order."""
 
     def __init__(self, answers: dict[str, str], masking: list[tuple[str, str]]) -> None:
         super().__init__({**_DEFAULT_ANSWERS, **answers})
@@ -77,7 +76,7 @@ _HADOOP_ANSWERS = {
 def _run_masking(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, masking: list[tuple[str, str]]
 ) -> tuple[dict, _MaskingPrompts]:
-    """Run the Hadoop configuration with HOME in tmp_path. Returns the saved hadoop section and the prompts asked."""
+    """Run the configuration with HOME in tmp_path; return the saved hadoop section and the prompts asked."""
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     prompts = _MaskingPrompts(_HADOOP_ANSWERS, masking)
     ConfigureHadoopAssessment("lakebridge", prompts, "hadoop", tmp_path / ".credentials.yml").run()
@@ -356,6 +355,48 @@ def test_configure_hadoop_plain_http_without_auth_asks_no_tls_questions(tmp_path
     assert credentials["hadoop"]["yarn"] == {"urls": ["http://localhost:8088"], "auth": "none"}
 
 
+def _https_yarn_answers(verify: str, **extra: str) -> dict[str, str]:
+    return {
+        r"Enter secret vault type": "1",
+        r"Select the Hadoop distribution": "0",
+        r"Enter the YARN ResourceManager URL": "https://rm.example.com:8090",
+        r"Select the YARN ResourceManager authentication": "0",
+        r"Verify the YARN ResourceManager TLS certificate": verify,
+        r"Configure a Spark History Server": "no",
+        r"Configure Cloudera Manager": "no",
+        r"Configure Apache Ranger": "no",
+        r"Read Impala daemons directly": "no",
+        r"Configure Ambari": "no",
+        r"Do you want to test the connection to hadoop": "no",
+        **extra,
+    }
+
+
+def test_https_verification_stays_on_when_the_user_presses_enter(tmp_path: Path) -> None:
+    _configurator(tmp_path, _https_yarn_answers("", **{r"CA bundle for the YARN": ""})).run()
+
+    credentials = yaml.safe_load((tmp_path / ".credentials.yml").read_text(encoding="utf-8"))
+    assert credentials["hadoop"]["yarn"]["verify_ssl"] is True
+
+
+def test_turning_https_verification_off_skips_the_ca_bundle_question(tmp_path: Path) -> None:
+    asked: list[str] = []
+
+    class _Recording(MockPrompts):
+        def question(self, text: str, default: str | None = None, **kwargs) -> str:
+            asked.append(text)
+            return super().question(text, default=default, **kwargs)
+
+    creds = tmp_path / ".credentials.yml"
+    prompts = _Recording({**_DEFAULT_ANSWERS, **_https_yarn_answers("no")})
+    ConfigureHadoopAssessment(
+        product_name="lakebridge", prompts=prompts, source_name="hadoop", credential_file=creds
+    ).run()
+
+    assert not any("CA bundle" in text for text in asked)
+    assert yaml.safe_load(creds.read_text(encoding="utf-8"))["hadoop"]["yarn"]["verify_ssl"] is False
+
+
 def test_check_connection_reports_a_failed_rm_lookup_as_a_connection_error(tmp_path: Path, monkeypatch) -> None:
     def no_active(*_args, **_kwargs):
         raise HadoopApiError("No ACTIVE ResourceManager found: rm:8088 reports haState 'STANDBY'")
@@ -459,6 +500,7 @@ def test_check_connection_fails_when_cm_manages_several_clusters(tmp_path: Path,
     class _Cm:
         def __init__(self, url, **_kwargs):
             self._url = url
+            self.base_url = url
 
         def get_plain_text(self, _path, _params=None):
             return "v12"
@@ -466,7 +508,7 @@ def test_check_connection_fails_when_cm_manages_several_clusters(tmp_path: Path,
         def get_json(self, _path, _params=None):
             return {"items": [{"name": "prod"}, {"name": "dev"}]}
 
-    monkeypatch.setattr(configure_assessment, "RestClient", _Cm)
+    monkeypatch.setattr(hadoop_config, "RestClient", _Cm)
     monkeypatch.setattr(configure_assessment, "find_active_resource_manager", lambda *_a, **_k: None)
     raw = {
         "distribution": "cdh",
@@ -483,7 +525,7 @@ def test_check_connection_resolves_the_configured_impala_service(tmp_path: Path,
 
     class _Cm:
         def __init__(self, url, **_kwargs):
-            pass
+            self.base_url = url
 
         def get_plain_text(self, _path, _params=None):
             return "v12"
@@ -494,7 +536,7 @@ def test_check_connection_resolves_the_configured_impala_service(tmp_path: Path,
                 return {"items": [{"name": "impala", "type": "IMPALA"}]}
             return {"items": [{"name": "Cloudera QuickStart"}]}
 
-    monkeypatch.setattr(configure_assessment, "RestClient", _Cm)
+    monkeypatch.setattr(hadoop_config, "RestClient", _Cm)
     raw = {
         "distribution": "cdh",
         "cloudera_manager": {"url": "http://cm:7180", "auth": "none", "extract_impala_queries": True},
@@ -650,7 +692,7 @@ def test_check_connection_probes_every_impalad_and_the_services(tmp_path: Path, 
             seen.append(f"{self.base_url}{path}")
             return {}
 
-    monkeypatch.setattr(configure_assessment, "RestClient", _Recorder)
+    monkeypatch.setattr(hadoop_config, "RestClient", _Recorder)
     raw = {
         "distribution": "oth",
         "impala": {
@@ -682,7 +724,7 @@ def test_check_connection_reports_an_impala_failure_as_a_connection_error(tmp_pa
         def get_json(self, *_args, **_kwargs):
             return refused()
 
-    monkeypatch.setattr(configure_assessment, "RestClient", _Down)
+    monkeypatch.setattr(hadoop_config, "RestClient", _Down)
     raw = {"distribution": "oth", "impala": {"urls": ["http://impalad-a:25000"], "auth": "none"}}
 
     with pytest.raises(ConnectionError, match="timed out"):
@@ -846,15 +888,15 @@ def test_check_connection_reports_an_ambari_failure_as_a_connection_error(tmp_pa
 
 
 def test_optional_questions_accept_enter_with_the_real_prompts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """blueprint's real Prompts re-ask a blank answer unless the default is non-empty, which MockPrompts does not do.
-    Every optional question ("leave empty to ...") must take Enter as "leave it out"."""
+    """With blueprint's real Prompts (unlike MockPrompts, a blank answer needs a non-empty default), every optional
+    question must take Enter as "leave it out"."""
     script = [  # (prompt pattern, typed answer); "" is pressing Enter
         (r"Enter secret vault type", "1"),
         (r"Select the Hadoop distribution", "1"),
         (r"Enter the YARN ResourceManager URL", "https://rm.example.com:8090"),
         (r"Select the YARN ResourceManager authentication", "0"),
+        (r"Verify the YARN ResourceManager TLS certificate", ""),  # Enter keeps verification on
         (r"CA bundle for the YARN ResourceManager", ""),
-        (r"Verify the YARN ResourceManager TLS certificate", "yes"),
         (r"Filter the YARN applications", ""),
         (r"Configure a Spark History Server", "yes"),
         (r"Enter the Spark History Server URL", "http://shs.example.com:18081"),

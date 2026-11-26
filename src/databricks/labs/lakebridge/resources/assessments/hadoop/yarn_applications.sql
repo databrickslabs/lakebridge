@@ -1,9 +1,6 @@
--- One row per YARN application.
--- Like the original Hadoop profiler, the application name and diagnostics are kept as the ResourceManager reports
--- them (empty becomes NULL). Mask them with hadoop.search_replace_file if needed.
--- The RM reports -1 for allocation fields that do not apply; those become NULL.
--- The RM can report one application in both the finished and the unfinished response, so keep one row per id,
--- preferring the one that has finished.
+-- One row per YARN application. Name and diagnostics are kept as reported, as the original does (mask them with
+-- hadoop.search_replace_file); empty and -1 values become NULL. An app in both the finished and unfinished responses
+-- keeps its finished row.
 WITH apps AS (
     SELECT t.a AS a
     FROM (SELECT unnest(hadoop_records(doc, '$.apps.app')) AS a FROM raw_documents) AS t

@@ -1,5 +1,4 @@
--- Impala daemon web UI /backends: one row per backend (executor and coordinator) the daemon knows about.
--- Sizes are in bytes. process_start_time is the time the daemon started, as Impala prints it.
+-- Impala /backends: one row per backend the daemon knows. Sizes in bytes; process_start_time as Impala prints it.
 SELECT
     coordinator AS coordinator_url,
     b->>'$.address' AS address,

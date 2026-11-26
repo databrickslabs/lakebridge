@@ -1,4 +1,4 @@
--- One row per NodeManager. Utilisation fields are only reported by some distributions; the rest are NULL.
+-- One row per NodeManager. Utilisation fields are NULL where the distribution does not report them.
 SELECT
     n->>'$.id' AS node_id,
     n->>'$.rack' AS rack,
@@ -17,7 +17,7 @@ SELECT
     NULLIF(n->>'$.healthReport', '') AS health_report,
     CAST(n->>'$.numQueuedContainers' AS BIGINT) AS num_queued_containers,
     CAST(n->'$.nodeLabels' AS VARCHAR) AS node_labels,
-    -- What the NodeManager measures on the host itself, as opposed to what YARN allocated.
+    -- Measured on the host, not allocated by YARN.
     CAST(n->>'$.resourceUtilization.nodePhysicalMemoryMB' AS BIGINT) AS node_physical_memory_mb,
     CAST(n->>'$.resourceUtilization.nodeVirtualMemoryMB' AS BIGINT) AS node_virtual_memory_mb,
     CAST(n->>'$.resourceUtilization.nodeCPUUsage' AS DOUBLE) AS node_cpu_usage,

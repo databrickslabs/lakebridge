@@ -1,23 +1,15 @@
 """Cloudera Manager (CM) helpers shared by the ``cm_*`` steps and the Impala step.
 
-Every CM step is a separate process, so each one resolves the API version, the cluster and (for Impala) the service
-itself. That costs a few small requests per step, and it means no step depends on another step's output.
-
-The original profiler's behaviour is kept where it matters:
-
-- the API version comes from ``GET /api/version``, which answers in plain text (``v12``), not JSON;
-- the cluster and Impala service names are checked before any extract runs, and a name with spaces is
-  URL-encoded (the original turned spaces into ``%20``);
-- the timeseries queries are the original's metric lists.
-
-Differences from the original: a timeseries query that names a metric the CM version does not know is retried without
-that metric (see ``invalid_metric_name`` and ``item_for_metric``), and the dropped metric is recorded in the extract
-(see ``endpoints.cm_timeseries``).
+Each step resolves the API version, cluster and Impala service itself, so no step depends on another. As the original:
+the version comes from plain-text ``GET /api/version``, names are checked before extracting and URL-encoded, and the
+timeseries queries use its metric lists. Unlike the original, a query naming a metric CM does not know is retried
+without it, and the dropped metric is recorded.
 """
 
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import quote
 
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import ClouderaManagerConfig
@@ -43,8 +35,7 @@ class TimeseriesQuery:
     name: str
     metrics: tuple[str, ...]
     where: str = ""
-    # The windowed queries use the original's HOURLY rollup over the lookback window. The host roles and HDFS
-    # queries have no window in the original (CM returns its default recent window), so they keep none.
+    # Windowed queries use the original's HOURLY rollup; the host roles and HDFS queries have no window, as there.
     windowed: bool = True
 
 
@@ -155,14 +146,34 @@ def api_root(client: RestClient, config: ClouderaManagerConfig) -> str:
     return f"/api/{version}"
 
 
+def json_object(body: Any, path: str, base_url: str) -> dict[str, Any]:
+    """The body as a JSON object; anything else (such as a proxy's answer) is an error."""
+    if not isinstance(body, dict):
+        raise ClouderaManagerError(
+            f"GET {path} from {base_url} returned a JSON {type(body).__name__}, not an object; check the Cloudera "
+            "Manager URL (a proxy or gateway may answer instead of Cloudera Manager)"
+        )
+    return body
+
+
 def cluster_names(client: RestClient, root: str) -> list[str]:
-    body = client.get_json(f"{root}/clusters")
-    return [item["name"] for item in (body.get("items") or []) if isinstance(item, dict) and item.get("name")]
+    path = f"{root}/clusters"
+    return names_in_clusters_body(client.get_json(path), path, client.base_url)
+
+
+def names_in_clusters_body(body: Any, path: str, base_url: str) -> list[str]:
+    """The cluster names in a parsed ``/clusters`` body."""
+    items = json_object(body, path, base_url).get("items") or []
+    return [item["name"] for item in items if isinstance(item, dict) and item.get("name")]
 
 
 def resolve_cluster(client: RestClient, root: str, configured: str | None) -> str:
     """Return the cluster to extract: the configured one if it exists, else the only cluster CM manages."""
-    names = cluster_names(client, root)
+    return select_cluster(cluster_names(client, root), configured)
+
+
+def select_cluster(names: list[str], configured: str | None) -> str:
+    """The configured cluster if CM has it, else the only one; otherwise an error."""
     if configured is not None:
         if configured in names:
             return configured
@@ -182,7 +193,8 @@ def resolve_cluster(client: RestClient, root: str, configured: str | None) -> st
 
 def resolve_impala_service(client: RestClient, root: str, cluster: str, configured: str | None) -> str:
     """Return the Impala service: the configured one if it exists, else the cluster's only IMPALA service."""
-    body = client.get_json(f"{root}/clusters/{path_segment(cluster)}/services")
+    path = f"{root}/clusters/{path_segment(cluster)}/services"
+    body = json_object(client.get_json(path), path, client.base_url)
     services = [item for item in (body.get("items") or []) if isinstance(item, dict)]
     if configured is not None:
         if any(service.get("name") == configured for service in services):

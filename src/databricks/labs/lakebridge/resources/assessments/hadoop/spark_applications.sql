@@ -1,4 +1,4 @@
--- One row per Spark History Server application. The name is kept as reported, like the original Hadoop profiler.
+-- One row per Spark History Server application; the name is kept as reported, as the original does.
 WITH apps AS (
     SELECT t.a AS a
     FROM (SELECT unnest(hadoop_records(doc, '$')) AS a FROM raw_documents) AS t

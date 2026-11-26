@@ -1,6 +1,5 @@
--- Every queue in the scheduler tree, root included, with its depth and parent path.
--- Capacity schedulers nest children under queues.queue; fair schedulers under childQueues (childQueues.queue on
--- Hadoop 2.8+). Older capacity schedulers report the root's name as queueName only, without queuePath.
+-- Every queue in the scheduler tree, root included, with its depth and parent path. Children are under queues.queue
+-- (capacity) or childQueues, possibly wrapped as childQueues.queue (fair); the root may have no queuePath.
 WITH RECURSIVE tree(scheduler_type, queue_path, parent_queue_path, depth, node) AS (
     SELECT
         doc->>'$.scheduler.schedulerInfo.type',
@@ -16,8 +15,8 @@ WITH RECURSIVE tree(scheduler_type, queue_path, parent_queue_path, depth, node) 
     UNION ALL
     SELECT
         child.scheduler_type,
-        -- queuePath when the scheduler reports it. Otherwise a fair-scheduler queueName is already the full path
-        -- (root.default), and a capacity-scheduler queueName (Hadoop 3.3 and older: default) is joined to its parent.
+        -- queuePath when reported; else a fair-scheduler queueName is the full path, and a capacity-scheduler one is
+        -- joined to its parent.
         CASE
             WHEN (child.q->>'$.queuePath') IS NOT NULL THEN child.q->>'$.queuePath'
             WHEN child.parent_path IS NULL OR starts_with(child.q->>'$.queueName', child.parent_path || '.')
@@ -27,7 +26,7 @@ WITH RECURSIVE tree(scheduler_type, queue_path, parent_queue_path, depth, node) 
         child.parent_path,
         child.depth + 1,
         child.q
-    -- The children are unnested in the select list, so the parent's subtree is not copied into every child row.
+    -- Unnested in the select list, so the parent's subtree is not copied into each child row.
     FROM (
         SELECT scheduler_type, queue_path AS parent_path, depth, unnest(child_queues(node)) AS q FROM tree
     ) AS child

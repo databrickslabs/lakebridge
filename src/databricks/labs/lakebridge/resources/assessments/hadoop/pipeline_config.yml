@@ -44,7 +44,7 @@ steps:
     flag: active
 
 
-  # Spark History Server steps are optional: an unreachable or unconfigured Spark History Server does not fail the run.
+  # Optional: an unreachable or unconfigured Spark History Server does not fail the run.
   - name: spark_applications
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/spark_applications.py
@@ -61,7 +61,7 @@ steps:
     flag: active
     optional: true
 
-  # Cloudera Manager steps are optional: they run only when hadoop.cloudera_manager is configured.
+  # Optional: Cloudera Manager steps run only with hadoop.cloudera_manager.
   - name: cm_clusters
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/cm_clusters.py
@@ -118,7 +118,7 @@ steps:
     flag: active
     optional: true
 
-  # Ranger steps are optional: they run only when hadoop.ranger is configured.
+  # Optional: Ranger steps run only with hadoop.ranger.
   - name: ranger_services
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ranger_services.py
@@ -143,7 +143,7 @@ steps:
     flag: active
     optional: true
 
-  # Impala daemon steps are optional: they run only when hadoop.impala is configured.
+  # Optional: Impala daemon steps run only with hadoop.impala.
   - name: impala_queries
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/impala_queries.py
@@ -168,7 +168,7 @@ steps:
     flag: active
     optional: true
 
-  # The catalogd and statestore steps also need hadoop.impala.catalogd_url or statestored_url.
+  # These also need hadoop.impala.catalogd_url or statestored_url.
   - name: impala_catalog
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/impala_catalog.py
@@ -185,8 +185,7 @@ steps:
     flag: active
     optional: true
 
-  # Ambari steps are optional: they run only when hadoop.ambari is configured. The component metrics step reads four
-  # components, and a service that is not in the cluster adds no rows.
+  # Optional: Ambari steps run only with hadoop.ambari. A component whose service is absent adds no rows.
   - name: ambari_blueprint
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/ambari_blueprint.py
@@ -243,8 +242,7 @@ steps:
     flag: active
     optional: true
 
-  # The run's final step writes no table. It records in the extract tracker that the initial extract completed, so it
-  # must run last and must not be optional: a failure here is a failure to record the run.
+  # Last and not optional: records the run in the extract tracker (no table), so a failure here is a failed run.
   - name: hadoop_extract_tracker
     type: python
     extract_source: src/databricks/labs/lakebridge/resources/assessments/hadoop/hadoop_extract_tracker.py

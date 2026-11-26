@@ -1,5 +1,4 @@
-"""Ranger steps: the v2 reads and paging, the v1 fallback, the step SQL over the captured Ranger 2.9.0 responses, and the
-step runner's skip and wiring. The captures are in tests/resources/assessments/hadoop/ranger_*.json."""
+"""Ranger steps: v2 reads and paging, the v1 fallback, the step SQL over the ranger_*.json captures, and the runner."""
 
 import json
 import logging
@@ -10,7 +9,7 @@ from typing import Any, cast
 import duckdb
 import pytest
 
-from databricks.labs.lakebridge.resources.assessments.hadoop import endpoints, extract, ranger
+from databricks.labs.lakebridge.resources.assessments.hadoop import endpoints, extract, hadoop_config, ranger
 from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import ExtractRun
 from databricks.labs.lakebridge.resources.assessments.hadoop.hadoop_config import parse_hadoop_config
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import HadoopHttpError, RestClient
@@ -75,7 +74,7 @@ def _page(rows: list[Any], params: dict, *, cap: int | None = None) -> list[Any]
 
 
 def _ranger_2_9(path: str, params: dict) -> str:
-    """Ranger 2.9.0: the v2 API answers the service and policy lists."""
+    """The v2 API answers the service and policy lists."""
     if path == _V2_SERVICE:
         return _fixture("ranger_services_v2.json")
     if path == _V2_POLICY:
@@ -107,7 +106,7 @@ def _extract(step: str, fetch: Callable[[RestClient, Any, ExtractRun], list[str]
     return _load(step, fetch(client, _config(), RUN), tmp_path)
 
 
-# ---- v2 reads against the Ranger 2.9.0 capture -------------------------------------------------------------------
+# ---- v2 reads against the Ranger capture -------------------------------------------------------------------------
 
 
 def test_services_are_read_from_v2_with_all_four_services(tmp_path: Path) -> None:
@@ -356,7 +355,7 @@ def test_run_step_writes_the_policies_table_from_the_configured_ranger(
         built.append((base_url, kwargs["username"], kwargs["password"]))
         return client
 
-    monkeypatch.setattr(extract, "RestClient", build)
+    monkeypatch.setattr(hadoop_config, "RestClient", build)
     creds = tmp_path / ".credentials.yml"
     creds.write_text(
         "hadoop:\n  distribution: hdp\n  ranger:\n    url: "

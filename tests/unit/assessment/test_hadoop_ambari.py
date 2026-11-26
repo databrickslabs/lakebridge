@@ -1,7 +1,7 @@
-"""Ambari steps: config, cluster resolution, URL assembly, the step SQL over the captured Ambari responses, and the
-component calls' 404 rule. The captures are in tests/resources/assessments/hadoop/ambari_*.json: the populated cluster
-``sim`` (BIGTOP 3.3.0, two hosts, five services, no Ambari Metrics) and the same hosts before any service was installed
-(``ambari_*_empty*``, where the component calls answer 404)."""
+"""Ambari steps: config, cluster resolution, URLs, the step SQL and the component 404 rule.
+
+Fixtures (ambari_*.json): the cluster ``sim`` (two hosts, five services, no Ambari Metrics), and the same hosts before
+any service was installed (``ambari_*_empty*``, where the component calls answer 404)."""
 
 import json
 from collections.abc import Callable
@@ -109,7 +109,7 @@ def _empty_routes() -> dict[str, tuple[int, str]]:
 
 
 class _FakeSession:
-    """Stands in for requests.Session: answers each GET from a route table and records the URLs it was asked for."""
+    """A fake requests.Session: answers GETs from a route table and records the URLs."""
 
     def __init__(self, routes: dict[str, tuple[int, str]]) -> None:
         self._routes = routes
@@ -369,6 +369,15 @@ def test_a_non_json_blueprint_is_an_error() -> None:
         endpoints.ambari_blueprint(client, _config(cluster="sim"), RUN)
 
 
+def test_a_malformed_component_body_is_a_clear_error() -> None:
+    with pytest.raises(AmbariError, match="component body that is not valid JSON"):
+        component_envelope('{"metrics": {"cpu": 1')
+
+
+def test_a_component_body_that_is_not_an_object_has_no_metric_leaves() -> None:
+    assert '"metric_leaves":[]' in component_envelope("[]")
+
+
 # ---- step SQL over the populated capture -------------------------------------------------------------------------
 
 
@@ -459,7 +468,7 @@ def test_component_metrics_read_the_four_components_from_the_capture(tmp_path: P
             "metric_path FROM ambari_component_metrics ORDER BY service_name, component_name"
         ).fetchall()
 
-    # The NameNode and DataNode bodies carry no counts here: Ambari Metrics is not installed, so they have no metrics.
+    # No counts: without Ambari Metrics the NameNode and DataNode have no metrics.
     assert rows == [
         ("HDFS", "DATANODE", None, None, None, None, None),
         ("HDFS", "NAMENODE", None, None, None, None, None),
@@ -533,7 +542,7 @@ def test_empty_cluster_hosts_have_their_facts_but_no_services(tmp_path: Path) ->
 
 
 def _patch_session(monkeypatch: pytest.MonkeyPatch, routes: dict[str, tuple[int, str]]) -> list[str]:
-    """Serve the routes for every requests.Session.get, so the real step runner runs without a network."""
+    """Serve the routes for every requests.Session.get, so the real step runner needs no network."""
     seen: list[str] = []
 
     def get(_session: Any, url: str, params: Any = None, timeout: Any = None) -> SimpleNamespace:
@@ -602,3 +611,49 @@ def test_run_step_fails_on_several_clusters_without_a_configured_name(
             db_path=str(tmp_path / "extract.db"),
             creds_file=creds,
         )
+
+
+def _run_blueprint_step(step: str, tmp_path: Path) -> str:
+    creds = tmp_path / ".credentials.yml"
+    creds.write_text(yaml.safe_dump({"hadoop": {"distribution": "hdp", "ambari": {"url": _BASE, "auth": "none"}}}))
+    return extract.run_step(
+        step=step,
+        endpoint="ambari",
+        fetch=endpoints.ambari_blueprint,
+        sql_dir=_SQL_DIR,
+        db_path=str(tmp_path / "extract.db"),
+        creds_file=creds,
+    )
+
+
+def test_the_blueprint_configurations_step_reuses_the_blueprint_step_s_response(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Both blueprint steps read the same ?format=blueprint body; the second takes it from the extract, not Ambari."""
+    seen = _patch_session(monkeypatch, _sim_routes())
+    _run_blueprint_step("ambari_blueprint", tmp_path)
+    requests_by_first_step = len(seen)
+
+    message = _run_blueprint_step("ambari_blueprint_configurations", tmp_path)
+
+    assert message.endswith("rows (from the ambari_blueprint response)")
+    assert len(seen) == requests_by_first_step  # no request to Ambari
+    with duckdb.connect(str(tmp_path / "extract.db"), read_only=True) as conn:
+        bodies = conn.execute(
+            "SELECT step, CAST(body AS VARCHAR) FROM hadoop_raw_responses WHERE step LIKE 'ambari_blueprint%' ORDER BY step"
+        ).fetchall()
+        rows = conn.execute("SELECT COUNT(*) FROM ambari_blueprint_configurations").fetchone()
+    assert [step for step, _ in bodies] == ["ambari_blueprint", "ambari_blueprint_configurations"]
+    assert bodies[0][1] == bodies[1][1]  # each step still keeps its own raw rows
+    assert rows is not None and rows[0] > 0
+
+
+def test_the_blueprint_configurations_step_fetches_when_the_blueprint_step_stored_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    seen = _patch_session(monkeypatch, _sim_routes())
+
+    message = _run_blueprint_step("ambari_blueprint_configurations", tmp_path)
+
+    assert "from the" not in message
+    assert f"{_BASE}{_CLUSTER}?format=blueprint" in seen

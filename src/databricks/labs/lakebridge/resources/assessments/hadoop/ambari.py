@@ -1,16 +1,11 @@
-"""Ambari helpers shared by the ``ambari_*`` steps (see endpoints.py).
+"""Ambari helpers shared by the ``ambari_*`` steps.
 
-The steps make the original profiler's Ambari calls (``extract_ambari_bp``), against the Ambari Server's ``/api/v1`` or
-an HDInsight gateway, which serves the same API at its root. Differences from the original:
+The steps make the original profiler's Ambari calls, against ``/api/v1`` or an HDInsight gateway's root. Unlike the
+original, the cluster name is URL-encoded and detected when there is one, and an HTTP error is an error (the original
+saved it as data), except a 404 for a component whose service is absent.
 
-- the cluster name is URL-encoded (the original left it to the user), and it is detected when Ambari manages exactly
-  one cluster, as Cloudera Manager's is (see ``resolve_ambari_cluster``);
-- an HTTP error is an error. The original saved the error body as if it were data and exited 0. The only exception is
-  a 404 for one of the four component calls, when the service is not in the cluster (see ``get_component``).
-
-The component calls return nested ``metrics`` only when the request asks for them (the original asks for the NameNode and
-DataNode only). Ambari reports metrics only when the Ambari Metrics service is installed. ``metric_leaves`` flattens the
-nested dict into (dotted path, value text) rows, so the step SQL reads flat rows.
+Metrics come only when requested (NameNode and DataNode, as the original) and with Ambari Metrics installed.
+``metric_leaves`` flattens them into rows.
 """
 
 import json
@@ -26,8 +21,7 @@ logger = logging.getLogger(__name__)
 
 API_ROOT = "/api/v1"
 NOT_FOUND = 404
-# The four component calls (the original's ambariHDFS, ambariDN, ambariRM and ambariNM), in its order. Only the first two
-# ask for metrics.
+# The original's four component calls, in its order; only the first two ask for metrics.
 COMPONENT_CALLS: tuple[tuple[str, str, bool], ...] = (
     ("HDFS", "NAMENODE", True),
     ("HDFS", "DATANODE", True),
@@ -58,7 +52,7 @@ def cluster_names(client: RestClient) -> list[str]:
 
 
 def resolve_ambari_cluster(client: RestClient, configured: str | None) -> str:
-    """Return the cluster to extract: the configured one if Ambari has it, else the only cluster Ambari manages."""
+    """The configured cluster if Ambari has it, else the only one; otherwise an error."""
     names = cluster_names(client)
     if configured is not None:
         if configured in names:
@@ -84,11 +78,7 @@ def component_path(cluster: str, service: str, component: str) -> str:
 
 
 def get_component(client: RestClient, cluster: str, service: str, component: str, *, metrics: bool) -> str | None:
-    """One component call. Returns None when the service is not in the cluster, which Ambari answers with HTTP 404.
-
-    A 404 for a service that the cluster does have is an error (the URL or the component is wrong), so it is raised.
-    Every other HTTP error is raised.
-    """
+    """One component call, or None on a 404 for a service the cluster lacks. Any other HTTP error is raised."""
     path = component_path(cluster, service, component)
     if metrics:
         path += "?fields=metrics"
@@ -116,10 +106,9 @@ def _service_names(client: RestClient, cluster: str) -> list[str]:
 
 
 def metric_leaves(metrics: Any, prefix: str = "") -> list[tuple[str, str | None]]:
-    """Flatten Ambari's nested ``metrics`` dict into (dotted path, value text) pairs, in the order Ambari gives them.
+    """Flatten nested ``metrics`` into (dotted path, text) pairs, in Ambari's order.
 
-    A non-empty object is flattened further. Any other value is one leaf, kept as text: a string as it is, ``null`` as
-    None, and a number, boolean or array as its JSON text.
+    Non-empty objects recurse; other values are leaves: strings as is, ``null`` as None, others as JSON text.
     """
     if not isinstance(metrics, Mapping):
         return []
@@ -142,10 +131,13 @@ def _leaf_text(value: Any) -> str | None:
 
 
 def component_envelope(body: str) -> str:
-    """Wrap one component body with its flattened metric leaves, so the step SQL reads flat metric rows."""
-    leaves = [
-        {"metric_path": path, "metric_value": value} for path, value in metric_leaves(json.loads(body).get("metrics"))
-    ]
+    """Wrap one component body with its flattened metric leaves."""
+    try:
+        doc = json.loads(body)
+    except ValueError as e:
+        raise AmbariError("Ambari returned a component body that is not valid JSON") from e
+    metrics = doc.get("metrics") if isinstance(doc, dict) else None
+    leaves = [{"metric_path": path, "metric_value": value} for path, value in metric_leaves(metrics)]
     return '{"component":' + body + ',"metric_leaves":' + json.dumps(leaves) + "}"
 
 
