@@ -6,87 +6,52 @@ import Admonition from '@theme/Admonition';
 
 # Snowflake Profiler Details
 
+- [Prerequisites](#prerequisites)
+- [Configure Connection to Snowflake](#configure-connection-to-snowflake)
+- [Execute the Profiler](#execute-the-profiler)
+
 ## Prerequisites
 
-- A Snowflake user that can authenticate with either a **Programmatic Access Token (PAT)** or **key-pair** authentication, and that can query the `SNOWFLAKE.ACCOUNT_USAGE` schema (e.g., the `ACCOUNTADMIN` role or a role granted `IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE`).
-- For key-pair auth, the matching public key must be registered on the Snowflake user. See [Snowflake key-pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth).
-- The `rate_sheet` step also reads `SNOWFLAKE.ORGANIZATION_USAGE.RATE_SHEET_DAILY` for the account tier. This is available to `ACCOUNTADMIN` in an ORGADMIN-enabled account (the first account in an organization is ORGADMIN-enabled by default, so single-account orgs are covered), or to a custom role granted the `ORGANIZATION_BILLING_VIEWER` database role. If the account isn't ORGADMIN-enabled — or the organization is on a reseller contract — the view returns no rows, so `rate_sheet` is skipped and the rest of the profile still completes.
-- For PAT authentication, a [network policy](https://docs.snowflake.com/en/user-guide/network-policies) on the user.
-- Network access to Snowflake **and its result-stage storage**. See [Network requirements](#network-requirements).
+### 1. Authentication
 
-## Authentication
+The profiler signs in with a **Programmatic Access Token (PAT)** or a **key pair**:
 
-The Snowflake profiler supports two authentication methods. Choose one when you run `configure-database-profiler`.
+- **PAT**: see [Snowflake: Programmatic access tokens](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens#generating-a-programmatic-access-token). PATs need a [network policy](https://docs.snowflake.com/en/user-guide/network-policies) on the user.
+- **Key pair**: see [Snowflake: Key-pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth). The public key must be registered on the user.
 
-### Programmatic Access Token (PAT)
+### 2. Required Permissions
 
-Follow Snowflake's official guide to generate a PAT:
+The role needs read access to `SNOWFLAKE.ACCOUNT_USAGE`, for example `ACCOUNTADMIN` or a role granted:
 
-[Snowflake docs: Programmatic access tokens](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens#generating-a-programmatic-access-token)
+```sql
+GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE TO ROLE <role>;
+```
 
-You'll need:
+The `rate_sheet` step also reads `SNOWFLAKE.ORGANIZATION_USAGE.RATE_SHEET_DAILY`. If the account isn't ORGADMIN-enabled, or is billed through a reseller, the view returns no rows and the rest of the profile still completes. If the role can't read the view, the step fails; skip it with `--exclude rate_sheet`.
 
-- `account` — your Snowflake account identifier (e.g., `myorg-myaccount.snowflakecomputing.com`)
-- `user` — Snowflake username
-- `role`, `warehouse`, `database`, `schema` — typically `ACCOUNTADMIN`, `COMPUTE_WH`, `SNOWFLAKE`, `ACCOUNT_USAGE`
-- The PAT itself (paste when prompted; it's stored under `pat` in the credentials file)
+### 3. Network Access
 
-For short-term testing from a dynamic IP, see Snowflake's docs on [bypassing the network policy on a PAT](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens).
+The machine running the profiler needs access to Snowflake, including the cloud storage that large query results are downloaded from. Allow the hosts listed by `SELECT SYSTEM$ALLOWLIST();`.
 
-### Key-pair authentication
-
-Follow Snowflake's guide to create an RSA key pair and assign the public key to the user:
-
-[Snowflake docs: Key-pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
-
-You'll need:
-
-- The same `account`, `user`, `role`, `warehouse`, `database`, and `schema` fields as PAT auth
-- `private_key_path` — path to the PEM private key file on disk (e.g., `/path/to/rsa_key.p8`). Lakebridge stores the **path**, not the PEM contents.
-- `private_key_passphrase` — only if the private key is encrypted
-
-Existing credentials files without `auth_type` continue to use PAT authentication (`pat`).
-
-## Configure and run the profiler
+## Configure Connection to Snowflake
 
 ```bash
 databricks labs lakebridge configure-database-profiler
 ```
 
-Pick **snowflake** when prompted, then choose **PAT** or **Key-Pair** and enter the connection details.
+Pick **snowflake**, choose **PAT** or **Key-Pair**, and enter your account URL, user, and PAT or private key path. The warehouse, database, schema and role prompts have defaults.
+
+## Execute the Profiler
 
 ```bash
-databricks labs lakebridge execute-database-profiler
+databricks labs lakebridge execute-database-profiler --source-tech snowflake
 ```
 
-The extract is written to a DuckDB file at `~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db`. It contains raw `SNOWFLAKE.ACCOUNT_USAGE` data — warehouse usage, query history, storage, and (when applicable) pipe / autoclustering / materialized-view refresh credits. By default each extract looks back 90 days.
+The profiler will:
+1. Connect to Snowflake using the configured credentials
+2. Extract the last 90 days of `SNOWFLAKE.ACCOUNT_USAGE` data
+3. Store the results in a local DuckDB extract file
 
-To keep extracts shareable on high-volume accounts, `query_history` includes metrics and `QUERY_TYPE` for every query in the window but **omits `QUERY_TEXT`**. A separate `query_samples` table holds a random sample of **10,000** rows **with** `QUERY_TEXT` (join to `query_history` on `QUERY_ID` for full metrics). Login history (`user_activity`) is not extracted.
+`query_history` excludes SQL text. `query_samples` holds a random sample of 10,000 queries with their text.
 
-Inspect it with:
-
-```bash
-cd ~/.databricks/labs/lakebridge_profilers/snowflake_assessment
-duckdb profiler_extract.db "SHOW TABLES;"
-duckdb profiler_extract.db "SELECT * FROM warehouse_usage LIMIT 10;"
-duckdb profiler_extract.db "SELECT * FROM query_history LIMIT 10;"
-duckdb profiler_extract.db "SELECT query_id, query_type, left(query_text, 80) FROM query_samples LIMIT 10;"
-```
-
-## Network requirements
-
-Large results, such as `query_history`, come from Snowflake's result-stage storage, which the connection test doesn't check.
-
-Before running the profiler:
-
-1. Have a Snowflake admin run `SELECT SYSTEM$ALLOWLIST();` (`SYSTEM$ALLOWLIST_PRIVATELINK()` with private connectivity) to list the required hosts and ports.
-2. Allow them in your firewall and proxy, and exempt them from TLS inspection.
-3. Run from a machine with a stable connection, such as a VM in your network. A failed run restarts from the first step.
-
-### Troubleshooting
-
-| Error | Fix |
-|---|---|
-| `ECONNRESET`, SSL errors or timeouts on a storage host (`*.blob.core.windows.net`, `*.amazonaws.com`, `storage.googleapis.com`) | Allow the `STAGE` hosts and exempt them from TLS inspection |
-| `NameResolutionError` after earlier steps succeeded | Run from a machine with a stable connection inside your network |
-| PAT authentication fails | Apply a network policy to the user |
+[Back to Configure Profiler](../#configure-profiler)
