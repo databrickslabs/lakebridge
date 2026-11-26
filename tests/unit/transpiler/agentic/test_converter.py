@@ -30,7 +30,11 @@ from databricks.sdk.service.geniemigrate import (
 from databricks.sdk.service.workspace import ExportFormat, ExportResponse, ImportFormat, ObjectInfo
 
 from databricks.labs.lakebridge.transpiler.agentic import converter as converter_module
-from databricks.labs.lakebridge.transpiler.agentic.converter import AgenticConversionError, AgenticConverter
+from databricks.labs.lakebridge.transpiler.agentic.converter import (
+    AgenticConversionError,
+    AgenticConverter,
+    validate_skill_paths,
+)
 from databricks.labs.lakebridge.transpiler.agentic.sources import SourceFiles
 
 USER = "someone@example.com"
@@ -543,3 +547,45 @@ def test_fails_cleanly_when_the_run_folder_cant_be_created(ws, upload_ws, source
         _convert(_converter(ws, upload_ws), sources, tmp_path)
 
     ws.genie_migrate.create.assert_not_called()
+
+
+@pytest.mark.parametrize("error", [requests.exceptions.ReadTimeout("read timed out"), InternalError("server error")])
+def test_says_it_couldnt_check_when_the_availability_check_fails(ws, upload_ws, sources, tmp_path, error) -> None:
+    ws.genie_migrate.convert_project_files.side_effect = [error]
+
+    with pytest.raises(AgenticConversionError, match="Could not check whether the agentic code converter is available"):
+        _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    ws.genie_migrate.delete.assert_called_once_with(PROJECT)
+    ws.workspace.delete.assert_called_once_with(RUN, recursive=True)
+    upload_ws.workspace.upload.assert_not_called()
+
+
+def test_exports_files_one_by_one_when_the_folder_export_isnt_an_archive(ws, upload_ws, sources, tmp_path) -> None:
+    ws.genie_migrate.convert_project_files.side_effect = [
+        NO_FILES,
+        _completed_operation(FileStatus.FILE_STATUS_SUCCESS),
+        NO_FILES,
+    ]
+    notebook = DestinationKind.DESTINATION_KIND_NOTEBOOK
+    ws.genie_migrate.list_files.return_value = [
+        _project_file("customers.sql", FileStatus.FILE_STATUS_SUCCESS, f"{RUN}/converted/customers", notebook)
+    ]
+    ws.workspace.export.side_effect = [
+        ExportResponse(content=_encoded("<html>not an archive</html>")),
+        ExportResponse(content=_encoded("# c"), file_type="py"),
+    ]
+
+    result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error is None
+    assert (tmp_path / "output" / "customers.py").read_text() == "# c"
+
+
+def test_measures_the_skill_paths_as_json() -> None:
+    # 1000 bytes as written, 1001 once the quote is escaped.
+    path = "/" + "a" * 994 + '"'
+
+    with pytest.raises(ValueError, match="must fit in 1000 bytes"):
+        validate_skill_paths(path)
+    assert validate_skill_paths("/" + "a" * 995) == ["/" + "a" * 995]

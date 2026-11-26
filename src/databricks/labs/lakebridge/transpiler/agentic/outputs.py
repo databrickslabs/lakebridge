@@ -1,6 +1,7 @@
 """Writes a conversion's outputs from the workspace into the local output folder."""
 
 import base64
+import binascii
 import io
 import json
 import logging
@@ -92,13 +93,19 @@ class OutputWriter:
             logger.info(f"Exporting the converted files one by one: the folder export failed ({err}).")
             return {}
         exported = {}
-        with zipfile.ZipFile(io.BytesIO(base64.b64decode(response.content or ""))) as archive:
-            for info in archive.infolist():
-                name = PurePosixPath(info.filename)
-                # Entries are `<folder>/<file>`; skip folders, the manifest, and anything nested deeper.
-                if info.is_dir() or len(name.parts) != 2 or name.name == "manifest.mf":
-                    continue
-                exported[name.name] = archive.read(info)
+        try:
+            with zipfile.ZipFile(io.BytesIO(base64.b64decode(response.content or ""))) as archive:
+                for info in archive.infolist():
+                    name = PurePosixPath(info.filename)
+                    # Entries are `<folder>/<file>`; skip folders, the manifest, and anything nested deeper.
+                    if info.is_dir() or len(name.parts) != 2 or name.name == "manifest.mf":
+                        continue
+                    exported[name.name] = archive.read(info)
+        except (zipfile.BadZipFile, binascii.Error) as err:
+            logger.info(
+                f"Exporting the converted files one by one: the folder export isn't a readable archive ({err})."
+            )
+            return {}
         return exported
 
     def _export_file(self, file: ConvertedFile) -> tuple[bytes, str]:

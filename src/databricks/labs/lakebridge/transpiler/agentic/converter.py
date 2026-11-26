@@ -1,5 +1,6 @@
 """Converts local sources with the agentic code converter, through its migration projects in the workspace."""
 
+import json
 import logging
 import re
 import time
@@ -106,6 +107,8 @@ _ACTIVE = frozenset({FileStatus.FILE_STATUS_QUEUED, FileStatus.FILE_STATUS_IN_PR
 _RETRYABLE = (InternalError, TemporarilyUnavailable, DeadlineExceeded, requests.exceptions.Timeout, TimeoutError)
 _API_ERRORS = (DatabricksError, requests.exceptions.RequestException, TimeoutError)
 """What a workspace call can raise once the SDK's own retries are used up."""
+_NOT_AVAILABLE = frozenset({"FEATURE_DISABLED", "NOT_IMPLEMENTED"})
+"""Error codes that mean the workspace can't convert files, rather than that checking failed."""
 _T = TypeVar("_T")
 
 
@@ -252,18 +255,27 @@ class AgenticConverter:
             if _NO_FILES_NEED_CONVERSION in str(err):
                 return
             raise self._not_available(err) from err
+        except DatabricksError as err:
+            if err.error_code in _NOT_AVAILABLE:
+                raise self._not_available(err) from err
+            raise self._not_checked(err) from err
         except _API_ERRORS as err:
-            raise self._not_available(err) from err
+            raise self._not_checked(err) from err
 
     @staticmethod
-    def _not_available(err: Exception) -> AgenticConversionError:
-        error_code = getattr(err, "error_code", None)
-        code = f"{error_code}: " if error_code else ""
+    def _not_available(err: DatabricksError) -> AgenticConversionError:
+        code = f"{err.error_code}: " if err.error_code else ""
         msg = (
             f"The agentic code converter can't convert files in this workspace ({code}{err}). Ask your workspace "
             "admin whether it's available, then try again."
         )
         return AgenticConversionError(msg)
+
+    @staticmethod
+    def _not_checked(err: Exception) -> AgenticConversionError:
+        return AgenticConversionError(
+            f"Could not check whether the agentic code converter is available ({err}), try again."
+        )
 
     def _upload(self, sources: SourceFiles, run: str, project: str) -> None:
         archive = sources.archive("src")
@@ -486,7 +498,6 @@ def validate_skill_paths(skills: str) -> list[str]:
     for path in paths:
         if not path.startswith("/"):
             raise ValueError(f"Invalid value for '--skills': {path!r} must be a workspace path, starting with '/'.")
-    encoded = "[" + ",".join(f'"{path}"' for path in paths) + "]"
-    if len(encoded.encode()) > MAX_SKILLS_BYTES:
+    if len(json.dumps(paths, separators=(",", ":")).encode()) > MAX_SKILLS_BYTES:
         raise ValueError(f"Invalid value for '--skills': the skill paths must fit in {MAX_SKILLS_BYTES} bytes.")
     return paths
