@@ -11,8 +11,8 @@ import Admonition from '@theme/Admonition';
 - A Snowflake user that can authenticate with either a **Programmatic Access Token (PAT)** or **key-pair** authentication, and that can query the `SNOWFLAKE.ACCOUNT_USAGE` schema (e.g., the `ACCOUNTADMIN` role or a role granted `IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE`).
 - For key-pair auth, the matching public key must be registered on the Snowflake user. See [Snowflake key-pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth).
 - The `rate_sheet` step also reads `SNOWFLAKE.ORGANIZATION_USAGE.RATE_SHEET_DAILY` for the account tier. This is available to `ACCOUNTADMIN` in an ORGADMIN-enabled account (the first account in an organization is ORGADMIN-enabled by default, so single-account orgs are covered), or to a custom role granted the `ORGANIZATION_BILLING_VIEWER` database role. If the account isn't ORGADMIN-enabled — or the organization is on a reseller contract — the view returns no rows, so `rate_sheet` is skipped and the rest of the profile still completes.
-- For PAT authentication, a [network policy](https://docs.snowflake.com/en/user-guide/network-policies) that applies to the Snowflake user. By default Snowflake rejects a PAT for a user that no network policy applies to. Key-pair authentication does not need one.
-- Network access from the machine running Lakebridge to your Snowflake account **and to Snowflake's result-stage storage**. See [Network requirements](#network-requirements).
+- For PAT authentication, a [network policy](https://docs.snowflake.com/en/user-guide/network-policies) on the user.
+- Network access to Snowflake **and its result-stage storage**. See [Network requirements](#network-requirements).
 
 ## Authentication
 
@@ -31,7 +31,7 @@ You'll need:
 - `role`, `warehouse`, `database`, `schema` — typically `ACCOUNTADMIN`, `COMPUTE_WH`, `SNOWFLAKE`, `ACCOUNT_USAGE`
 - The PAT itself (paste when prompted; it's stored under `pat` in the credentials file)
 
-PATs need a network policy (see [Prerequisites](#prerequisites)). For short-term testing from a dynamic IP, see Snowflake's docs on [bypassing the network policy on a PAT](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens).
+For short-term testing from a dynamic IP, see Snowflake's docs on [bypassing the network policy on a PAT](https://docs.snowflake.com/en/user-guide/programmatic-access-tokens).
 
 ### Key-pair authentication
 
@@ -59,8 +59,6 @@ Pick **snowflake** when prompted, then choose **PAT** or **Key-Pair** and enter 
 databricks labs lakebridge execute-database-profiler
 ```
 
-To skip steps, pass `--exclude` with a comma-separated list of step names or labels. For example, `--exclude unredacted` skips `query_samples`, the only step that extracts SQL text.
-
 The extract is written to a DuckDB file at `~/.databricks/labs/lakebridge_profilers/snowflake_assessment/profiler_extract.db`. It contains raw `SNOWFLAKE.ACCOUNT_USAGE` data — warehouse usage, query history, storage, and (when applicable) pipe / autoclustering / materialized-view refresh credits. By default each extract looks back 90 days.
 
 To keep extracts shareable on high-volume accounts, `query_history` includes metrics and `QUERY_TYPE` for every query in the window but **omits `QUERY_TEXT`**. A separate `query_samples` table holds a random sample of **10,000** rows **with** `QUERY_TEXT` (join to `query_history` on `QUERY_ID` for full metrics). Login history (`user_activity`) is not extracted.
@@ -77,26 +75,18 @@ duckdb profiler_extract.db "SELECT query_id, query_type, left(query_text, 80) FR
 
 ## Network requirements
 
-The profiler uses two network paths:
-
-1. **The Snowflake endpoint**, `<account>.snowflakecomputing.com` (or `<account>.privatelink.snowflakecomputing.com` with private connectivity). Queries and small results use this path.
-2. **Snowflake's result-stage storage** (Azure Blob Storage, Amazon S3, or Google Cloud Storage, depending on where the account is hosted). Snowflake writes large results, such as `query_history` on a busy account, to this storage as chunk files, and the client downloads them directly.
-
-The connection test only checks the first path. If the second path is blocked or unstable, the first steps succeed and a later step, usually `query_history`, fails with errors that name the storage host rather than Snowflake.
+Large results, such as `query_history`, come from Snowflake's result-stage storage, which the connection test doesn't check.
 
 Before running the profiler:
 
-1. Ask a Snowflake admin to run `SELECT SYSTEM$ALLOWLIST();`, or `SELECT SYSTEM$ALLOWLIST_PRIVATELINK();` if the account uses private connectivity. The output lists every host the client needs, including the `STAGE` entries.
-2. Allow those hosts on port 443 from the machine running the profiler, in both the firewall and any proxy. Exempt them from TLS inspection.
-3. Run the profiler from a machine with a stable connection to Snowflake, such as a VM inside your network. On a large account the run can take a long time, and a dropped VPN connection or a laptop going to sleep stops it. If you use a laptop, keep it awake (for example, with `caffeinate -i` on macOS).
-4. With private connectivity, the machine must resolve the private Snowflake hostname through your internal DNS for the whole run.
-
-A failed run starts again from the first step, so fix network problems before you rerun.
+1. Have a Snowflake admin run `SELECT SYSTEM$ALLOWLIST();` (`SYSTEM$ALLOWLIST_PRIVATELINK()` with private connectivity) to list the required hosts and ports.
+2. Allow them in your firewall and proxy, and exempt them from TLS inspection.
+3. Run from a machine with a stable connection, such as a VM in your network. A failed run restarts from the first step.
 
 ### Troubleshooting
 
-| Error | Likely cause | Fix |
-|---|---|---|
-| `ECONNRESET`, SSL handshake errors, or read timeouts on a `*.blob.core.windows.net`, `*.s3.amazonaws.com`, or `*.storage.googleapis.com` host | The result-stage storage is blocked, or a proxy is interfering with it | Allow the `STAGE` hosts from `SYSTEM$ALLOWLIST()` and exempt them from TLS inspection |
-| `NameResolutionError` on the Snowflake host after earlier steps succeeded | The network or VPN connection dropped during the run | Run from a machine with a stable connection inside your network |
-| Authentication fails with a PAT | No network policy applies to the user | Apply a network policy to the user (see [Prerequisites](#prerequisites)) |
+| Error | Fix |
+|---|---|
+| `ECONNRESET`, SSL errors or timeouts on a storage host (`*.blob.core.windows.net`, `*.amazonaws.com`, `storage.googleapis.com`) | Allow the `STAGE` hosts and exempt them from TLS inspection |
+| `NameResolutionError` after earlier steps succeeded | Run from a machine with a stable connection inside your network |
+| PAT authentication fails | Apply a network policy to the user |
