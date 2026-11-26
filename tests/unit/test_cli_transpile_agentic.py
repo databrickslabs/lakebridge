@@ -6,6 +6,7 @@ from unittest.mock import call, create_autospec
 import pytest
 from databricks.labs.blueprint.tui import MockPrompts
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import InternalError
 from databricks.sdk.service.iam import User
 
 from databricks.labs.lakebridge import cli
@@ -213,3 +214,20 @@ def test_prints_the_summary_and_exits_non_zero_when_the_conversion_stops_early(
 
     assert exited.value.code == 1
     assert json.loads(capsys.readouterr().out) == [SUMMARY]
+
+
+def test_exits_non_zero_on_an_api_error_the_converter_lets_through(ctx, converter, input_source, tmp_path) -> None:
+    converter.convert.side_effect = InternalError("unexpected")
+
+    with pytest.raises(SystemExit) as exited:
+        _transpile(
+            ctx,
+            converter,
+            agentic="true",
+            source_dialect="snowflake",
+            target_technology="SPARKSQL",
+            input_source=str(input_source),
+            output_folder=str(tmp_path),
+        )
+
+    assert exited.value.code == 1

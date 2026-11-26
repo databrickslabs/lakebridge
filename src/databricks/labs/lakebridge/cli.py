@@ -18,7 +18,7 @@ from databricks.labs.blueprint.installation import JsonObject, JsonValue, RootJs
 from databricks.labs.blueprint.tui import Prompts
 from databricks.labs.switch.lsp import get_switch_dialects
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.errors import NotFound
+from databricks.sdk.errors import DatabricksError, NotFound
 from databricks.sdk.service.sql import CreateWarehouseRequestWarehouseType
 
 from databricks.labs.lakebridge.assessments import (
@@ -234,7 +234,8 @@ def _transpile_agentic(
             error_path=config.error_path,
             skill_paths=skill_paths,
         )
-    except AgenticConversionError as err:
+    except (AgenticConversionError, DatabricksError) as err:
+        # Blueprint logs an exception a command raises but exits 0; a conversion that didn't finish exits 1.
         logger.error(str(err))
         sys.exit(1)
     # DO NOT Modify this print statement, it is used by the CLI to display results in GO Table Template

@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import NamedTuple
+from typing import NamedTuple, TypeVar
 
 import requests
 from databricks.sdk import WorkspaceClient
@@ -87,6 +87,8 @@ UPLOAD_TIMEOUT_SECONDS = 900
 """Importing an archive of up to 2000 files can take minutes, far past the default 60-second HTTP timeout."""
 POLL_SECONDS = 15
 """How often to check on a conversion run."""
+MAX_FAILED_CHECKS = 5
+"""How many checks on a conversion can fail in a row before Lakebridge stops following it."""
 
 _NO_FILES_NEED_CONVERSION = "No files need conversion"
 _FINISHED = frozenset(
@@ -101,7 +103,10 @@ _CONVERTED = frozenset(
     {FileStatus.FILE_STATUS_SUCCESS, FileStatus.FILE_STATUS_PARTIAL_SUCCESS, FileStatus.FILE_STATUS_REVIEWED}
 )
 _ACTIVE = frozenset({FileStatus.FILE_STATUS_QUEUED, FileStatus.FILE_STATUS_IN_PROGRESS})
-_RETRYABLE = (InternalError, TemporarilyUnavailable, DeadlineExceeded, requests.exceptions.Timeout)
+_RETRYABLE = (InternalError, TemporarilyUnavailable, DeadlineExceeded, requests.exceptions.Timeout, TimeoutError)
+_API_ERRORS = (DatabricksError, requests.exceptions.RequestException, TimeoutError)
+"""What a workspace call can raise once the SDK's own retries are used up."""
+_T = TypeVar("_T")
 
 
 class AgenticConversionError(Exception):
@@ -181,7 +186,11 @@ class AgenticConverter:
         except KeyboardInterrupt as err:
             msg = f"Stopped waiting. The conversion keeps running in the project: {url}"
             raise AgenticConversionError(msg) from err
-        files = list(self._ws.genie_migrate.list_files(project))
+        try:
+            files = self._check(lambda: list(self._ws.genie_migrate.list_files(project)))
+        except AgenticConversionError as err:
+            msg = f"Could not read the conversion's results: {err} The converted files are in the project: {url}"
+            raise AgenticConversionError(msg) from err
         result = self._results(run, url, files, sources, output_folder, error_path, error)
         result.project, result.run_folder = project, run
         return result
@@ -192,13 +201,16 @@ class AgenticConverter:
 
     def _prepare_run_folder(self, run: str) -> int:
         try:
-            has_content = any(True for _ in self._ws.workspace.list(run))
-        except NotFound:
-            has_content = False
-        if has_content:
-            raise AgenticConversionError(f"The run folder already has content, try again: {run}")
-        self._ws.workspace.mkdirs(f"{run}/converted")
-        folder_id = self._ws.workspace.get_status(run).object_id
+            try:
+                has_content = any(True for _ in self._ws.workspace.list(run))
+            except NotFound:
+                has_content = False
+            if has_content:
+                raise AgenticConversionError(f"The run folder already has content, try again: {run}")
+            self._ws.workspace.mkdirs(f"{run}/converted")
+            folder_id = self._ws.workspace.get_status(run).object_id
+        except _API_ERRORS as err:
+            raise AgenticConversionError(f"Could not create the run folder {run}: {err}") from err
         assert folder_id is not None, "The workspace returns an object id for an existing folder."
         return folder_id
 
@@ -217,7 +229,7 @@ class AgenticConverter:
         )
         try:
             created = self._create_or_find(project, folder)
-        except (DatabricksError, requests.exceptions.RequestException) as err:
+        except _API_ERRORS as err:
             raise AgenticConversionError(f"Could not create the migration project: {err}") from err
         if not created.name:
             raise AgenticConversionError("The migration project was created without a name.")
@@ -240,12 +252,13 @@ class AgenticConverter:
             if _NO_FILES_NEED_CONVERSION in str(err):
                 return
             raise self._not_available(err) from err
-        except DatabricksError as err:
+        except _API_ERRORS as err:
             raise self._not_available(err) from err
 
     @staticmethod
-    def _not_available(err: DatabricksError) -> AgenticConversionError:
-        code = f"{err.error_code}: " if err.error_code else ""
+    def _not_available(err: Exception) -> AgenticConversionError:
+        error_code = getattr(err, "error_code", None)
+        code = f"{error_code}: " if error_code else ""
         msg = (
             f"The agentic code converter can't convert files in this workspace ({code}{err}). Ask your workspace "
             "admin whether it's available, then try again."
@@ -261,7 +274,7 @@ class AgenticConverter:
                 # Imported as `src.zip` with format AUTO, the workspace expands the archive into `src/`.
                 workspace.upload(f"{run}/src.zip", archive, format=ImportFormat.AUTO)
                 return
-            except (DatabricksError, requests.exceptions.RequestException) as err:
+            except _API_ERRORS as err:
                 # A partly expanded folder makes the next import fail; an import that timed out may still finish.
                 self._delete_folder(f"{run}/src")
                 if attempt == 1 and isinstance(err, _RETRYABLE):
@@ -284,7 +297,7 @@ class AgenticConverter:
                 batch = paths[start : start + FILES_PER_ADD]
                 refs = [SourceFileRef(workspace=WorkspaceLocation(path=path)) for path in batch]
                 self._ws.genie_migrate.add_files(project, refs)
-        except DatabricksError as err:
+        except _API_ERRORS as err:
             self._delete_project(project)
             raise AgenticConversionError(f"Could not add the sources to the migration project: {err}") from err
 
@@ -310,6 +323,7 @@ class AgenticConverter:
 
     def _start_run(self, project: str, skill_paths: list[str]) -> ConvertProjectFilesOperation | None:
         """Starts the next conversion run, or returns None when no file needs converting."""
+        timeouts = 0
         while True:
             try:
                 return self._ws.genie_migrate.convert_project_files(parent=project, skill_paths=skill_paths or None)
@@ -321,24 +335,47 @@ class AgenticConverter:
                 # A project runs one conversion at a time; wait for the active one, then start the next.
                 logger.info("A conversion run is already active in the project, waiting for it to finish.")
                 self._wait_until_idle(project)
-            except DatabricksError as err:
+            except (requests.exceptions.Timeout, TimeoutError) as err:
+                # The run may have started anyway: starting again then finds it active, and waits for it.
+                timeouts += 1
+                if timeouts >= MAX_FAILED_CHECKS:
+                    raise AgenticConversionError(f"Could not start a conversion run: {err}") from err
+                logger.warning(f"Starting a conversion run timed out, trying again: {err}")
+            except _API_ERRORS as err:
                 raise AgenticConversionError(f"Could not start a conversion run: {err}") from err
 
     def _wait(self, operation: ConvertProjectFilesOperation, number: int) -> ConversionRun | None:
         progress = None
-        while not operation.done():
-            run = operation.metadata()
-            files = run.files if run and run.files else []
-            current = (sum(1 for file in files if file.status in _FINISHED), len(files))
+        while not self._check(operation.done):
+            current = _progress(operation.metadata())
             if current != progress:
                 logger.info(f"Conversion run {number}: {current[0]} of {current[1]} files finished.")
                 progress = current
             self._sleep(self._poll_seconds)
-        return operation.metadata()
+        run = operation.metadata()
+        state = run.state.value.removeprefix("CONVERSION_RUN_STATE_") if run and run.state else "UNKNOWN"
+        finished, total = _progress(run)
+        logger.info(f"Conversion run {number} ended {state}: {finished} of {total} files finished.")
+        return run
 
     def _wait_until_idle(self, project: str) -> None:
-        while any(file.status in _ACTIVE for file in self._ws.genie_migrate.list_files(project)):
+        while any(
+            file.status in _ACTIVE for file in self._check(lambda: list(self._ws.genie_migrate.list_files(project)))
+        ):
             self._sleep(self._poll_seconds)
+
+    def _check(self, call: Callable[[], _T]) -> _T:
+        """Checks on the conversion, tolerating a few failed checks in a row: one failed call doesn't end the wait."""
+        failures = 0
+        while True:
+            try:
+                return call()
+            except _API_ERRORS as err:
+                failures += 1
+                if failures >= MAX_FAILED_CHECKS:
+                    raise AgenticConversionError(f"Could not check on the conversion ({err}).") from err
+                logger.warning(f"Checking on the conversion failed, trying again: {err}")
+                self._sleep(self._poll_seconds)
 
     def _results(
         self,
@@ -418,6 +455,12 @@ def _report(
             )
             failed.append(error)
     return failed
+
+
+def _progress(run: ConversionRun | None) -> tuple[int, int]:
+    """How many of a run's files are finished, and how many it has."""
+    files = run.files if run and run.files else []
+    return sum(1 for file in files if file.status in _FINISHED), len(files)
 
 
 def _destination(file: ProjectFile) -> str | None:

@@ -10,7 +10,7 @@ from unittest.mock import call, create_autospec
 import pytest
 import requests
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.errors import AlreadyExists, BadRequest, DatabricksError, InternalError, NotFound
+from databricks.sdk.errors import AlreadyExists, BadRequest, DatabricksError, InternalError, NotFound, PermissionDenied
 from databricks.sdk.service.geniemigrate import (
     ConversionRun,
     ConversionRunErrorCode,
@@ -466,3 +466,80 @@ def test_ctrl_c_stops_waiting_and_names_the_project(ws, upload_ws, sources, tmp_
 
     with pytest.raises(AgenticConversionError, match=f"keeps running in the project: {URL}"):
         _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+
+class FlakyOperation(FakeOperation):
+    """An operation whose first status checks fail."""
+
+    def __init__(self, failures: int, *states: ConversionRun) -> None:
+        super().__init__(*states)
+        self._failures = failures
+
+    def done(self) -> bool:
+        if self._failures:
+            self._failures -= 1
+            raise InternalError("status check failed")
+        return super().done()
+
+
+def test_keeps_waiting_through_a_few_failed_status_checks(ws, upload_ws, sources, tmp_path: Path) -> None:
+    run = FlakyOperation(
+        2, _run(ACTIVE, FileStatus.FILE_STATUS_QUEUED), _run(COMPLETED, FileStatus.FILE_STATUS_SUCCESS)
+    )
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, run, NO_FILES]
+    ws.genie_migrate.list_files.return_value = []
+
+    result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error is None
+
+
+def test_stops_following_after_repeated_failed_checks_and_reports_what_finished(
+    ws, upload_ws, sources, tmp_path: Path
+) -> None:
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, FlakyOperation(100, _run(ACTIVE))]
+    notebook = DestinationKind.DESTINATION_KIND_NOTEBOOK
+    ws.genie_migrate.list_files.return_value = [
+        _project_file("customers.sql", FileStatus.FILE_STATUS_SUCCESS, f"{RUN}/converted/customers", notebook)
+    ]
+    ws.workspace.export.return_value = ExportResponse(content=_zip(**{"customers.py": "# c"}))
+
+    result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error is not None
+    assert result.error.startswith("Could not check on the conversion (status check failed).")
+    assert result.error.endswith(f"The project: {URL}")
+    assert (tmp_path / "output" / "customers.py").read_text() == "# c"
+
+
+def test_names_the_project_when_the_results_cant_be_read(ws, upload_ws, sources, tmp_path: Path) -> None:
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, NO_FILES]
+    ws.genie_migrate.list_files.side_effect = InternalError("listing failed")
+
+    with pytest.raises(AgenticConversionError, match=f"Could not read the conversion's results.*{URL}"):
+        _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+
+def test_starts_again_after_a_start_timed_out(ws, upload_ws, sources, tmp_path: Path) -> None:
+    ws.genie_migrate.convert_project_files.side_effect = [
+        NO_FILES,
+        requests.exceptions.ReadTimeout("timed out"),
+        AlreadyExists("a run is active"),
+        _completed_operation(FileStatus.FILE_STATUS_SUCCESS),
+        NO_FILES,
+    ]
+    ws.genie_migrate.list_files.return_value = []
+
+    result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error is None
+    assert ws.genie_migrate.convert_project_files.call_count == 5
+
+
+def test_fails_cleanly_when_the_run_folder_cant_be_created(ws, upload_ws, sources, tmp_path: Path) -> None:
+    ws.workspace.mkdirs.side_effect = PermissionDenied("not allowed")
+
+    with pytest.raises(AgenticConversionError, match=f"Could not create the run folder {RUN}: not allowed"):
+        _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    ws.genie_migrate.create.assert_not_called()
