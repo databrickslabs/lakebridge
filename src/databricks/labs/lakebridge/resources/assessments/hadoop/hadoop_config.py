@@ -82,8 +82,8 @@ from databricks.labs.lakebridge.resources.assessments.hadoop.masking import (
 )
 from databricks.labs.lakebridge.resources.assessments.hadoop.rest_client import RestClient, normalize_base_url
 
-# The original profiler's DISTRIBUTION values: oth (Apache Hadoop, MapR, others), cdh (CDH, CDP Private Cloud Base) and
-# hdp (HDP, Azure HDInsight).
+# The original profiler's DISTRIBUTION values: oth (Apache Hadoop and other distributions), cdh (CDH, CDP Private
+# Cloud Base) and hdp (HDP, Azure HDInsight).
 DISTRIBUTIONS = ("oth", "cdh", "hdp")
 SUPPORTED_AUTH = ("none", "basic")
 # Kerberos (SPNEGO) only where the original supports it: the ResourceManager and the Spark History Server.
@@ -182,7 +182,8 @@ def parse_hadoop_config(raw: Any) -> HadoopConfig:
     distribution = str(raw.get("distribution") or "").strip().lower()
     if distribution not in DISTRIBUTIONS:
         raise HadoopConfigError(
-            f"hadoop.distribution must be one of {', '.join(DISTRIBUTIONS)} (Azure HDInsight is hdp, MapR is oth); "
+            f"hadoop.distribution must be one of {', '.join(DISTRIBUTIONS)} "
+            "(Azure HDInsight is hdp; Apache Hadoop and other distributions are oth); "
             f"got {raw.get('distribution')!r}"
         )
     return HadoopConfig(

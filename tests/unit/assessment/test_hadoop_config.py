@@ -47,6 +47,11 @@ def test_masking_is_off_without_a_rules_file() -> None:
     assert config.mask("host1.corp.example.com") == "host1.corp.example.com"
 
 
+_DISTRIBUTION_ERROR = (
+    "must be one of oth, cdh, hdp .Azure HDInsight is hdp; Apache Hadoop and other distributions are oth"
+)
+
+
 @pytest.mark.parametrize("blank", ["", "   "])
 def test_a_blank_rules_file_setting_means_no_masking(blank: str) -> None:
     assert not parse_hadoop_config(_raw(search_replace_file=blank)).search_replace
@@ -153,9 +158,9 @@ def test_spark_history_block_is_parsed_with_its_own_settings() -> None:
     [
         ({"yarn": dict(_YARN)}, "hadoop.distribution must be one of"),
         (_raw(distribution="cloudera"), "hadoop.distribution must be one of"),
-        # Only the original profiler's three values; the error says where HDInsight and MapR belong.
-        (_raw(distribution="hdi"), "must be one of oth, cdh, hdp .Azure HDInsight is hdp, MapR is oth"),
-        (_raw(distribution="mapr"), "must be one of oth, cdh, hdp .Azure HDInsight is hdp, MapR is oth"),
+        # Only the original profiler's three values; the error says where HDInsight and other distributions belong.
+        (_raw(distribution="hdi"), _DISTRIBUTION_ERROR),
+        (_raw(distribution="mapr"), _DISTRIBUTION_ERROR),
         (_raw(yarn={"urls": []}), "hadoop.yarn.urls must be a non-empty list"),
         (_raw(yarn={"urls": ["rm1:8088"]}), "Invalid Hadoop service URL"),
         (_raw(yarn={"urls": ["http://u:p@rm1:8088"]}), "put credentials in username and password"),

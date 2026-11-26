@@ -6,668 +6,313 @@ import Admonition from '@theme/Admonition';
 
 # Hadoop Profiler Details
 
-- [Prerequisites](#prerequisites)
-- [Configure Connection to Hadoop](#configure-connection-to-hadoop)
-- [Credentials file reference](#credentials-file-reference)
-- [Cloudera Manager](#cloudera-manager)
-- [Apache Ranger](#apache-ranger)
-- [Impala (direct)](#impala-direct)
-- [Ambari](#ambari)
+- [What it collects](#what-it-collects)
+- [Tested with](#tested-with)
+- [Before you start](#before-you-start)
+- [Configure the connection](#configure-the-connection)
+- [Kerberos (optional)](#kerberos-optional)
 - [Run the profiler](#run-the-profiler)
+- [Initial and incremental runs](#initial-and-incremental-runs)
+- [Schedule the profiler](#schedule-the-profiler)
+- [Mask data](#mask-data)
 - [Profiler output](#profiler-output)
 - [Limitations](#limitations)
 
-This profiler reads cluster and workload metadata over the Hadoop REST APIs. It needs no database driver and no
-access to the cluster's file system or Hive metastore. It covers:
+The Hadoop profiler reads cluster and workload metadata through the cluster's REST APIs. It needs no database driver,
+and no access to HDFS or the Hive metastore. It only sends `GET` requests.
 
-- **YARN**: the ResourceManager's cluster info, metrics, NodeManagers, scheduler queues and applications.
-- **Spark History Server**: applications and their attempts (optional).
-- **Cloudera Manager** (CDH and CDP clusters, optional): services, hosts, configuration, time-series utilisation, and
-  Impala queries (opt-in). See [Cloudera Manager](#cloudera-manager).
-- **Apache Ranger** (optional): services, policies and policy items. See
-  [Apache Ranger](#apache-ranger).
-- **Impala, read directly** (optional): the queries each Impala daemon knows about, its backends and configuration, and
-  the catalogd tables and statestore subscribers. No Cloudera Manager is needed. See [Impala (direct)](#impala-direct).
-- **Ambari** (optional, HDP and HDInsight): the cluster blueprint, hosts, services, host components, stack version, and
-  the NameNode, DataNode, ResourceManager and NodeManager. See [Ambari](#ambari).
+## What it collects
 
-The distribution is one of the original profiler's three `DISTRIBUTION` values, and it is recorded in the extract:
+| Source | Required | What is collected |
+|--------|----------|-------------------|
+| YARN ResourceManager | Yes | Cluster info, metrics, NodeManagers, scheduler queues and applications |
+| Spark History Server | No | Spark applications and their attempts |
+| Cloudera Manager | No | Services, hosts, configuration, utilization time series and, if you turn it on, Impala queries |
+| Apache Ambari | No | Blueprint, hosts, services, host components, stack version and component metrics |
+| Apache Ranger | No | Services, policies and policy items |
+| Impala daemons (read directly) | No | Recent queries, backends, daemon settings, catalog tables and statestore subscribers |
 
-| Distribution | Clusters |
-|--------------|----------|
-| `cdh` | Cloudera CDH and CDP Private Cloud Base (Cloudera Manager) |
-| `hdp` | Hortonworks HDP and Azure HDInsight (Ambari). For HDInsight, give the cluster's gateway URLs and its login. |
-| `oth` | Vanilla Apache Hadoop, MapR and other distributions (YARN and Spark History only) |
+Any source you don't configure is skipped.
 
-Every distribution uses the same YARN and Spark REST APIs; the Cloudera Manager steps apply to CDH and CDP clusters.
+You also choose a **distribution**:
 
-## Prerequisites
+| Distribution | Use for |
+|--------------|---------|
+| `cdh` | Cloudera clusters managed by Cloudera Manager |
+| `hdp` | Ambari-managed clusters, including Azure HDInsight |
+| `oth` | Apache Hadoop clusters (YARN and Spark History Server) |
 
-### 1. Environment
+## Tested with
 
-- **Lakebridge CLI** installed and configured for your Databricks workspace (same as other profiler sources).
+- Cloudera CDH (QuickStart), with Cloudera Manager and Impala
+- Azure HDInsight, through the cluster gateway, with Ambari
+- Apache Hadoop, including ResourceManager high availability
+- Standalone Apache Ranger and Apache Ambari servers
+- Kerberos (SPNEGO) for the YARN ResourceManager and the Spark History Server
 
-### 2. Network connectivity
+## Before you start
 
-The machine running the profiler must reach each ResourceManager web address, and, if used, the Spark History Server
-and Cloudera Manager addresses. The default ports are **8088** for the ResourceManager, **18081** for the Spark History
-Server and **7180** (HTTP) or **7183** (HTTPS) for Cloudera Manager. Azure
-HDInsight is reached through its HTTPS gateway, which has no port: use the gateway URL, which includes its path (for
-example `https://<cluster>.azurehdinsight.net/yarnui`). The Ranger Admin default ports are **6080** (HTTP) and **6182**
-(HTTPS).
+**Lakebridge.** Install the Lakebridge CLI and configure it for your Databricks workspace, as for any other profiler
+source.
 
-### 3. Authentication
+**Network access.** The machine that runs the profiler must reach every service you configure. The default ports are:
 
-The profiler supports:
+| Service | Default port |
+|---------|--------------|
+| YARN ResourceManager | 8088 (HTTP), 8090 (HTTPS) |
+| Spark History Server | 18080 or 18081 |
+| Cloudera Manager | 7180 (HTTP), 7183 (HTTPS) |
+| Ambari | 8080 |
+| Ranger Admin | 6080 (HTTP), 6182 (HTTPS) |
+| Impala web UIs | impalad 25000, statestore 25010, catalogd 25020 |
 
-| Auth | Use |
-|------|-----|
-| `none` | The REST endpoints are open to the network, as on many development clusters |
-| `basic` | HTTP basic authentication with a username and password, for example HDInsight gateway logins or a proxy in front of the ResourceManager, or a Cloudera Manager login |
-| `kerberos` | SPNEGO (Kerberos) for the YARN ResourceManager and the Spark History Server only, as in the original profiler. See [Kerberos](#kerberos). |
+Azure HDInsight is reached through its HTTPS gateway, without a port. For example, YARN is
+`https://<cluster>.azurehdinsight.net/yarnui`.
 
-Cloudera Manager, Ranger and the Impala web UIs do not support Kerberos. A credentials file that sets `auth: kerberos` on
-them fails with a clear message.
+**Permissions.** Read access to the REST APIs is enough. For example, a read-only Cloudera Manager user works.
 
-#### Kerberos
+**Authentication.** Each service can use:
 
-For a cluster where the ResourceManager and the Spark History Server require SPNEGO, set `auth: kerberos` on the
-`yarn` and `spark_history` blocks. The profiler does not use a Python Kerberos library. Like the original profiler, it
-runs the system `curl --negotiate -u :` and the system `kinit` and `klist`, so these must be on `PATH`:
+- `none`: the API is open, as on many development clusters.
+- `basic`: a username and password, for example the HDInsight cluster login or a Cloudera Manager user.
+- `kerberos`: for the YARN ResourceManager and the Spark History Server only. See [Kerberos (optional)](#kerberos-optional).
 
-- **curl with SPNEGO support** (`curl -V` lists `SPNEGO` or `GSS-API`). The profiler checks this before its first request.
-- **Kerberos client tools**: `kinit` and `klist` (MIT krb5 or Heimdal).
-- **A ticket**, in one of two ways:
-  - a **keytab**: set `keytab` and `principal`. Before its first request the profiler runs
-    `kinit -kt <keytab> <principal>`, unless the ticket cache already holds a valid ticket for that principal, so the
-    steps of a run share one ticket. Without `ccache` the ticket goes to a cache of the profiler's own,
-    `lakebridge-hadoop-krb5cc-<account>-<principal>` in the temporary directory, and the default ticket cache of the
-    account running the profiler is left alone. A wrong keytab or principal fails with kinit's message.
-  - **an existing ticket**: leave out `keytab`. Run `kinit <principal>` beforehand. The profiler checks the ticket with
-    `klist -s` and stops with a clear message if there is none or it has expired. Long runs can outlive a ticket, so a
-    keytab is more reliable for scheduled runs.
+<Admonition type="warning" title="Sensitive data">
+Application names, error messages, query text, and user, queue and host names are stored as the cluster reports them.
+To hide them, turn on masking (see [Mask data](#mask-data)), and check the extract before you share it.
+</Admonition>
 
-The host in the URL must match the service principal. A ResourceManager registered as `HTTP/rm1.example.com@REALM` is
-reached as `http://rm1.example.com:8088`, not by an IP address or an alias. Otherwise the server answers HTTP 401 and
-the step reports it. Use the names the service is registered under.
+## Configure the connection
 
-Use `ccache` (sets `KRB5CCNAME`) and `krb5_config` (sets `KRB5_CONFIG`) when the ticket cache or the Kerberos
-configuration (KDC and realm) is not in the default place. Windows is not tested.
+```bash
+databricks labs lakebridge configure-database-profiler
+```
+
+Choose **`hadoop`** as the source. The wizard then asks for:
+
+1. **Secret vault type**: `local` stores passwords in the credentials file; `env` reads each password from an
+   environment variable that you name.
+2. **Distribution**: `cdh`, `hdp` or `oth`.
+3. **YARN ResourceManager URLs**: comma-separated. With high availability, list every ResourceManager. The profiler
+   finds the active one.
+4. **Authentication and TLS** for YARN. For HTTPS you can keep certificate checks on (the default) and give a CA bundle.
+5. **An application filter** (optional), such as `user=etl` or `queue=root.prod`. Press Enter to collect every
+   application.
+6. **Spark History Server** (optional): its URL and authentication.
+7. **Cloudera Manager** (optional): its URL, login and cluster name. You can also turn on Impala queries here, and set
+   how many days to read and the time slice.
+8. **Apache Ranger** (optional): the Ranger Admin URL and login.
+9. **Impala daemons** (optional): the web UI URL of every Impala coordinator, and optionally the catalogd and statestore
+   URLs.
+10. **Ambari** (optional): its URL and login. For HDInsight, use the gateway URL `https://<cluster>.azurehdinsight.net`.
+11. **Masking** (optional). See [Mask data](#mask-data).
+12. **Connection test**: the wizard calls each configured service and reports any problem.
+
+Leave a cluster or service name empty and the profiler finds it when there is only one.
+
+The answers are saved to `~/.databricks/labs/lakebridge/.credentials.yml`. You can also edit that file by hand:
+
+```yaml
+secret_vault_type: local          # local | env
+secret_vault_name: null
+hadoop:
+  distribution: cdh               # cdh | hdp | oth
+  yarn:
+    urls:                         # list every ResourceManager
+      - http://rm1.example.com:8088
+      - http://rm2.example.com:8088
+    auth: none                    # none | basic | kerberos
+    app_filter: ""                # optional, for example "user=etl"
+  spark_history:                  # optional
+    url: http://spark-hs.example.com:18081
+    auth: none
+  cloudera_manager:               # optional
+    url: https://cm.example.com:7183
+    auth: basic
+    username: profiler
+    password: ...                 # with secret_vault_type env: the name of an environment variable
+    verify_ssl: true              # true | false | path to a CA bundle
+    cluster: ""                   # optional; found automatically when there is only one
+    extract_impala_queries: false # turn on to collect Impala queries
+    impala_lookback_days: 1       # days the first run reads
+    impala_interval_minutes: 60   # time slice: 1, 2, 3, 6, 10, 20, 30 or 60
+    impala_max_pages: 2           # pages of 1,000 queries per slice
+  ranger:                         # optional
+    url: https://ranger.example.com:6182
+    auth: basic
+    username: profiler
+    password: ...
+  impala:                         # optional: read the Impala daemons directly
+    urls: [http://impalad1.example.com:25000, http://impalad2.example.com:25000]
+    catalogd_url: http://catalogd.example.com:25020       # optional
+    statestored_url: http://statestored.example.com:25010 # optional
+  ambari:                         # optional
+    url: http://ambari.example.com:8080
+    auth: basic
+    username: admin
+    password: ...
+  search_replace_file: ~/.databricks/labs/lakebridge/hadoop-masking-rules.txt   # optional: masking rules
+```
+
+Each service block also accepts `auth`, `username`, `password` and `verify_ssl` in the same way.
+
+<Admonition type="info" title="Impala: Cloudera Manager or direct?">
+On a cluster that Cloudera Manager manages, use the Cloudera Manager Impala queries: Cloudera Manager stores the query
+history for the days you choose. Reading the Impala daemons directly works without Cloudera Manager, but each daemon
+keeps only its most recent queries (200 by default). List every coordinator, because each one only knows the queries it
+ran.
+</Admonition>
+
+## Kerberos (optional)
+
+If the YARN ResourceManager or the Spark History Server requires Kerberos (SPNEGO), set `auth: kerberos` on that block.
+The profiler uses the system `curl`, `kinit` and `klist`, so these must be installed and on `PATH`, and `curl` must
+support SPNEGO (`curl -V` lists `SPNEGO` or `GSS-API`).
+
+Give the profiler a ticket in one of two ways:
+
+- **A keytab** (best for scheduled runs): set `keytab` and `principal`. The profiler runs `kinit` itself and keeps the
+  ticket in its own cache, so your own ticket cache is not changed.
+- **An existing ticket**: leave out `keytab` and run `kinit <principal>` before the profiler. The profiler stops with a
+  clear message if there is no valid ticket.
 
 ```yaml
   yarn:
     urls: [https://rm1.example.com:8090]
     auth: kerberos
     principal: profiler@EXAMPLE.COM
-    keytab: /etc/security/keytabs/profiler.keytab   # optional; without it, use an existing ticket
-    ccache: FILE:/tmp/krb5cc_profiler              # optional
-    krb5_config: /etc/krb5.conf                    # optional
-    verify_ssl: true
+    keytab: /etc/security/keytabs/profiler.keytab   # optional; without it, an existing ticket is used
+    ccache: FILE:/tmp/krb5cc_profiler              # optional ticket cache
+    krb5_config: /etc/krb5.conf                    # optional Kerberos configuration
 ```
 
-Kerberos is not combined with a username or password. It is per block, so a cluster can use Kerberos for the
-ResourceManager and `none` for the Spark History Server.
-
-### 4. Permissions
-
-The account only needs read access to the REST endpoints. The profiler issues `GET` requests only. A read-only
-Cloudera Manager user is enough.
-
-<Admonition type="warning" title="Sensitive text">
-YARN application names and failure diagnostics can contain paths, query text or data values, and user, queue and
-host names appear throughout. Like the original Hadoop profiler, these are stored as the cluster reports them. To
-mask them, answer the masking questions in the configuration (see [Mask data](#mask-data)) and inspect the extract
-before sharing it.
-</Admonition>
-
-## Configure Connection to Hadoop
-
-```bash
-databricks labs lakebridge configure-database-profiler
-```
-
-Select **`hadoop`** as the source system. The wizard asks for:
-
-1. The secret vault type (`local` or `env`).
-2. The distribution: `cdh`, `hdp` or `oth`, as the original profiler's `DISTRIBUTION` (see above).
-3. The YARN ResourceManager URL or URLs, comma-separated. For high availability, list every ResourceManager.
-4. The YARN authentication (`none`, `basic` or `kerberos`). For `basic`, the username and password. For `kerberos`, an
-   optional keytab path and the principal (leave the keytab empty to use an existing ticket).
-5. For `https` URLs, whether to verify the YARN TLS certificate (Enter keeps verification on), and then, if it is on,
-   an optional CA bundle path.
-6. An optional filter for the YARN applications: a YARN REST query string such as `user=etl` or
-   `queue=root.prod&applicationTypes=SPARK`, the original profiler's `RM_APP_FILTER`. Press Enter to extract every
-   application.
-7. Whether to configure a Spark History Server, and if so the same questions for its URL (including `kerberos`).
-8. Whether to configure Cloudera Manager. If so: its URL, authentication, TLS settings, an optional cluster name, and
-   whether to extract Impala queries. If so: the interval, the number of days the initial run reads (default 1, the
-   original `CM_IMPALA_NUMBER_OF_DAYS`; an incremental run reads yesterday), the pages of 1000 queries read per interval
-   (default 2, the original `CM_IMPALA_PAGES`), and an optional Impala service name. Leave the cluster and service
-   empty to have the profiler detect them.
-9. Whether to configure Apache Ranger (services and policies). If so: its Admin URL, authentication, and TLS settings.
-10. Whether to read Impala daemons directly. If so: the impalad web UI URL of every coordinator, the authentication and
-   TLS settings they share, and optionally the catalogd and statestore web UI URLs. See [Impala (direct)](#impala-direct).
-11. Whether to configure Ambari. If so: its URL (or the HDInsight gateway URL, with no port), authentication, TLS settings,
-   and an optional cluster name. Leave the cluster empty to have the profiler detect it. See [Ambari](#ambari).
-12. Whether to mask data in the extract. If so: an existing masking rules file, or guided answers (domains, IP
-   addresses, user names, query text and job names) that are saved as a rules file. See [Mask data](#mask-data).
-13. Whether to test the connection. The test finds the active ResourceManager and, if configured, calls the Spark History
-   Server, resolves the Cloudera Manager cluster (and Impala service, if Impala queries are extracted), reads the
-   Ranger service list, calls each Impala daemon, catalogd and statestore, and resolves the Ambari cluster.
-
-With `secret_vault_type: env`, a password answer is the name of an environment variable that holds the password.
-
-## Credentials file reference
-
-The wizard writes the following to `~/.databricks/labs/lakebridge/.credentials.yml`. You can also write it by hand.
-
-```yaml
-secret_vault_type: local
-secret_vault_name: null
-hadoop:
-  distribution: cdh              # cdh | hdp | oth, as the original profiler's DISTRIBUTION
-  yarn:
-    urls:                        # every ResourceManager in HA; a gateway URL may include a path
-      - http://rm1.example.com:8088
-      - http://rm2.example.com:8088
-    auth: basic                  # none | basic | kerberos (kerberos: yarn and spark_history only)
-    username: profiler
-    password: ...                # a literal, or an environment variable name when secret_vault_type is env
-    verify_ssl: true             # true | false | path to a CA bundle (applies to https URLs)
-    app_filter: "user=etl"       # optional: extra YARN apps query parameters (the original RM_APP_FILTER)
-  spark_history:                 # optional; without this block the Spark steps are skipped
-    url: https://spark-hs.example.com:18081
-    auth: none                   # none | basic | kerberos
-    verify_ssl: true
-  cloudera_manager:              # optional; without this block the cm_* steps are skipped
-    url: https://cm.example.com:7183
-    auth: basic
-    username: profiler
-    password: ...
-    verify_ssl: true
-    cluster: "Cloudera QuickStart"   # optional; detected when Cloudera Manager manages one cluster
-    extract_impala_queries: false    # opt-in; the Impala query extract is slow on busy clusters
-    impala_interval_minutes: 60      # 1, 2, 3, 6, 10, 20, 30 or 60
-  ranger:                        # optional; without this block the ranger_* steps are skipped
-    url: https://ranger.example.com:6182   # Ranger Admin; may include a path (for example behind a gateway)
-    auth: basic
-    username: profiler           # a user that can read the Ranger services and policies
-    password: ...
-    verify_ssl: true
-  ambari:                        # optional; without this block the ambari_* steps are skipped
-    url: http://ambari.example.com:8080   # Ambari Server; for HDInsight, https://<cluster>.azurehdinsight.net (no port)
-    auth: basic
-    username: admin
-    password: ...
-    verify_ssl: true
-    cluster: "Sandbox HDP"       # optional; detected when Ambari manages exactly one cluster
-  search_replace_file: ~/.databricks/labs/lakebridge/hadoop-masking-rules.txt   # optional: masking rules, see Mask data
-```
-
-| Key | Required | Notes |
-|-----|----------|-------|
-| `distribution` | yes | Recorded in `yarn_cluster_info`. |
-| `yarn.urls` | yes | Each URL is `http(s)://host[:port][/path]`. Credentials in the URL are rejected. |
-| `yarn.auth` / `username` / `password` | no | `auth` defaults to `basic` when a username is set, otherwise `none`. `kerberos` takes no username or password. |
-| `yarn.principal` | with `keytab` | The Kerberos principal, for example `profiler@EXAMPLE.COM`. Optional with an existing ticket. |
-| `yarn.keytab` | no | A keytab file that must exist. The profiler runs `kinit -kt` with it. Without it, an existing ticket is used. |
-| `yarn.ccache` | no | The ticket cache, such as `FILE:/tmp/krb5cc_profiler`. Sets `KRB5CCNAME` for curl and kinit/klist. With a keytab and no `ccache`, the profiler uses a cache of its own in the temporary directory, so the default ticket cache of the account running it is left alone. |
-| `yarn.krb5_config` | no | A `krb5.conf` file that must exist. Sets `KRB5_CONFIG`. |
-| `yarn.verify_ssl` | no (true) | `false` disables certificate checks and logs a warning. |
-| `yarn.app_filter` | no | Query parameters for the YARN applications request, for example `user=etl&queue=root.prod` (a leading `?` is allowed). Same as `RM_APP_FILTER` in the original profiler. The request is the full application list with this filter, on every run. |
-| `spark_history.url` | yes, if the block is present | A single URL. |
-| `spark_history.auth` / `principal` / `keytab` / `ccache` / `krb5_config` | no | As for YARN, including Kerberos. |
-| `cloudera_manager.url` | yes, if the block is present | The Cloudera Manager base URL. It may include a path, for example behind a gateway. |
-| `cloudera_manager.auth` / `username` / `password` | no | As for YARN. Cloudera Manager needs `basic` in practice. |
-| `cloudera_manager.verify_ssl` | no (true) | As for YARN. |
-| `cloudera_manager.api_version` | no | For example `v12`. When absent, the profiler reads it from `/api/version`. |
-| `cloudera_manager.cluster` | no | The cluster name, which may contain spaces. When absent, the profiler uses the cluster if CM manages exactly one, and otherwise stops and lists the names. |
-| `cloudera_manager.extract_impala_queries` | no (false) | `true` to extract Impala queries (see [Cloudera Manager](#cloudera-manager)). |
-| `cloudera_manager.impala_service` | no | The Impala service name. When absent, the profiler uses the cluster's only IMPALA service. |
-| `cloudera_manager.impala_interval_minutes` | no (60) | The time slice for Impala queries: 1, 2, 3, 6, 10, 20, 30 or 60. |
-| `cloudera_manager.impala_lookback_days` | no (1) | The Impala window in days, like the original profiler's `CM_IMPALA_NUMBER_OF_DAYS`. Impala query history is large, so widen it with care. |
-| `cloudera_manager.impala_max_pages` | no (2) | Pages of 1,000 queries per time slice. A busy slice stops here and logs a warning. |
-| `impala.urls` | yes, if the block is present | The impalad web UI base URLs (port 25000 by default), one per coordinator. A comma-separated string also works. |
-| `impala.auth` / `username` / `password` | no | As for YARN. Used for every Impala URL below. `kerberos` is not supported here. |
-| `impala.verify_ssl` | no (true) | As for YARN. Applies to every Impala URL below. |
-| `impala.catalogd_url` | no | The catalogd web UI base URL (port 25020 by default). Enables the `impala_catalog` step. |
-| `impala.statestored_url` | no | The statestore web UI base URL (port 25010 by default). Enables the `impala_statestore` step. |
-| `ranger.url` | yes, if the block is present | The Ranger Admin base URL. It may include a path. |
-| `ranger.auth` / `username` / `password` | no | As for YARN. Ranger needs `basic` in practice. |
-| `ranger.verify_ssl` | no (true) | As for YARN. |
-| `ambari.url` | yes, if the block is present | The Ambari Server base URL, `http(s)://host[:port][/path]`. For HDInsight, the cluster gateway with no port: `https://<cluster>.azurehdinsight.net`. |
-| `ambari.auth` / `username` / `password` | no | As for YARN. Ambari needs `basic` in practice. `kerberos` is not supported. |
-| `ambari.cluster` | no | The cluster name, which may contain spaces. When absent, the profiler uses the cluster if Ambari manages exactly one, and otherwise stops and lists the names. |
-| `ambari.verify_ssl` | no (true) | As for YARN. |
-| `search_replace_file` | no | The path to a masking rules file (`s/<find>/<replace>/g` lines), applied in order to every REST response before anything is stored. It is read on every run. Blank or absent means no masking. The configuration writes it; see [Mask data](#mask-data). |
-
-Other sections in the same file (for example `ambari`) are reserved for later phases and are ignored today.
-
-## Impala (direct)
-
-The `hadoop.impala` block reads each Impala daemon's own debug web UI. It needs no Cloudera Manager, so it also works
-on a cluster that Cloudera Manager does not manage. The web UI answers JSON with `?json`, and the profiler reads these
-endpoints:
-
-| Daemon | Endpoint | Steps |
-|--------|----------|-------|
-| impalad (`impala.urls`) | `/queries?json` | `impala_queries`: the completed-query log and the queries in flight. |
-| impalad | `/backends?json` | `impala_backends`: the daemon's backends, with admission and memory sizes. |
-| impalad | `/varz?json` | `impala_daemon_config`: a curated list of flags that decide query-log retention, memory and admission control. |
-| catalogd (`impala.catalogd_url`) | `/catalog?json` | `impala_catalog`: one row per table the catalog knows about. |
-| statestore (`impala.statestored_url`) | `/subscribers?json` | `impala_statestore`: one row per registered subscriber. |
-
-**Every coordinator must be listed.** Each impalad knows only the queries it coordinated. The profiler reads every URL
-in `impala.urls` and unions the results, one row per daemon and query, with the daemon's URL in `coordinator_url`. These
-URLs are not an active and standby pair: list every daemon that coordinates queries. A daemon that cannot be reached
-fails its step, which is then recorded as absent.
-
-**Retention is per daemon.** The completed-query log keeps the last `query_log_size` queries (200 by default in Impala
-4.5, and `query_log_size_in_bytes`, 2 GiB by default, applies too). A busy coordinator therefore covers minutes or hours,
-not days. The `impala_daemon_config` table records the limits in force. Schedule the profiler run often enough to see
-the queries you need, or raise `query_log_size` on the daemons before you profile. Where Cloudera Manager manages the
-cluster, prefer `cm_impala_queries` for history: Cloudera Manager stores queries itself, for the window you set.
-
-**How it differs from `cm_impala_queries`.** The Cloudera Manager extract reads Cloudera Manager's stored history for a
-time window, with the `impalaQueries` API and its paging. The direct extract reads what each daemon holds right now: a
-bounded log per daemon, plus the queries still running, which the Cloudera Manager extract does not return. The direct
-extract has no window or paging settings, and it reads no query profiles. It needs the impalad URLs, not Cloudera Manager
-credentials.
-
-**Values.** Impala prints durations (for example `1s156ms`), sizes (for example `4.11 MB`) and timestamps as text. The
-profiler converts them to milliseconds, bytes and timestamps. Times are the daemon's local times, without a time zone. An
-unset end time (the in-flight queries) is NULL. `query_json` keeps each record as Impala returned it. Query text is kept as
-Impala returns it, so mask literals and names with the masking rules (see [Mask data](#mask-data)).
-
-**Not extracted.** Query profiles (`/query_profile`) are large and are not fetched by default; they are a possible
-future step. The `/metrics`, `/memz` and `/sessions` pages are not extracted either.
-
-## Cloudera Manager
-
-The Cloudera Manager steps follow the original profiler's Cloudera extract (`extract_cm_info`,
-`extract_cm_timeseries` and `extract_impala`). They read the Cloudera Manager REST API (`/api/<version>`).
-
-- **API version**: read from `/api/version`, which answers in plain text (for example `v12`), unless
-  `cloudera_manager.api_version` is set.
-- **Cluster and service**: each step checks the cluster name before it reads anything. A name with spaces (such as
-  `Cloudera QuickStart`) is URL-encoded. If Cloudera Manager manages several clusters, the profiler stops and lists
-  their names; set `cluster` to choose one.
-- **Errors**: an HTTP error stops the step. The profiler does not store an error page as data.
-
-What is collected:
-
-| Step | Source | Notes |
-|------|--------|-------|
-| `cm_clusters` | `/clusters`, `/cm/version` | Every cluster CM manages, with the CM version. `is_selected` marks the configured cluster. |
-| `cm_services` | `/clusters/<cluster>/services` | Service state, health summary and health checks. |
-| `cm_hosts` | `/hosts` | Hosts CM manages, with cores and memory. As in the original, hosts are not filtered by cluster. |
-| `cm_host_config` | `/cm/allHosts/config` | Configuration items of all hosts. |
-| `cm_cluster_export` | `/clusters/<cluster>/export` | Flattened into one row per service reference, role config group item, or role. Host templates are not extracted. |
-| `cm_timeseries` | `/timeseries` | Seven queries (host roles, HDFS usage, YARN utilisation, YARN memory and CPU, Impala utilisation, cluster CPU and memory), as in the original. Long format: one row per sample. |
-| `cm_impala_queries` | `/clusters/<cluster>/services/<impala>/impalaQueries` | Opt-in. One row per query. |
-
-Time-series windows match the original. The YARN, Impala and cluster queries use the hourly rollup from one month
-before today (`date -d '-1 month'`) up to today, on every run. The host roles and HDFS queries have no window, which
-returns Cloudera Manager's default recent window, as the original does.
-
-### Time-series metrics that the Cloudera Manager version does not have
-
-Cloudera Manager rejects a whole timeseries query when it names one metric it does not know, with HTTP 400 or 500
-and a message such as `Invalid metric 'impala_memory_rss'`. Not every Cloudera Manager has every metric the queries
-name. The profiler therefore drops that metric and sends the query again, until the
-query succeeds. Each dropped metric is recorded in `cm_timeseries` with `status = 'unsupported_by_cm'` and no
-sample, so you can see which metrics this Cloudera Manager does not report.
-
-### Impala queries (opt-in)
-
-Impala queries are not extracted unless `extract_impala_queries` is `true`. The original profiler also left them off by
-default (`CM_EXTRACT_IMPALA_QUERIES=N`). On a busy cluster, the extract makes many requests. The initial run reads today and
-the previous `impala_lookback_days` days (default 1). Each later run reads yesterday only. See
-[Initial and incremental runs](#initial-and-incremental-runs).
-
-The profiler reads the window in slices of `impala_interval_minutes`. Each slice is read in pages of 1,000 queries,
-and the pages stop at the first short page or at `impala_max_pages`. Queries are stored as CM returns them: the
-statement text and user names are not redacted. Answer the masking questions to redact them.
-
-When Cloudera Manager reports `Impala query scan limit reached` for a slice, the profiler logs a warning. Reduce
-`impala_interval_minutes` and raise `impala_max_pages` to read every query in that slice.
-
-### Sensitive values
-
-The cluster export and the configuration steps store the values that Cloudera Manager returns. The export includes
-database and other `*_password` settings. Cloudera Manager returns those as placeholders such as `<changeme>` or
-omits them, and the profiler keeps what it receives, as the original did. Check the extract before you share it, or
-use the masking rules to mask values.
-
-## Apache Ranger
-
-The Ranger steps read the Ranger Admin REST API for the services (repositories) and the policies, the two lists the
-original profiler extracted. They run only when `hadoop.ranger` is configured. The original profiler ran them on HDP and CDP clusters, and
-an HDInsight cluster uses its gateway URL.
-
-| Step | Source | Notes |
-|------|--------|-------|
-| `ranger_services` | `/service/public/v2/api/service` | One row per service (repository). `configs` is kept as Ranger returns it. |
-| `ranger_policies` | `/service/public/v2/api/policy` | One row per policy. Its type is `access`, `masking` or `row_filter`. |
-| `ranger_policy_items` | `/service/public/v2/api/policy` | One row per item: allow, deny, allow and deny exceptions, data masks and row filters. |
-
-**Why v2 and not the legacy v1 API.** The original profiler reads the v1 API (`/service/public/api/repository` and
-`/service/public/api/policy`). On Ranger 2.x the v1 calls under-report: in a Ranger 2.9.0 test, the v1 policy list
-returned 20 of the 24 policies while its own `totalCount` said 24, and the v1 repository list left out the YARN and tag
-services. This profiler therefore reads the v2 API. It falls back to v1 only when the v2 API returns 404 (very old
-Ranger releases), and then logs a warning that the result may be incomplete.
-
-**Sensitive values.** Ranger returns the service configurations (`ranger_services.configs`) with passwords masked as
-`*****`, and the profiler stores them as Ranger returns them. Policy descriptions, resource values and conditions are stored as they are. Check the
-extract before you share it, or use the masking rules to mask values.
-
-## Ambari
-
-The Ambari steps read the Ambari REST API (`/api/v1`) for an HDP or HDInsight cluster. They run only when `hadoop.ambari`
-is configured. They are the original profiler's Ambari calls (`extract_ambari_bp`), with the same URLs and query strings.
-
-| Step | Source | Notes |
-|------|--------|-------|
-| `ambari_blueprint` | `/api/v1/clusters/<cluster>?format=blueprint` | One row per host group and component, with the stack name and version from the blueprint. A host group with no components keeps one row with a NULL component. Cardinality is kept as text. |
-| `ambari_blueprint_configurations` | the same blueprint | One row per property of each configuration type (for example `yarn-site`), with its value as Ambari returns it. |
-| `ambari_hosts` | `/hosts?fields=Hosts/cpu_count,Hosts/disk_info,Hosts/total_mem,Hosts/os_type` | One row per host: CPU count, `total_mem` as Ambari reports it, OS type, the `disk_info` JSON as returned, and the summed disk size and available space. |
-| `ambari_services` | `/services` | One row per service in the cluster. |
-| `ambari_host_components` | `/hosts?fields=host_components/host_name` | One row per component installed on each host. |
-| `ambari_stack_versions` | `/stack_versions/1` | The stack, version, repository version and state, with `host_states` and `repository_versions` as JSON text. |
-| `ambari_component_metrics` | `/services/HDFS/components/NAMENODE?fields=metrics`, `.../DATANODE?fields=metrics`, `/services/YARN/components/RESOURCEMANAGER` and `.../NODEMANAGER` | One row per component and metric. A component with no metrics has one row, with a NULL metric. |
-
-**HDInsight.** Give the cluster gateway as the URL, with no port: `url: https://<cluster>.azurehdinsight.net`. The
-profiler calls `https://<cluster>.azurehdinsight.net/api/v1/...`. A path in the URL is kept, as for YARN.
-
-**Cluster name.** The name is URL-encoded in every request, so a name with spaces works (`Sandbox HDP`). When Ambari
-manages exactly one cluster, the profiler uses it. When it manages several, the profiler stops with a message that lists
-their names, and you set `cluster`.
-
-**Component calls and a missing service.** Before any service is installed, Ambari answers the four component calls
-with HTTP 404. The original profiler saved that error body as if it were data. Here, a 404 for a service that the cluster
-does not have adds no rows and the step still succeeds. A 404 for a service the cluster does have is an error, as is any
-other HTTP error.
-
-**Metrics.** Ambari returns component metrics only when the Ambari Metrics service is installed. Without it, the metric
-columns are NULL and `ambari_component_metrics` has the component's state and counts only. The metrics are nested in
-Ambari (for example `dfs.namenode.CapacityTotal`), so each leaf is one row. The metric path is relative to the
-component's `metrics` object.
-
-**What is kept.** Nothing is redacted. Host names, disk paths and the blueprint configuration values are stored as Ambari
-returns them. Use the masking rules to mask them.
-
-**Differences from the original.** The original saved HTTP error bodies as data and exited 0. Here an HTTP error is an
-error, except the 404 described above. The original requested metrics only for the NameNode and DataNode, and this
-profiler does the same.
+Use the host name that the service is registered under in Kerberos, not an IP address or an alias. Otherwise the
+service answers HTTP 401. Kerberos is set per block, so YARN can use Kerberos while the Spark History Server uses `none`.
 
 ## Run the profiler
 
 ```bash
-databricks labs lakebridge execute-database-profiler --source-tech hadoop
+databricks labs lakebridge execute-database-profiler --source-tech hadoop --output-folder /path/to/output
 ```
 
-The run works in three steps for each table:
+`--output-folder` is optional. Without it you are asked for a folder, with
+`~/.databricks/labs/lakebridge_profilers/hadoop_assessment` as the default. Use `--cred-file-path` to use a credentials
+file other than the default one.
 
-1. Find the active ResourceManager. With HA, the client tries the URLs in order and uses the one reporting
-   `haState` ACTIVE.
-2. Fetch the REST responses for the table.
-3. Load them into a typed table in the extract.
+Each run writes a new DuckDB file in the output folder:
 
-Each run writes its own DuckDB file, named `profiler_extract_hadoop_<version>_<UTC start time>.db`. Some tables are
-collected on the initial run only, and later runs read only recent history. See
-[Initial and incremental runs](#initial-and-incremental-runs).
+```text
+profiler_extract_hadoop_<version>_<YYYYMMDDTHHMMSSZ>.db
+```
 
-A failing YARN step is recorded as an error and fails the run. A failing Spark History Server step is recorded as
-absent, so the run still completes. A Spark step with no `spark_history` block is reported as skipped and writes no
-table. The same holds for the Cloudera Manager steps without a `cloudera_manager` block, for `cm_impala_queries`
-without `extract_impala_queries: true`, for the Ranger steps without a `ranger` block, and for the Impala steps without
-an `impala` block (`impala_catalog` and `impala_statestore` also need their URLs). A Cloudera Manager step that fails, for example on an ambiguous cluster
-choice or an HTTP error, is recorded as absent, so the run still completes.
+If a YARN step fails, the run fails. If an optional source fails, that step is marked as absent and the run still
+completes. Steps for sources you did not configure are reported as skipped.
 
 ## Initial and incremental runs
 
-The profiler behaves as the original profiler did. The first run is the **initial** run. It collects the inventory
-(the cluster configuration, the schedulers and the Ambari, Ranger and Cloudera Manager configuration) and the recent
-history. Every later run is **incremental**. It reads the recent history again, and it does not read the inventory
-again.
+The first run in an output folder is the **initial** run. It collects the cluster inventory (configuration, nodes,
+queues, services, hosts, Ambari and Ranger) and the recent history. Every later run in the same folder is
+**incremental**: it collects recent history again, and skips the inventory it already has.
 
-| Data | Steps | Initial run | Incremental run |
-|------|-------|-------------|-----------------|
-| YARN cluster identity and HA state | `yarn_cluster_info` | Yes | Yes |
-| YARN applications | `yarn_applications` | Every application the ResourceManager lists, with `yarn.app_filter` | Same |
-| YARN metrics, NodeManagers, scheduler queues and their partitions | `yarn_cluster_metrics`, `yarn_nodes`, `yarn_scheduler_queues`, `yarn_scheduler_queue_partitions` | Yes | No |
-| Spark History Server applications and attempts | `spark_applications`, `spark_application_attempts` | Started in the last 7 UTC days (`minDate`) | Started since yesterday (`minDate`) |
-| Cloudera Manager version and cluster | `cm_clusters` | Yes | Yes |
-| Cloudera Manager time series | `cm_timeseries` | One month up to today | Same |
-| Cloudera Manager services, hosts, host configuration, cluster export | `cm_services`, `cm_hosts`, `cm_host_config`, `cm_cluster_export` | Yes | No |
-| Cloudera Manager Impala queries (opt-in) | `cm_impala_queries` | Today and the previous `impala_lookback_days` days (default 1) | Yesterday only |
-| Impala daemon query log (direct, opt-in) | `impala_queries` | Yes | Yes |
-| Impala backends, daemon configuration, catalogd, statestore (direct) | `impala_backends`, `impala_daemon_config`, `impala_catalog`, `impala_statestore` | Yes | No |
-| Ambari blueprint, hosts, services, components, stack versions, metrics | `ambari_*` (7 steps) | Yes | No |
-| Ranger services and policies | `ranger_*` (3 steps) | Yes | No |
+| Data | Initial run | Incremental run |
+|------|-------------|-----------------|
+| YARN applications | All the ResourceManager still holds | Same |
+| Spark applications | Last 7 days | Since yesterday |
+| Cloudera Manager Impala queries | Today and the previous `impala_lookback_days` days | Yesterday |
+| Cloudera Manager time series | Last month | Same |
+| Inventory | Yes | Skipped once collected |
 
-Each step's status message says what it did. An incremental run reports an inventory step that already succeeded as:
+The profiler keeps track of this in `hadoop_extract_tracker.json` in the output folder:
 
-```text
-{"status":"success","message":"skipped: incremental run (initial extract already collected)"}
-```
+- If a run stops before it finishes, the next run does the initial run again.
+- If an inventory step fails, a later run collects it again.
+- To collect the inventory again, for example after cluster changes, delete `hadoop_extract_tracker.json`.
 
-An inventory step that has not succeeded in the completed initial extract runs again on an incremental run, so an
-inventory step that failed is retried. An initial run that aborts before its end is repeated in full by the next run.
+**Overlapping runs are safe.** If two runs use the same output folder at the same time, for example a scheduled run and
+a manual one, they take turns updating the tracker, using a lock file next to it
+(`hadoop_extract_tracker.json.lock`). Leave that file in place. Each run still writes its own complete DuckDB file. When
+runs overlap during the initial run, the initial run may not be marked complete, and the next run does it again. The
+last step's message says why.
 
-### The run tracker
+## Schedule the profiler
 
-As in the original profiler, the first run is initial, and it stays initial until it completes. The runs share one
-file, `hadoop_extract_tracker.json`, in the output folder next to the DuckDB files. It holds:
+Run the profiler regularly, usually once a day for 7 to 28 days. YARN keeps only a limited number of finished
+applications (10,000 by default), and a ResourceManager restart can clear them. On a busy cluster, run it more often,
+for example every hour, so no application is missed between runs.
 
-- `initial_run_db`: the file name of the run doing the initial extract.
-- `initial_completed`: true once an initial extract has completed. Every later run is incremental.
-- `yarn_cluster_info_run_db`: the run whose `yarn_cluster_info` step succeeded. This is the check that the active
-  ResourceManager was reached, as in the original profiler.
-- `completed_inventory_steps`: the inventory steps that have succeeded in the initial extract. An incremental run skips
-  these.
-
-An initial extract completes only at the end of its run. The last step of every run, `hadoop_extract_tracker`, writes no
-table. It sets `initial_completed` when the run is initial and its `yarn_cluster_info` succeeded. Otherwise it records
-nothing, and the next run is initial again. So a run that aborts before its end, for example because the ResourceManager
-is unreachable, leaves no completed initial extract, and the next run repeats the initial extract in full. Its status
-message is `initial extract recorded`, `initial extract not recorded: ...` (with the reason), or
-`nothing to record: the initial extract was already recorded by ...`.
-
-An inventory step that did not succeed in the completed initial extract, such as an Ambari call that failed, runs again
-on the next incremental run. It is recorded when it succeeds, and skipped after that.
-
-**To force a new initial extract, delete the tracker file.** The next run is initial and collects the inventory again.
-Do this after a change to the source system that the inventory should reflect, such as new Ambari or Ranger
-configuration, or a new Cloudera Manager cluster.
-
-A run whose tracker is damaged stops with an error. The profiler does not guess. Delete the tracker to start over.
-
-Each run's DuckDB file holds only the tables its steps wrote. An incremental run writes no inventory tables, so
-the inventory is in the initial run's file. See [Combining the run files](#combining-the-run-files).
-
-### Scheduling
-
-The original profiler ran daily under cron, and hourly for clusters with more than about 10,000 applications a day. The
-ResourceManager keeps only `yarn.resourcemanager.max-completed-applications` completed applications (10,000 by
-default). An application that finishes and is dropped between two runs is not extracted. Choose the interval so that a
-run always sees every application that finished since the previous run.
-
-A ResourceManager restart without state recovery loses its application history. Runs after a restart miss the
-applications that finished before it. This is outside the profiler's control.
-
-A daily crontab entry, run at 01:30 UTC, looks like this. The cron environment is minimal, so set the Databricks profile
-and the PATH in the entry:
+Always use the same `--output-folder`, because the tracker lives there. A daily cron entry at 01:30 looks like this:
 
 ```text
 30 1 * * * PATH=/usr/local/bin:/usr/bin:/bin DATABRICKS_CONFIG_PROFILE=<profile> databricks labs lakebridge execute-database-profiler --source-tech hadoop --cred-file-path /opt/lakebridge/hadoop/.credentials.yml --output-folder /opt/lakebridge/hadoop/out >> /opt/lakebridge/hadoop/cron.log 2>&1
 ```
 
-For an hourly run, use `0 * * * *` in place of the first two fields. Every run must use the same `--output-folder`,
-because the tracker lives there. The credentials file must resolve in the cron environment. With
-`secret_vault_type: env`, export the variables in the crontab line or in a file the entry sources.
+Cron runs with few environment variables, so set the Databricks profile and `PATH` in the entry. With
+`secret_vault_type: env`, also export the password variables there.
 
-Without cron, a shell loop runs the same command at a fixed interval until a set date. This is documentation only, not a
-script the profiler ships. Replace `FREQUENCY_HOURS` and `NO_OF_DAYS`:
+## Mask data
 
-```bash
-FREQUENCY_HOURS=24
-NO_OF_DAYS=14
-END=$(( $(date +%s) + NO_OF_DAYS * 86400 ))
-while [ "$(date +%s)" -lt "$END" ]; do
-  databricks labs lakebridge execute-database-profiler --source-tech hadoop \
-    --cred-file-path /opt/lakebridge/hadoop/.credentials.yml --output-folder /opt/lakebridge/hadoop/out
-  sleep $(( FREQUENCY_HOURS * 3600 ))
-done
+Masking changes every response before anything is stored, so masked values never reach the extract. The wizard asks:
+
+1. Whether to mask the extract.
+2. Whether to use an existing masking rules file.
+3. Domains to mask in host names. `rm1.corp.example.com` becomes `rm1.masked-1`.
+4. Whether to mask IP addresses. `10.20.3.7` becomes `x.x.3.7`. Version numbers are kept.
+5. Whether to redact user names. Per-user analysis is then not possible.
+6. Whether to redact query text and job names. Workload classification is then less precise.
+
+The answers are saved as rules in `~/.databricks/labs/lakebridge/hadoop-masking-rules.txt`. You can edit that file;
+the next run uses your changes. Each line is a `sed`-style rule, `s/<text to find>/<replacement>/g`, applied to each line
+of every response. An existing `sed.txt` masking file in this format works unchanged.
+
+```text
+s/corp\.example\.com/masked-1/g
+s/"\(user\|sparkUser\)"[[:space:]]*:[[:space:]]*"[^"]*"/"\1":"redacted"/g
 ```
 
-### Combining the run files
+A rule with a syntax error stops the run, with the line number in the message.
 
-Each run writes a new DuckDB file, so the history is spread over one file per run. Each file name carries the run's
-UTC start time, so the files sort oldest first. Attach them with an alias made from that time, and keep the latest row
-per application. The SQL below was run against three runs' files:
+## Profiler output
+
+Each table is named after the step that writes it:
+
+| Source | Tables |
+|--------|--------|
+| YARN | `yarn_cluster_info`, `yarn_cluster_metrics`, `yarn_nodes`, `yarn_scheduler_queues`, `yarn_scheduler_queue_partitions`, `yarn_applications` |
+| Spark History Server | `spark_applications`, `spark_application_attempts` |
+| Cloudera Manager | `cm_clusters`, `cm_services`, `cm_hosts`, `cm_host_config`, `cm_cluster_export`, `cm_timeseries`, `cm_impala_queries` |
+| Ambari | `ambari_blueprint`, `ambari_blueprint_configurations`, `ambari_hosts`, `ambari_services`, `ambari_host_components`, `ambari_stack_versions`, `ambari_component_metrics` |
+| Ranger | `ranger_services`, `ranger_policies`, `ranger_policy_items` |
+| Impala (direct) | `impala_queries`, `impala_backends`, `impala_daemon_config`, `impala_catalog`, `impala_statestore` |
+| All sources | `hadoop_raw_responses`: every response as received (after masking), so no field is lost |
+
+Times are in UTC. A column is empty (NULL) when the cluster does not report that value.
+
+An incremental run's file has only the tables that run wrote. The inventory tables are in the initial run's file. To
+combine the history from several runs, attach the files in DuckDB and keep the latest row per application:
 
 ```sql
-ATTACH '/opt/lakebridge/hadoop/out/profiler_extract_hadoop_<version>_20261124T165649Z.db' AS run_20261124T165649 (READ_ONLY);
-ATTACH '/opt/lakebridge/hadoop/out/profiler_extract_hadoop_<version>_20261124T165840Z.db' AS run_20261124T165840 (READ_ONLY);
+ATTACH '/opt/lakebridge/hadoop/out/profiler_extract_hadoop_<version>_20261124T010000Z.db' AS run_20261124 (READ_ONLY);
+ATTACH '/opt/lakebridge/hadoop/out/profiler_extract_hadoop_<version>_20261125T010000Z.db' AS run_20261125 (READ_ONLY);
 
 CREATE OR REPLACE TABLE yarn_applications_all AS
 SELECT * EXCLUDE (run_rank) FROM (
     SELECT *, row_number() OVER (PARTITION BY application_id ORDER BY run_name DESC) AS run_rank
     FROM (
-        SELECT 'run_20261124T165649' AS run_name, * FROM run_20261124T165649.yarn_applications
+        SELECT 'run_20261124' AS run_name, * FROM run_20261124.yarn_applications
         UNION ALL
-        SELECT 'run_20261124T165840' AS run_name, * FROM run_20261124T165840.yarn_applications
+        SELECT 'run_20261125' AS run_name, * FROM run_20261125.yarn_applications
     )
 ) WHERE run_rank = 1;
 ```
 
-The alias names sort in time order, so a descending sort on `run_name` puts the latest run first. Attach every file in
-the folder the same way, and the query needs one `SELECT ... UNION ALL` branch per file. Repeat the pattern for
-`spark_applications` (keyed by `application_id`) and `spark_application_attempts` (keyed by `application_id` and
-`attempt_id`). For the inventory
-tables, query the initial run's file, which holds the tables that only the initial run wrote.
-
-## Profiler output
-
-The extract is a timestamped DuckDB file in the output folder. Each step's name is its table name.
-
-The typed tables below hold the fields an assessment uses. The original profiler saved every REST response whole, so the
-extract also keeps every response body a step read, after masking, in `hadoop_raw_responses` (`step`, `sequence`,
-`extracted_at`, `body` as JSON). Nothing the original profiler saved is lost: a field without a typed column can be read
-from `body`. Each step replaces its own rows.
-
-| Table | One row per | Notes |
-|-------|-------------|-------|
-| `yarn_cluster_info` | the ResourceManager | Distribution, cluster id, HA state, Hadoop version. |
-| `yarn_cluster_metrics` | snapshot | Cluster-wide application, container, memory, vcore and node counters, utilized memory and vcores (and their percentages), scheduler busy percent, and the totals across node label partitions. |
-| `yarn_nodes` | NodeManager | Host name, HTTP address, state, version, health report, containers, allocated memory and vcores, node labels, and the utilization the NodeManager measures (`node_physical_memory_mb`, `node_cpu_usage`, `containers_physical_memory_mb`, `containers_cpu_usage`, ...). Utilization fields are NULL where a distribution does not report them. |
-| `yarn_scheduler_queues` | queue | Capacity and fair scheduler trees, flattened with `depth` and `parent_queue_path`: capacities, used and absolute used capacity, applications and containers, application and user limits, effective and AM resources, fair, steady fair, minimum and maximum shares (fair scheduler), and per-user usage (`queue_users`, JSON text). |
-| `yarn_scheduler_queue_partitions` | queue and node label partition | Capacity scheduler only: configured, effective, used, reserved, pending and AM capacity and resources of each partition. The default partition has an empty name. |
-| `yarn_applications` | application | User, queue, type, state, timings, memory and vcore seconds, `resource_seconds` per resource type (JSON text: `memory-mb`, `vcores`, GPUs), preempted resource seconds, preemption counts, reserved resources, AM host, tags and node labels, `name` and `diagnostics`. |
-| `spark_applications` | Spark application (optional) | Attempt count, Spark user and version, first start, last end, completed, `name`. |
-| `spark_application_attempts` | Spark application attempt (optional) | Attempt start, end, last update, duration, Spark user and version. |
-| `cm_clusters` | cluster (optional, Cloudera Manager) | Name, display name, full version, API version, CM version, and whether it is the configured cluster. |
-| `cm_services` | service (optional, Cloudera Manager) | Type, version, state, health summary, maintenance mode, and health checks as JSON text. |
-| `cm_hosts` | host (optional, Cloudera Manager) | Hostname, IP address, rack, cluster, commission state, cores and memory, operating system, and tags as JSON text. |
-| `cm_host_config` | configuration item (optional, Cloudera Manager) | Name, value and sensitive flag of the host configuration. |
-| `cm_cluster_export` | export row (optional, Cloudera Manager) | Section (`service_config`, `role_config` or `role`), service, role config group, role type, and config name and value. |
-| `cm_timeseries` | sample (optional, Cloudera Manager) | Query name, status (`returned` or `unsupported_by_cm`), metric, entity, cluster, entity attributes as JSON text, time, value, rollup and unit, and for an hourly rollup point its aggregate statistics (count, min, max, mean, standard deviation, the times of the min and max, and the entities with the lowest and highest value across entities). |
-| `cm_impala_queries` | Impala query (optional, opt-in) | Typed core fields, a few typed attributes (pool, status, admission result, OOM, memory, HDFS bytes, CPU), and all attributes as JSON text. |
-| `ranger_services` | service (optional, Ranger) | Name, type, enabled flag, tag service, policy and tag versions, timestamps, and configs as JSON text. |
-| `ranger_policies` | policy (optional, Ranger) | Service, name, `policy_type` (`access`, `masking` or `row_filter`), priority, enabled and audit flags, and resources, conditions and validity schedules as JSON text. |
-| `ranger_policy_items` | policy item (optional, Ranger) | Policy id, service, policy name, `item_kind`, users, groups, roles, accesses and conditions as JSON text, delegate admin, and the mask type or row filter expression. |
-| `ambari_blueprint` | host group component (optional, Ambari) | Stack name and version, host group, cardinality, and component name. |
-| `ambari_blueprint_configurations` | blueprint property (optional, Ambari) | Configuration type, property name and value. |
-| `ambari_hosts` | host (optional, Ambari) | Cluster, host name, CPU count, `total_mem`, OS type, summed disk size and available space, and `disk_info` as JSON text. |
-| `ambari_services` | service (optional, Ambari) | Cluster name and service name. |
-| `ambari_host_components` | host component (optional, Ambari) | Cluster, host name and component name. |
-| `ambari_stack_versions` | stack version (optional, Ambari) | Cluster, stack, version, repository version, state, `host_states`, `repository_versions` and `repository_summary` as JSON text. |
-| `ambari_component_metrics` | component metric (optional, Ambari) | Service and component, category, state, desired stack and version, component counts, and one metric path and value (NULL without Ambari Metrics). |
-| `impala_queries` | query per daemon (optional, Impala) | Query id, the coordinator URL and host, `is_in_flight`, statement, statement type, user, default database, state, start and end time, duration, queued and waiting time (milliseconds), memory use and estimate, rows fetched, bytes read and sent (bytes), resource pool, progress, and the raw record as JSON text. |
-| `impala_backends` | backend per daemon (optional, Impala) | Address, backend id, coordinator and executor flags, admission memory and slots, executor group, start time, and version. |
-| `impala_daemon_config` | flag per daemon (optional, Impala) | Flag name, type, current value and default for the curated flags. |
-| `impala_catalog` | table (optional, Impala catalogd) | Database, table name, fully qualified name, and whether metrics are available. |
-| `impala_statestore` | subscriber (optional, Impala statestore) | Subscriber id and address, topic counts, registration id, and seconds since its last heartbeat. |
-
-Timestamps are UTC. Counters are `BIGINT` and rates are `DOUBLE`. A column is NULL when the distribution does not
-report that field. A `-1` that YARN uses for "not applicable" is stored as NULL.
-
-The extract carries no copies of application logs, executor data or environment variables.
-
-YARN keeps finished applications in ResourceManager memory, up to `yarn.resourcemanager.max-completed-applications`
-(10,000 by default). Unless ResourceManager recovery is enabled, a ResourceManager restart clears that history, so
-run the profiler before a planned restart and often enough to stay inside the retention limit.
-
-## Mask data
-
-Masking rewrites every REST response before anything is parsed or written to the DuckDB extract, so masked values never
-reach the extract file. The configuration asks whether to mask the extract, and walks through the rules:
-
-1. **Mask data in the extract?** No saves nothing and masks nothing.
-2. **Use an existing masking rules file?** Yes asks for its path. The file is checked, and its path is saved.
-3. **Domain(s) to mask in host names.** Each domain gets a number, and its host names keep their first label, so
-   `rm1.corp.example.com` becomes `rm1.masked-1` and hosts stay unique. A domain is matched as a whole name, so
-   `corp.example.community` is not changed.
-4. **Mask IP addresses.** The first two numbers become `x.x`, so `10.20.3.7` becomes `x.x.3.7`. Only four dotted numbers
-   count as an address, so version strings such as `3.3.4.5.1.8.42`, `2.6.0-cdh5.7.0` and `2.6.1.0-129` are kept. A
-   four-number version such as `"2.5.0.0"` is kept under a key whose name contains `version`; anywhere else it has the
-   shape of an address and is masked as one. Addresses that differ only in their first two numbers look the same after
-   masking.
-5. **Redact user names.** The value of each user key becomes `redacted`: `user`, `sparkUser`, `effective_user`,
-   `connected_user`, `delegated_user`, `original_user`, `username`, `userName`, `owner`, `createdBy` and `updatedBy`.
-   So do the user lists of Ranger policies (`users`, and `userList` in the legacy API), the users in a Ranger service's
-   audit filters, the user keys inside a legacy Ranger service `config`. Group names are kept. Per-user workload analysis will not be possible.
-6. **Redact query text and job names.** Impala statements, YARN diagnostics and application names become `redacted`.
-   Workload classification will be weaker.
-
-The answers are saved to `~/.databricks/labs/lakebridge/hadoop-masking-rules.txt`, readable only by its owner. If that
-file exists, the configuration asks before it overwrites it. Edit the file to add or change rules: the profiler reads it
-on every run, so an edit applies to the next run.
-
-### The rules file
-
-The file holds one rule per line, in the same `s/<text to find>/<replacement>/g` form as the original profiler's
-`sed.txt`. Rules run in file order. A blank line or a line that starts with `#` is ignored. A file written for the
-original profiler's `SEARCH_REPLACE` works unchanged: the profiler reads the same syntax, and its commented-out example
-lines stay off until you remove the `#`.
-
-- **Delimiter.** Any punctuation character can separate the parts, as in `s|a|b|g`. A `\` before the delimiter makes it
-  a literal character.
-- **Text to find.** A POSIX basic regular expression, as sed reads it: `.`, `*`, `^`, `$`, `[...]` and `\1` to `\9` work
-  as in sed. `\(`, `\)`, `\{m,n\}`, `\|`, `\+` and `\?` are operators, while bare `( ) { } | + ?` are literal text.
-  `\w`, `\s`, `\b`, `\<`, `\>` and `\n` also work. A delimiter inside a bracket expression is literal.
-- **Replacement.** `&` is the whole match, `\1` to `\9` are groups, `\&` is a literal `&`, and `\n` is a new line.
-- **Flags.** `g` changes every match on a line. Without `g`, only the first match on each line changes. `I` ignores
-  case. Any other flag is an error.
-- **Line by line.** Rules run on each line of a response, as `sed -f` runs them, so the output matches the original
-  profiler's. `^` and `$` mark the start and end of a line, and a match never spans two lines, so `\n` in the text to
-  find never matches. The Spark History Server writes pretty-printed JSON with one key and value per line, so write
-  rules that match a key and its value on the same line.
-
-Syntax errors stop the run, and the message names the file, the line and the expected form, for example
-`line 3: ... each line must look like s/<text to find>/<replacement>/g`.
-
-A rule that keeps JSON valid matches values, not structure. This one tolerates the spacing that YARN (`"user":"etl"`)
-and the Spark History Server (`"sparkUser" : "etl"`) write:
-
-```text
-s/"\(user\|sparkUser\)"[[:space:]]*:[[:space:]]*"[^"]*"/"\1":"redacted"/g
-```
-
-The commented-out examples in the original `sed.txt` match only the spaced form that Cloudera Manager writes, so they
-do not reach YARN's compact JSON. The rules that the guided questions write cover both shapes.
-
 ## Limitations
 
-- **Kerberos** works for the YARN ResourceManager and the Spark History Server only. Cloudera Manager, Ranger, Ambari and
-  the Impala web UIs use `none` or `basic`; their SPNEGO is not supported. Windows is not tested.
-- **Scope**. Ranger audit logs are not extracted. Ambari metrics come only from the four component calls; Ambari Metrics
-  must be installed for them to have values.
-- **Cloudera Manager time series** cover every cluster the Cloudera Manager server manages, as in the original. Use
-  the `cluster_name` column to filter them.
-- **YARN history** is bounded by the ResourceManager. It lists the applications it still keeps, which
-  `yarn.resourcemanager.max-completed-applications` limits (10,000 by default). Schedule runs often enough that no
-  application is dropped before a run reads it. See [Scheduling](#scheduling).
+- **Kerberos** is supported for the YARN ResourceManager and the Spark History Server only. Cloudera Manager, Ambari,
+  Ranger and the Impala web UIs use `none` or `basic`. Kerberos on Windows is not tested.
+- **YARN history** is limited to the finished applications the ResourceManager still holds. See
+  [Schedule the profiler](#schedule-the-profiler).
+- **Ambari metrics** have values only when the Ambari Metrics service is installed.
+- **Not collected:** Ranger audit logs, Impala query profiles, application logs and HDFS contents.
+- **CDP Public Cloud** is not supported.
 
 [Back to Configure Profiler](../#configure-profiler)
