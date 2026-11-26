@@ -471,7 +471,8 @@ An initial extract completes only at the end of its run. The last step of every 
 table. It sets `initial_completed` when the run is initial and its `yarn_cluster_info` succeeded. Otherwise it records
 nothing, and the next run is initial again. So a run that aborts before its end, for example because the ResourceManager
 is unreachable, leaves no completed initial extract, and the next run repeats the initial extract in full. Its status
-message is `initial extract recorded`, `initial extract not recorded: ...`, or `incremental run, nothing to record`.
+message is `initial extract recorded`, `initial extract not recorded: ...` (with the reason), or
+`nothing to record: the initial extract was already recorded by ...`.
 
 An inventory step that did not succeed in the completed initial extract, such as an Ambari call that failed, runs again
 on the next incremental run. It is recorded when it succeeds, and skipped after that.

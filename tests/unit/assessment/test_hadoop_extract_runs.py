@@ -354,7 +354,10 @@ def test_an_initial_run_whose_yarn_cluster_info_failed_is_not_recorded(tmp_path:
 
     message = finish_run(_db(tmp_path, "run_a.db"))
 
-    assert message == "initial extract not recorded: yarn_cluster_info did not succeed in this run"
+    assert message == (
+        "initial extract not recorded: yarn_cluster_info did not succeed in this run, "
+        "or another run took over the extract tracker after it did"
+    )
     assert resolve_run(_db(tmp_path, "run_b.db")).initial is True
 
 
@@ -371,8 +374,32 @@ def test_the_final_step_of_an_incremental_run_records_nothing(tmp_path: Path) ->
     before = (tmp_path / TRACKER_FILE_NAME).read_text(encoding="utf-8")
 
     assert resolve_run(_db(tmp_path, "run_b.db")).initial is False
-    assert finish_run(_db(tmp_path, "run_b.db")) == "incremental run, nothing to record"
+    message = finish_run(_db(tmp_path, "run_b.db"))
+
+    assert message == "nothing to record: the initial extract was already recorded by run_a.db"
     assert (tmp_path / TRACKER_FILE_NAME).read_text(encoding="utf-8") == before
+
+
+def test_the_final_step_of_an_initial_run_whose_tracker_was_taken_over_names_the_other_run(tmp_path: Path) -> None:
+    _yarn_ok(tmp_path, "run_a.db")
+    resolve_run(_db(tmp_path, "run_b.db"))  # run B starts before run A's final step
+    before = (tmp_path / TRACKER_FILE_NAME).read_text(encoding="utf-8")
+
+    message = finish_run(_db(tmp_path, "run_a.db"))
+
+    assert message == "initial extract not recorded: another run (run_b.db) took over the extract tracker"
+    assert (tmp_path / TRACKER_FILE_NAME).read_text(encoding="utf-8") == before
+
+
+def test_the_final_step_of_a_run_that_took_its_tracker_back_does_not_record_it(tmp_path: Path) -> None:
+    _yarn_ok(tmp_path, "run_a.db")
+    resolve_run(_db(tmp_path, "run_b.db"))
+    resolve_run(_db(tmp_path, "run_a.db"))  # run A's next step takes the tracker back, afresh
+
+    message = finish_run(_db(tmp_path, "run_a.db"))
+
+    assert message.startswith("initial extract not recorded: yarn_cluster_info did not succeed in this run, or another")
+    assert _tracker(tmp_path)["initial_completed"] is False
 
 
 def test_the_final_step_writes_no_table_and_needs_no_database(tmp_path: Path) -> None:

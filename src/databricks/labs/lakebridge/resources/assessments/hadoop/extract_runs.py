@@ -161,10 +161,18 @@ def finish_run(db_path: str | Path) -> str:
         tracker = _read_tracker(tracker_path)
         if tracker is None:
             return "nothing to record: no extract tracker"
-        if tracker["initial_completed"] or tracker["initial_run_db"] != run_db:
-            return "incremental run, nothing to record"
+        owner = tracker["initial_run_db"]
+        if tracker["initial_completed"]:
+            # An incremental run, or an initial run that overlapped the run that completed it.
+            return f"nothing to record: the initial extract was already recorded by {owner}"
+        if owner != run_db:
+            return f"initial extract not recorded: another run ({owner}) took over the extract tracker"
         if tracker.get("yarn_cluster_info_run_db") != run_db:
-            return "initial extract not recorded: yarn_cluster_info did not succeed in this run"
+            # Taking the tracker back from an overlapping run starts it afresh, so the success can be gone too.
+            return (
+                "initial extract not recorded: yarn_cluster_info did not succeed in this run, "
+                "or another run took over the extract tracker after it did"
+            )
         _write_tracker(tracker_path, {**tracker, "initial_completed": True})
         return "initial extract recorded"
 
