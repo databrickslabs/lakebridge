@@ -26,6 +26,10 @@ EXCLUDED_FILES = frozenset(
 """Files left out at any depth, besides every dotfile (`.DS_Store`, …): OS cruft and analyzer outputs."""
 
 
+_FOLDER_TIME = (1980, 1, 1, 0, 0, 0)
+"""The earliest time a zip entry can have."""
+
+
 class SourceFilesError(ValueError):
     """The input can't be converted as it is: too many files, or files whose outputs would collide."""
 
@@ -86,10 +90,20 @@ class SourceFiles:
             for path in self.relative_paths:
                 for parent in reversed(path.parents[:-1]):
                     if parent not in written_dirs:
-                        archive.writestr(f"{root_name}/{parent}/", b"")
+                        archive.writestr(_folder_entry(f"{root_name}/{parent}/"), b"")
                         written_dirs.add(parent)
                 archive.write(self.root / path, f"{root_name}/{path}")
         return buffer.getvalue()
+
+
+def _folder_entry(name: str) -> zipfile.ZipInfo:
+    """A folder entry with a fixed time, so archiving the same files twice gives the same bytes.
+
+    Named folder entries would get the current time instead, which changes every 2 seconds in a zip.
+    """
+    entry = zipfile.ZipInfo(name, date_time=_FOLDER_TIME)
+    entry.external_attr = 0o40775 << 16 | 0x10  # drwxrwxr-x, and the MS-DOS directory flag, as `writestr` sets them.
+    return entry
 
 
 def _walk(root: Path) -> Iterator[Path]:
