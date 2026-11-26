@@ -12,23 +12,37 @@ no inventory already collected. The tracker is ``hadoop_extract_tracker.json`` n
 
 A run that finds another run's unfinished initial extract starts it again. Deleting the tracker forces a new one.
 A run records into the tracker only while it is the one it resolved (same ``initial_run_db``, same completion), so
-overlapping runs in one folder cannot credit a step to a DuckDB file that does not hold its data.
+overlapping runs in one folder cannot credit a step to a DuckDB file that does not hold its data. Each read and update
+of the tracker holds an operating-system lock on ``hadoop_extract_tracker.json.lock``, so a scheduled run and a manual
+one cannot interleave them; the system releases the lock when a process ends, so a crashed run leaves no lock behind.
+The lock file is kept: removing it while another run holds it would let a third run lock a new file.
 """
 
 import contextlib
 import json
 import logging
 import os
+import sys
 import tempfile
-from collections.abc import Mapping
+import time
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
+
 logger = logging.getLogger(__name__)
 
 TRACKER_FILE_NAME = "hadoop_extract_tracker.json"
+LOCK_FILE_NAME = f"{TRACKER_FILE_NAME}.lock"
+# A run holds the lock only to read and update the tracker, so a long wait means a stuck process.
+LOCK_TIMEOUT_SECONDS = 60.0
+_LOCK_RETRY_SECONDS = 0.05
 SKIPPED_INCREMENTAL = "skipped: incremental run (initial extract already collected)"
 # Its success completes the initial extract (the original's active-RM check).
 INITIAL_GATE_STEP = "yarn_cluster_info"
@@ -103,10 +117,11 @@ def resolve_run(db_path: str | Path) -> ExtractRun:
     path = Path(db_path)
     run_db = path.name
     tracker_path = path.parent / TRACKER_FILE_NAME
-    tracker = _read_tracker(tracker_path)
-    if tracker is None or (not tracker["initial_completed"] and tracker["initial_run_db"] != run_db):
-        tracker = _fresh_tracker(run_db)
-        _write_tracker(tracker_path, tracker)
+    with _tracker_lock(tracker_path):
+        tracker = _read_tracker(tracker_path)
+        if tracker is None or (not tracker["initial_completed"] and tracker["initial_run_db"] != run_db):
+            tracker = _fresh_tracker(run_db)
+            _write_tracker(tracker_path, tracker)
     owner = tracker["initial_run_db"]
     if not tracker["initial_completed"]:
         return ExtractRun(run_db=run_db, initial=True, tracker_owner=owner)
@@ -117,20 +132,22 @@ def resolve_run(db_path: str | Path) -> ExtractRun:
 def record_initial_gate(db_path: str | Path, run: ExtractRun) -> None:
     """Record that this run's yarn_cluster_info succeeded."""
     tracker_path = Path(db_path).parent / TRACKER_FILE_NAME
-    tracker = _require_tracker(tracker_path, run, "yarn_cluster_info")
-    if tracker is None:
-        return
-    _write_tracker(tracker_path, {**tracker, "yarn_cluster_info_run_db": run.run_db})
+    with _tracker_lock(tracker_path):
+        tracker = _require_tracker(tracker_path, run, "yarn_cluster_info")
+        if tracker is None:
+            return
+        _write_tracker(tracker_path, {**tracker, "yarn_cluster_info_run_db": run.run_db})
 
 
 def record_inventory_step(db_path: str | Path, run: ExtractRun, step: str) -> None:
     """Record an inventory step's success, so incremental runs skip it."""
     tracker_path = Path(db_path).parent / TRACKER_FILE_NAME
-    tracker = _require_tracker(tracker_path, run, step)
-    if tracker is None:
-        return
-    completed = sorted(set(tracker["completed_inventory_steps"]) | {step})
-    _write_tracker(tracker_path, {**tracker, "completed_inventory_steps": completed})
+    with _tracker_lock(tracker_path):
+        tracker = _require_tracker(tracker_path, run, step)
+        if tracker is None:
+            return
+        completed = sorted(set(tracker["completed_inventory_steps"]) | {step})
+        _write_tracker(tracker_path, {**tracker, "completed_inventory_steps": completed})
 
 
 def finish_run(db_path: str | Path) -> str:
@@ -140,15 +157,16 @@ def finish_run(db_path: str | Path) -> str:
     """
     run_db = Path(db_path).name
     tracker_path = Path(db_path).parent / TRACKER_FILE_NAME
-    tracker = _read_tracker(tracker_path)
-    if tracker is None:
-        return "nothing to record: no extract tracker"
-    if tracker["initial_completed"] or tracker["initial_run_db"] != run_db:
-        return "incremental run, nothing to record"
-    if tracker.get("yarn_cluster_info_run_db") != run_db:
-        return "initial extract not recorded: yarn_cluster_info did not succeed in this run"
-    _write_tracker(tracker_path, {**tracker, "initial_completed": True})
-    return "initial extract recorded"
+    with _tracker_lock(tracker_path):
+        tracker = _read_tracker(tracker_path)
+        if tracker is None:
+            return "nothing to record: no extract tracker"
+        if tracker["initial_completed"] or tracker["initial_run_db"] != run_db:
+            return "incremental run, nothing to record"
+        if tracker.get("yarn_cluster_info_run_db") != run_db:
+            return "initial extract not recorded: yarn_cluster_info did not succeed in this run"
+        _write_tracker(tracker_path, {**tracker, "initial_completed": True})
+        return "initial extract recorded"
 
 
 def _fresh_tracker(run_db: str) -> dict[str, Any]:
@@ -172,6 +190,56 @@ def _require_tracker(tracker_path: Path, run: ExtractRun, step: str) -> dict[str
         )
         return None
     return tracker
+
+
+@contextlib.contextmanager
+def _tracker_lock(tracker_path: Path) -> Iterator[None]:
+    """Hold the folder's tracker lock, waiting up to ``LOCK_TIMEOUT_SECONDS`` for another run to release it."""
+    lock_path = tracker_path.parent / LOCK_FILE_NAME
+    # Read-only is enough to lock, so a run can share a lock file another user created.
+    fd = os.open(lock_path, os.O_RDONLY | os.O_CREAT, 0o644)
+    try:
+        deadline = time.monotonic() + LOCK_TIMEOUT_SECONDS
+        while not _try_lock(fd):
+            if time.monotonic() >= deadline:
+                raise RuntimeError(
+                    f"{lock_path} has been locked by another profiler run for {LOCK_TIMEOUT_SECONDS:.0f}s; "
+                    "check for a stuck run in this folder"
+                )
+            time.sleep(_LOCK_RETRY_SECONDS)
+        try:
+            yield
+        finally:
+            _unlock(fd)
+    finally:
+        os.close(fd)
+
+
+if sys.platform == "win32":
+
+    def _try_lock(fd: int) -> bool:
+        os.lseek(fd, 0, os.SEEK_SET)
+        try:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        except OSError:
+            return False
+        return True
+
+    def _unlock(fd: int) -> None:
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+
+else:
+
+    def _try_lock(fd: int) -> bool:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        return True
+
+    def _unlock(fd: int) -> None:
+        fcntl.flock(fd, fcntl.LOCK_UN)
 
 
 def _read_tracker(tracker_path: Path) -> dict[str, Any] | None:

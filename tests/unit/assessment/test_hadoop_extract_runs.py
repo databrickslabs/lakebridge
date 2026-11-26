@@ -3,6 +3,9 @@ windows each run reads."""
 
 import json
 import os
+import subprocess
+import sys
+import textwrap
 from collections.abc import Callable, Iterator
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -12,8 +15,9 @@ import pytest
 import yaml
 
 from databricks.labs.lakebridge.assessments.pipeline import PipelineClass
-from databricks.labs.lakebridge.resources.assessments.hadoop import endpoints, extract
+from databricks.labs.lakebridge.resources.assessments.hadoop import endpoints, extract, extract_runs
 from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import (
+    LOCK_FILE_NAME,
     RECORD_STEP,
     SKIPPED_INCREMENTAL,
     STEP_KINDS,
@@ -259,6 +263,72 @@ def test_an_incremental_run_records_nothing_into_a_new_initial_extract(tmp_path:
 
     assert _tracker(tmp_path)["initial_run_db"] == "run_c.db"
     assert _tracker(tmp_path)["completed_inventory_steps"] == []
+
+
+# ---- the tracker lock: a scheduled run and a manual one in the same folder ------------------------------------------
+
+
+def _python(code: str, *args: str) -> subprocess.Popen[str]:
+    """Another profiler process, as a second run in the same folder would be."""
+    return subprocess.Popen(
+        [sys.executable, "-c", textwrap.dedent(code), *args],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+_RECORD_STEPS = """
+    import sys
+    from databricks.labs.lakebridge.resources.assessments.hadoop.extract_runs import ExtractRun, record_inventory_step
+
+    db_path, prefix = sys.argv[1], sys.argv[2]
+    run = ExtractRun(run_db=prefix + ".db", initial=False, tracker_owner="run_a.db")
+    for i in range(40):
+        record_inventory_step(db_path, run, f"{prefix}_{i:02d}")
+"""
+
+_HOLD_LOCK = """
+    import sys, time
+    from pathlib import Path
+    from databricks.labs.lakebridge.resources.assessments.hadoop import extract_runs
+
+    with extract_runs._tracker_lock(Path(sys.argv[1])):
+        print("locked", flush=True)
+        time.sleep(60)
+"""
+
+
+def test_overlapping_runs_lose_none_of_each_others_recorded_steps(tmp_path: Path) -> None:
+    _complete_initial(tmp_path, "run_a.db")
+
+    runs = [_python(_RECORD_STEPS, _db(tmp_path, f"{name}.db"), name) for name in ("run_b", "run_c")]
+    for run in runs:
+        _, err = run.communicate(timeout=25)
+        assert run.returncode == 0, err
+
+    expected = sorted(f"{name}_{i:02d}" for name in ("run_b", "run_c") for i in range(40))
+    assert _tracker(tmp_path)["completed_inventory_steps"] == expected
+
+
+def test_a_run_waits_for_the_lock_and_fails_clearly_if_it_is_never_released(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    holder = _python(_HOLD_LOCK, str(tmp_path / TRACKER_FILE_NAME))
+    try:
+        assert holder.stdout is not None
+        assert holder.stdout.readline().strip() == "locked"
+        monkeypatch.setattr(extract_runs, "LOCK_TIMEOUT_SECONDS", 0.3)
+
+        with pytest.raises(RuntimeError, match="locked by another profiler run"):
+            resolve_run(_db(tmp_path, "run_a.db"))
+    finally:
+        holder.kill()
+        holder.communicate(timeout=10)
+
+    # The system released the dead run's lock, so the next run goes ahead.
+    assert resolve_run(_db(tmp_path, "run_a.db")).initial is True
+    assert (tmp_path / LOCK_FILE_NAME).exists()
 
 
 # ---- completing the initial extract (the original's check of the active ResourceManager) ----------------------------
