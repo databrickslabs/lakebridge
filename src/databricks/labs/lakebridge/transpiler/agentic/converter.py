@@ -85,12 +85,17 @@ MAX_SKILLS = 10
 MAX_SKILLS_BYTES = 1000
 """The most bytes the custom skill paths take, as a JSON list."""
 
+# Each limit has its own constant, even when two are equal today; when the API exposes its limits, read them at
+# runtime and keep these as the defaults.
+
 FILES_PER_ADD = 500
-"""The most files one request adds to a project."""
+"""The most files one `files:add` request takes: the API's limit."""
 FILES_PER_RUN = 500
-"""The most files one conversion run takes: the service's cap. A workspace can set a lower limit; runs then shrink."""
-UPLOAD_TIMEOUT_SECONDS = 900
-"""Importing an archive of up to 2000 files can take minutes, far past the default 60-second HTTP timeout."""
+"""The most files one conversion run takes: the service's cap. A workspace can set a lower limit, and the runs then
+shrink to it."""
+LONG_HTTP_TIMEOUT_SECONDS = 900
+"""The HTTP timeout for uploading the sources and downloading the outputs: importing or exporting 2000 objects takes 60
+to 90 seconds or more, past the SDK's default of 60."""
 POLL_SECONDS = 15
 """How often to check on a conversion run."""
 MAX_FAILED_CHECKS = 5
@@ -352,7 +357,7 @@ class AgenticConverter:
         """A client with a long HTTP timeout, for uploading the sources and downloading the outputs."""
         if self._long_ws is None:
             config = self._ws.config.copy()
-            config.http_timeout_seconds = UPLOAD_TIMEOUT_SECONDS
+            config.http_timeout_seconds = LONG_HTTP_TIMEOUT_SECONDS
             self._long_ws = WorkspaceClient(config=config)
         return self._long_ws
 

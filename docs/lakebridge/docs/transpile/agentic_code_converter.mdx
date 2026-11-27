@@ -11,8 +11,7 @@ folder; the conversion runs in your Databricks workspace:
 
 1. Lakebridge uploads your local sources to your workspace and creates a migration project for them.
 2. It converts every file, and waits until the conversion is done.
-3. It writes the converted files into `--output-folder`, each in its source file's folder, and reports each file's
-   result.
+3. It writes the converted files into `--output-folder`, and reports each file's result.
 
 For how the agentic code converter works, its supported sources and outputs, and how to review converted files, see
 the Databricks documentation:
@@ -45,7 +44,7 @@ databricks labs lakebridge transpile --agentic true \
 |---|---|
 | `--agentic` | `true` to convert with the agentic code converter. |
 | `--input-source` | Local path of the sources to convert: a file or a folder. |
-| `--output-folder` | Local folder the converted files are written to. Files with the same paths are overwritten. |
+| `--output-folder` | Local folder the converted files are written to, flat (see [Results](#results)). Files with the same names are overwritten. |
 | `--source-dialect` | The source dialect (see below). |
 | `--target-technology` | `SPARKSQL` for Databricks SQL queries, written as `.sql` files, or `PYSPARK` for Databricks notebooks. |
 | `--error-file-path` | (Optional) Local file that the files that weren't converted are appended to, with their errors. |
@@ -79,17 +78,55 @@ Each conversion gets its own folder in your workspace home folder, holding the m
 
 - The upload leaves out dot folders and dotfiles (`.git`, `.venv`, `.DS_Store`, …), `node_modules`, `__pycache__`,
   `Thumbs.db` and Lakebridge Analyzer output files.
-- One conversion takes up to 2000 files. The converter writes all outputs into one folder, so two files with the same
-  name without their extension (`a/orders.sql` and `b/orders.ddl`) can't be converted together: Lakebridge says which
-  files clash before uploading anything.
-- The converter converts a few hundred files per run; Lakebridge starts runs one after another until every file is
-  converted.
+- One conversion takes up to 2000 files.
+- The converter writes all its outputs into one folder, named after their sources without the extension. So two files
+  with the same name without their extension (`a/orders.sql` and `b/orders.ddl`) can't be converted together:
+  Lakebridge says which files clash before uploading anything.
+- Lakebridge converts the files in runs of up to 500, one after another, in the order of their paths. If the workspace
+  sets a lower limit per run, the runs shrink to it.
 - Every conversion creates a new run folder and migration project; earlier ones aren't touched.
 
 ## Results
 
+The converted files are written into `--output-folder` flat, as the converter writes them in the workspace, one per
+source, named after the source without its extension: `.sql` files for `SPARKSQL`, and `.py` notebooks for `PYSPARK`.
+`nested/orders.sql` is written as `orders.sql` or `orders.py`.
+
 Lakebridge logs each file's result and the migration project's URL, and prints the same summary table as the other
 transpilers. Files that weren't converted are counted as errors, and appended to `--error-file-path` with their error.
+
+It also writes `lakebridge-agentic-results.json` into `--output-folder`, replacing one from an earlier run:
+
+```json
+{
+  "project_url": "https://<workspace>/editor/migrations/<id>",
+  "run_folder": "/Users/<you>/migrations/snowflake/run_2026-11-27_093000",
+  "source_dialect": "snowflake",
+  "target_technology": "SPARKSQL",
+  "completed": true,
+  "error": null,
+  "files": [
+    {
+      "source": "nested/orders.sql",
+      "status": "SUCCESS",
+      "output": "orders.sql",
+      "workspace_path": "/Users/<you>/migrations/snowflake/run_2026-11-27_093000/converted/orders.dbquery.ipynb",
+      "error": null
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `completed`, `error` | Whether the conversion ran to the end; if it didn't, why. |
+| `files[].source` | The source file, relative to `--input-source`. |
+| `files[].status` | `SUCCESS`, `PARTIAL_SUCCESS`, `ERROR` or `REVIEWED` once converted; `NOT_CONVERTED`, `QUEUED`, `IN_PROGRESS` or `STOPPED` when the conversion didn't get to it; `MISSING` if the migration project didn't list it. |
+| `files[].output` | The file written into `--output-folder`, or `null` when nothing was written. |
+| `files[].workspace_path` | The converted file in the workspace. |
+| `files[].error` | The converter's error for the file, if any. |
+
+Fields may be added in later releases; existing ones keep their names.
 
 The command exits with a non-zero code when the conversion didn't run to the end: the converter isn't available in
 the workspace, the upload failed, another conversion run was already active in the project, a conversion run failed or
@@ -109,9 +146,10 @@ databricks labs lakebridge transpile --agentic true \
 ```console
 INFO  Uploading 2 files to: /Users/<you>/migrations/snowflake/run_2026-11-26_093000/src
 INFO  Converting 2 files in the migration project: https://<workspace>/editor/migrations/<id>
-INFO  Conversion run 1: 0 of 2 files finished.
-INFO  Conversion run 1: 2 of 2 files finished.
-INFO  nested/customers.sql: SUCCESS, written to converted/nested/customers.sql
+INFO  Conversion run 1 of 1: 0 of 2 files finished.
+INFO  Conversion run 1 of 1 ended COMPLETED: 2 of 2 files finished.
+INFO  nested/customers.sql: SUCCESS, written to converted/customers.sql
 INFO  orders.sql: SUCCESS, written to converted/orders.sql
+INFO  The results of each file: converted/lakebridge-agentic-results.json
 INFO  The migration project: https://<workspace>/editor/migrations/<id>
 ```

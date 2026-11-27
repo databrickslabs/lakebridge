@@ -24,6 +24,9 @@ QUERY_SUFFIX = ".dbquery.ipynb"
 """The suffix of a converted Databricks SQL query's workspace name."""
 NOTEBOOK_EXTENSIONS = ("py", "sql", "scala", "r")
 """The extensions an exported notebook gets, by language."""
+MAX_EXPORT_BYTES = 200 * 1024 * 1024
+"""How much content one streamed folder download takes (measured). Not checked up front: a larger folder fails to
+download, and its files are then exported one by one."""
 
 _DOWNLOAD_ERRORS = (DatabricksError, requests.exceptions.RequestException, TimeoutError, zipfile.BadZipFile)
 
@@ -76,7 +79,10 @@ class OutputWriter:
             raw = self._ws.workspace.download(converted_folder, format=ExportFormat.AUTO).read()
             return _top_level_entries(raw)
         except _DOWNLOAD_ERRORS as err:
-            logger.info(f"Exporting the converted files one by one: the folder download failed ({err}).")
+            limit = MAX_EXPORT_BYTES // (1024 * 1024)
+            logger.info(
+                f"Exporting the converted files one by one: the folder download failed ({err}); it takes up to {limit} MiB."
+            )
             return {}
 
     def _export_file(self, file: ConvertedFile) -> tuple[str, bytes]:
