@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import re
 import time
 from collections.abc import Callable, Sequence
@@ -85,6 +86,8 @@ MAX_SKILLS_BYTES = 1000
 
 FILES_PER_ADD = 500
 """The most files one request adds to a project."""
+FILES_PER_RUN = 500
+"""The most files one conversion run takes: the service's cap. A workspace can set a lower limit; runs then shrink."""
 UPLOAD_TIMEOUT_SECONDS = 900
 """Importing an archive of up to 2000 files can take minutes, far past the default 60-second HTTP timeout."""
 POLL_SECONDS = 15
@@ -116,6 +119,16 @@ class AgenticConversionError(Exception):
     """The conversion couldn't run to the end; the message says what happened and where to follow up."""
 
 
+@dataclass(frozen=True)
+class AddedFile:
+    """A source file, and the project file the migration project added it as."""
+
+    source: PurePosixPath
+    """The source file, relative to the input folder."""
+    name: str
+    """The project file's resource name, `projects/<id>/files/<file_id>`."""
+
+
 @dataclass
 class AgenticConversionResult:
     summary: dict[str, int | str | None]
@@ -134,8 +147,8 @@ class AgenticConverter:
     """Uploads the sources to the user's workspace, converts them in a new migration project, and writes the results.
 
     Each conversion gets its own run folder, `/Users/<user>/migrations/<dialect>/run_<timestamp>`, holding the project,
-    the uploaded sources (`src/`) and the converted files (`converted/`). Runs convert up to the service's per-run limit,
-    one after another, until no file is left.
+    the uploaded sources (`src/`) and the converted files (`converted/`). Runs convert the files in batches up to the
+    per-run limit, one after another, each naming its files.
     """
 
     def __init__(
@@ -179,11 +192,11 @@ class AgenticConverter:
             self._delete_folder(run)
             raise
         self._upload(sources, run, project)
-        self._add_files(sources, run, project)
-        logger.info(f"Converting {len(sources.relative_paths)} files in the migration project: {url}")
+        added = self._add_files(sources, run, project)
+        logger.info(f"Converting {len(added)} files in the migration project: {url}")
         error = None
         try:
-            self._convert(project, list(skill_paths))
+            self._convert(project, added, list(skill_paths))
         except AgenticConversionError as err:
             error = f"{err} The project: {url}"
         except KeyboardInterrupt as err:
@@ -305,51 +318,87 @@ class AgenticConverter:
             self._upload_ws = WorkspaceClient(config=config)
         return self._upload_ws
 
-    def _add_files(self, sources: SourceFiles, run: str, project: str) -> None:
-        paths = [f"{run}/src/{path}" for path in sources.relative_paths]
+    def _add_files(self, sources: SourceFiles, run: str, project: str) -> list[AddedFile]:
+        """Adds the uploaded sources to the project; returns each source with the project file it was added as."""
+        returned: list[ProjectFile] = []
         try:
-            for start in range(0, len(paths), FILES_PER_ADD):
-                batch = paths[start : start + FILES_PER_ADD]
-                refs = [SourceFileRef(workspace=WorkspaceLocation(path=path)) for path in batch]
-                self._ws.genie_migrate.add_files(project, refs)
+            for start in range(0, len(sources.relative_paths), FILES_PER_ADD):
+                batch = sources.relative_paths[start : start + FILES_PER_ADD]
+                refs = [SourceFileRef(workspace=WorkspaceLocation(path=f"{run}/src/{path}")) for path in batch]
+                returned.extend(self._ws.genie_migrate.add_files(project, refs).files or [])
         except _API_ERRORS as err:
             self._delete_project(project)
             raise AgenticConversionError(f"Could not add the sources to the migration project: {err}") from err
+        # Matched on the returned source path, not on the position in the response.
+        expected = {workspace_relative(f"{run}/src/{path}"): path for path in sources.relative_paths}
+        names: dict[PurePosixPath, str] = {}
+        for file in returned:
+            path = file.source.workspace.path if file.source and file.source.workspace else None
+            source = expected.get(workspace_relative(path)) if path else None
+            if source is not None and file.name:
+                names[source] = file.name
+        missing = [path for path in sources.relative_paths if path not in names]
+        if missing:
+            self._delete_project(project)
+            more = f" and {len(missing) - 1} other files" if len(missing) > 1 else ""
+            raise AgenticConversionError(f"The migration project didn't return {missing[0]}{more}.")
+        return [AddedFile(path, names[path]) for path in sources.relative_paths]
 
-    def _convert(self, project: str, skill_paths: list[str]) -> None:
-        """Runs conversions one after another, until no file needs converting."""
-        number = 0
-        while (operation := self._start_run(project, skill_paths)) is not None:
+    def _convert(self, project: str, files: list[AddedFile], skill_paths: list[str]) -> None:
+        """Converts the files in runs one after another, each naming its files, in source order."""
+        names = [file.name for file in files]
+        batch_size = FILES_PER_RUN
+        start = number = 0
+        while start < len(names):
+            operation, batch = self._start_run(project, names[start : start + batch_size], skill_paths)
+            batch_size = len(batch)
             number += 1
-            run = self._wait(operation, number)
-            state = run.state if run else None
-            if state == ConversionRunState.CONVERSION_RUN_STATE_COMPLETED:
-                assert run is not None
-                if not any(file.status in _FINISHED for file in run.files or []):
-                    raise AgenticConversionError(f"Conversion run {number} finished without converting any file.")
-                continue
-            if state == ConversionRunState.CONVERSION_RUN_STATE_FAILED:
-                assert run is not None
-                reason = f" ({run.error_code.value})" if run.error_code else ""
-                raise AgenticConversionError(f"Conversion run {number} failed{reason}.")
-            if state == ConversionRunState.CONVERSION_RUN_STATE_CANCELLED:
-                raise AgenticConversionError(f"Conversion run {number} was cancelled.")
-            raise AgenticConversionError(f"Conversion run {number} ended in an unknown state.")
+            runs = number + math.ceil((len(names) - start - len(batch)) / batch_size)
+            run = self._wait(operation, number, runs)
+            self._check_run(run, number, batch)
+            start += len(batch)
 
-    def _start_run(self, project: str, skill_paths: list[str]) -> ConvertProjectFilesOperation | None:
-        """Starts the next conversion run, or returns None when no file needs converting."""
+    @staticmethod
+    def _check_run(run: ConversionRun | None, number: int, batch: list[str]) -> None:
+        state = run.state if run else None
+        if state == ConversionRunState.CONVERSION_RUN_STATE_COMPLETED:
+            assert run is not None
+            reported = {file.name for file in run.files or []}
+            missing = [name for name in batch if name not in reported]
+            if missing:
+                shown = ", ".join(missing[:5]) + (", …" if len(missing) > 5 else "")
+                logger.warning(
+                    f"Conversion run {number} didn't report {len(missing)} of its {len(batch)} files: {shown}"
+                )
+            if not any(file.status in _FINISHED for file in run.files or []):
+                raise AgenticConversionError(f"Conversion run {number} finished without converting any file.")
+            return
+        if state == ConversionRunState.CONVERSION_RUN_STATE_FAILED:
+            assert run is not None
+            reason = f" ({run.error_code.value})" if run.error_code else ""
+            raise AgenticConversionError(f"Conversion run {number} failed{reason}.")
+        if state == ConversionRunState.CONVERSION_RUN_STATE_CANCELLED:
+            raise AgenticConversionError(f"Conversion run {number} was cancelled.")
+        raise AgenticConversionError(f"Conversion run {number} ended in an unknown state.")
+
+    def _start_run(
+        self, project: str, batch: list[str], skill_paths: list[str]
+    ) -> tuple[ConvertProjectFilesOperation, list[str]]:
+        """Starts a conversion run of the batch; returns its operation and the files it started with.
+
+        A workspace can set a per-run limit below `FILES_PER_RUN`; going over it is rejected as an invalid value, so the
+        batch is halved until it fits. Nothing else in the request can be invalid here: the skill paths were checked,
+        the names are unique, and files in a new project can't be reviewed.
+        """
         timeouts = 0
         while True:
             try:
-                return self._ws.genie_migrate.convert_project_files(parent=project, skill_paths=skill_paths or None)
-            except (AlreadyExists, ResourceAlreadyExists) as err:
-                # A project runs one conversion at a time, and the active one isn't this command's to follow.
-                msg = f"A conversion run is already active in the project, so another can't start yet ({err})."
-                raise AgenticConversionError(msg) from err
-            except DatabricksError as err:
-                if _no_files_need_conversion(err):
-                    return None
-                raise AgenticConversionError(f"Could not start a conversion run: {err}") from err
+                operation = self._ws.genie_migrate.convert_project_files(
+                    parent=project, names=batch, skill_paths=skill_paths or None
+                )
+                return operation, batch
+            except InvalidParameterValue as err:
+                batch = _smaller_batch(batch, err)
             except (requests.exceptions.Timeout, TimeoutError) as err:
                 # The run may have started anyway: starting again then finds it active, and stops.
                 timeouts += 1
@@ -357,20 +406,20 @@ class AgenticConverter:
                     raise AgenticConversionError(f"Could not start a conversion run: {err}") from err
                 logger.warning(f"Starting a conversion run timed out, trying again: {err}")
             except _API_ERRORS as err:
-                raise AgenticConversionError(f"Could not start a conversion run: {err}") from err
+                raise _start_failed(err) from err
 
-    def _wait(self, operation: ConvertProjectFilesOperation, number: int) -> ConversionRun | None:
+    def _wait(self, operation: ConvertProjectFilesOperation, number: int, runs: int) -> ConversionRun | None:
         progress = None
         while not self._check(operation.done):
             current = _progress(operation.metadata())
             if current != progress:
-                logger.info(f"Conversion run {number}: {current[0]} of {current[1]} files finished.")
+                logger.info(f"Conversion run {number} of {runs}: {current[0]} of {current[1]} files finished.")
                 progress = current
             self._sleep(self._poll_seconds)
         run = operation.metadata()
         state = run.state.value.removeprefix("CONVERSION_RUN_STATE_") if run and run.state else "UNKNOWN"
         finished, total = _progress(run)
-        logger.info(f"Conversion run {number} ended {state}: {finished} of {total} files finished.")
+        logger.info(f"Conversion run {number} of {runs} ended {state}: {finished} of {total} files finished.")
         return run
 
     def _check(self, call: Callable[[], _T]) -> _T:
@@ -464,6 +513,27 @@ def _report(
             )
             failed.append(error)
     return failed
+
+
+def _smaller_batch(batch: list[str], err: InvalidParameterValue) -> list[str]:
+    """Half the batch, after the workspace rejected it as over its per-run limit; fails if one file was rejected."""
+    if len(batch) <= 1:
+        raise AgenticConversionError(f"Could not start a conversion run: {err}") from err
+    smaller = len(batch) // 2
+    logger.info(f"The workspace's per-run limit is lower than {len(batch)} files, trying {smaller}.")
+    return batch[:smaller]
+
+
+def _start_failed(err: Exception) -> AgenticConversionError:
+    """Why a conversion run couldn't start."""
+    if isinstance(err, (AlreadyExists, ResourceAlreadyExists)):
+        # A project runs one conversion at a time, and the active one isn't this command's to follow.
+        return AgenticConversionError(
+            f"A conversion run is already active in the project, so another can't start yet ({err})."
+        )
+    if isinstance(err, DatabricksError) and _no_files_need_conversion(err):
+        return AgenticConversionError(f"The converter says these files don't need conversion: {err}")
+    return AgenticConversionError(f"Could not start a conversion run: {err}")
 
 
 def _no_files_need_conversion(err: DatabricksError) -> bool:

@@ -20,6 +20,7 @@ from databricks.sdk.errors import (
     PermissionDenied,
 )
 from databricks.sdk.service.geniemigrate import (
+    AddProjectFilesResponse,
     ConversionRun,
     ConversionRunErrorCode,
     ConversionRunFile,
@@ -71,8 +72,14 @@ class FakeOperation:
         return f"{PROJECT}/operations/conversion-run.1"
 
 
-def _run(state: ConversionRunState, *statuses: FileStatus, error_code: ConversionRunErrorCode | None = None):
-    files = [ConversionRunFile(name=f"{PROJECT}/files/{i}", status=status) for i, status in enumerate(statuses)]
+def _run(
+    state: ConversionRunState,
+    *statuses: FileStatus,
+    error_code: ConversionRunErrorCode | None = None,
+    names: list[str] | None = None,
+):
+    names = names or [f"{PROJECT}/files/{i}" for i in range(len(statuses))]
+    files = [ConversionRunFile(name=name, status=status) for name, status in zip(names, statuses)]
     return ConversionRun(project=PROJECT, state=state, files=files, error_code=error_code)
 
 
@@ -80,9 +87,31 @@ ACTIVE = ConversionRunState.CONVERSION_RUN_STATE_ACTIVE
 COMPLETED = ConversionRunState.CONVERSION_RUN_STATE_COMPLETED
 
 
-def _completed_operation(*statuses: FileStatus) -> FakeOperation:
+def _completed_operation(*statuses: FileStatus, names: list[str] | None = None) -> FakeOperation:
     queued = [FileStatus.FILE_STATUS_QUEUED for _ in statuses]
-    return FakeOperation(_run(ACTIVE, *queued), _run(COMPLETED, *statuses))
+    return FakeOperation(_run(ACTIVE, *queued, names=names), _run(COMPLETED, *statuses, names=names))
+
+
+def _succeeded(count: int) -> FakeOperation:
+    return _completed_operation(*[FileStatus.FILE_STATUS_SUCCESS] * count)
+
+
+def _added_files(project: str, refs: list[SourceFileRef]) -> AddProjectFilesResponse:
+    """What files:add returns: each file's name, and its path, with the `/Workspace` prefix responses can add."""
+    files = []
+    for ref in refs:
+        assert ref.workspace and ref.workspace.path
+        source = ref.workspace.path.split("/src/", 1)[1]
+        workspace = WorkspaceLocation(path=f"/Workspace{ref.workspace.path}")
+        files.append(ProjectFile(name=f"{project}/files/{source}", source=Location(workspace=workspace)))
+    return AddProjectFilesResponse(files=files)
+
+
+def _write_files(root: Path, count: int) -> SourceFiles:
+    root.mkdir(parents=True, exist_ok=True)
+    for i in range(count):
+        (root / f"f{i:04d}.sql").write_text("SELECT 1;")
+    return SourceFiles.collect(root)
 
 
 def _project_file(
@@ -122,6 +151,7 @@ def fixture_ws() -> WorkspaceClient:
     workspace.config.host = "https://example.cloud.databricks.com/"
     workspace.workspace.list.side_effect = NotFound("does not exist")
     workspace.workspace.get_status.return_value = ObjectInfo(path=RUN, object_id=42)
+    workspace.genie_migrate.add_files.side_effect = _added_files
     workspace.genie_migrate.create.return_value = Project(
         name=PROJECT,
         display_name="ignored",
@@ -167,7 +197,6 @@ def test_converts_the_sources_and_writes_each_notebook_into_its_source_folder(
     ws.genie_migrate.convert_project_files.side_effect = [
         NO_FILES,
         _completed_operation(FileStatus.FILE_STATUS_SUCCESS, FileStatus.FILE_STATUS_PARTIAL_SUCCESS),
-        NO_FILES,
     ]
     notebook = DestinationKind.DESTINATION_KIND_NOTEBOOK
     ws.genie_migrate.list_files.return_value = [
@@ -216,8 +245,11 @@ def test_converts_the_sources_and_writes_each_notebook_into_its_source_folder(
     )
     assert ws.genie_migrate.convert_project_files.call_args_list == [
         call(parent=PROJECT, skill_paths=["/Workspace/skills/style"]),
-        call(parent=PROJECT, skill_paths=["/Workspace/skills/style"]),
-        call(parent=PROJECT, skill_paths=["/Workspace/skills/style"]),
+        call(
+            parent=PROJECT,
+            names=[f"{PROJECT}/files/customers.sql", f"{PROJECT}/files/nested/orders.sql"],
+            skill_paths=["/Workspace/skills/style"],
+        ),
     ]
     ws.workspace.export.assert_called_once_with(f"{RUN}/converted", format=ExportFormat.SOURCE)
     assert URL in caplog.text
@@ -227,7 +259,6 @@ def test_writes_each_databricks_sql_query_as_a_sql_file(ws, upload_ws, sources, 
     ws.genie_migrate.convert_project_files.side_effect = [
         NO_FILES,
         _completed_operation(FileStatus.FILE_STATUS_SUCCESS),
-        NO_FILES,
     ]
     query = DestinationKind.DESTINATION_KIND_QUERY
     # Responses can leave out the `/Workspace` prefix.
@@ -248,19 +279,22 @@ def test_writes_each_databricks_sql_query_as_a_sql_file(ws, upload_ws, sources, 
     assert ws.genie_migrate.create.call_args.args[0].display_name == "Migration Project - Snowflake to DBSQL"
 
 
-def test_starts_runs_one_after_another_until_no_file_needs_converting(ws, upload_ws, sources, tmp_path) -> None:
+def test_starts_runs_one_after_another_each_naming_its_files(
+    ws, upload_ws, sources, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(converter_module, "FILES_PER_RUN", 1)
     ws.genie_migrate.convert_project_files.side_effect = [
         NO_FILES,
         _completed_operation(FileStatus.FILE_STATUS_SUCCESS),
         _completed_operation(FileStatus.FILE_STATUS_ERROR),
-        NO_FILES,
     ]
     ws.genie_migrate.list_files.return_value = []
 
     result = _convert(_converter(ws, upload_ws), sources, tmp_path)
 
     assert result.error is None
-    assert ws.genie_migrate.convert_project_files.call_count == 4
+    started = [c.kwargs["names"] for c in ws.genie_migrate.convert_project_files.call_args_list[1:]]
+    assert started == [[f"{PROJECT}/files/customers.sql"], [f"{PROJECT}/files/nested/orders.sql"]]
 
 
 def test_adds_the_files_in_batches(ws, upload_ws, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -269,7 +303,7 @@ def test_adds_the_files_in_batches(ws, upload_ws, tmp_path: Path, monkeypatch: p
     root.mkdir()
     for name in ("a", "b", "c"):
         (root / f"{name}.sql").write_text("SELECT 1;")
-    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, NO_FILES]
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, _succeeded(3)]
     ws.genie_migrate.list_files.return_value = []
 
     _convert(_converter(ws, upload_ws), SourceFiles.collect(root), tmp_path)
@@ -361,7 +395,7 @@ def test_refuses_a_run_folder_that_already_has_content(ws, upload_ws, sources, t
 
 def test_uploads_again_after_a_timeout_once_the_partial_upload_is_removed(ws, upload_ws, sources, tmp_path) -> None:
     upload_ws.workspace.upload.side_effect = [requests.exceptions.ReadTimeout("timed out"), None]
-    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, NO_FILES]
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, _succeeded(2)]
     ws.genie_migrate.list_files.return_value = []
 
     result = _convert(_converter(ws, upload_ws), sources, tmp_path)
@@ -405,7 +439,7 @@ def test_reuses_the_project_a_timed_out_create_made(ws, upload_ws, sources, tmp_
             )
         ]
     )
-    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, NO_FILES]
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, _succeeded(2)]
     ws.genie_migrate.list_files.return_value = []
 
     _convert(_converter(ws, upload_ws), sources, tmp_path)
@@ -419,7 +453,6 @@ def test_exports_files_one_by_one_when_the_folder_cant_be_exported(ws, upload_ws
     ws.genie_migrate.convert_project_files.side_effect = [
         NO_FILES,
         _completed_operation(FileStatus.FILE_STATUS_SUCCESS),
-        NO_FILES,
     ]
     ws.genie_migrate.list_files.return_value = [
         _project_file(
@@ -446,7 +479,6 @@ def test_appends_the_files_that_were_not_converted_to_the_error_file(ws, upload_
     ws.genie_migrate.convert_project_files.side_effect = [
         NO_FILES,
         _completed_operation(FileStatus.FILE_STATUS_ERROR, FileStatus.FILE_STATUS_SUCCESS),
-        NO_FILES,
     ]
     ws.genie_migrate.list_files.return_value = [
         _project_file("nested/orders.sql", FileStatus.FILE_STATUS_ERROR, error_message="Unsupported syntax"),
@@ -492,7 +524,7 @@ def test_keeps_waiting_through_a_few_failed_status_checks(ws, upload_ws, sources
     run = FlakyOperation(
         2, _run(ACTIVE, FileStatus.FILE_STATUS_QUEUED), _run(COMPLETED, FileStatus.FILE_STATUS_SUCCESS)
     )
-    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, run, NO_FILES]
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, run]
     ws.genie_migrate.list_files.return_value = []
 
     result = _convert(_converter(ws, upload_ws), sources, tmp_path)
@@ -519,7 +551,7 @@ def test_stops_following_after_repeated_failed_checks_and_reports_what_finished(
 
 
 def test_names_the_project_when_the_results_cant_be_read(ws, upload_ws, sources, tmp_path: Path) -> None:
-    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, NO_FILES]
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, _succeeded(2)]
     ws.genie_migrate.list_files.side_effect = InternalError("listing failed")
 
     with pytest.raises(AgenticConversionError, match=f"Could not read the conversion's results.*{URL}"):
@@ -531,14 +563,13 @@ def test_starts_again_after_a_start_timed_out(ws, upload_ws, sources, tmp_path: 
         NO_FILES,
         requests.exceptions.ReadTimeout("timed out"),
         _completed_operation(FileStatus.FILE_STATUS_SUCCESS),
-        NO_FILES,
     ]
     ws.genie_migrate.list_files.return_value = []
 
     result = _convert(_converter(ws, upload_ws), sources, tmp_path)
 
     assert result.error is None
-    assert ws.genie_migrate.convert_project_files.call_count == 4
+    assert ws.genie_migrate.convert_project_files.call_count == 3
 
 
 def test_stops_when_a_timed_out_start_went_through(ws, upload_ws, sources, tmp_path: Path) -> None:
@@ -554,19 +585,15 @@ def test_stops_when_a_timed_out_start_went_through(ws, upload_ws, sources, tmp_p
     assert result.error == ACTIVE_RUN
 
 
-def test_ends_the_loop_on_the_message_whatever_the_error_code(ws, upload_ws, sources, tmp_path: Path) -> None:
+def test_accepts_the_availability_answer_whatever_its_error_code(ws, upload_ws, sources, tmp_path: Path) -> None:
     no_files = DatabricksError("No files need conversion", error_code="FAILED_PRECONDITION")
-    ws.genie_migrate.convert_project_files.side_effect = [
-        no_files,
-        _completed_operation(FileStatus.FILE_STATUS_SUCCESS),
-        no_files,
-    ]
+    ws.genie_migrate.convert_project_files.side_effect = [no_files, _succeeded(2)]
     ws.genie_migrate.list_files.return_value = []
 
     result = _convert(_converter(ws, upload_ws), sources, tmp_path)
 
     assert result.error is None
-    assert ws.genie_migrate.convert_project_files.call_count == 3
+    assert ws.genie_migrate.convert_project_files.call_count == 2
 
 
 def test_fails_cleanly_when_the_run_folder_cant_be_created(ws, upload_ws, sources, tmp_path: Path) -> None:
@@ -594,7 +621,6 @@ def test_exports_files_one_by_one_when_the_folder_export_isnt_an_archive(ws, upl
     ws.genie_migrate.convert_project_files.side_effect = [
         NO_FILES,
         _completed_operation(FileStatus.FILE_STATUS_SUCCESS),
-        NO_FILES,
     ]
     notebook = DestinationKind.DESTINATION_KIND_NOTEBOOK
     ws.genie_migrate.list_files.return_value = [
@@ -632,3 +658,90 @@ def test_rejects_a_bad_skill_path_before_uploading(ws, upload_ws, sources, tmp_p
     ws.genie_migrate.delete.assert_called_once_with(PROJECT)
     ws.workspace.delete.assert_called_once_with(RUN, recursive=True)
     upload_ws.workspace.upload.assert_not_called()
+
+
+def test_converts_in_named_batches_in_source_order(ws, upload_ws, tmp_path: Path) -> None:
+    sources = _write_files(tmp_path / "input", 1200)
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, _succeeded(500), _succeeded(500), _succeeded(200)]
+    ws.genie_migrate.list_files.return_value = []
+
+    result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error is None
+    calls = ws.genie_migrate.convert_project_files.call_args_list
+    assert calls[0] == call(parent=PROJECT, skill_paths=None)
+    started = [c.kwargs["names"] for c in calls[1:]]
+    assert [len(names) for names in started] == [500, 500, 200]
+    assert [name for names in started for name in names] == [f"{PROJECT}/files/f{i:04d}.sql" for i in range(1200)]
+    assert [len(c.args[1]) for c in ws.genie_migrate.add_files.call_args_list] == [500, 500, 200]
+
+
+def test_fails_when_the_project_doesnt_return_an_added_file(ws, upload_ws, sources, tmp_path: Path) -> None:
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES]
+    ws.genie_migrate.add_files.side_effect = lambda project, refs: AddProjectFilesResponse(
+        files=(_added_files(project, refs).files or [])[:1]
+    )
+
+    with pytest.raises(AgenticConversionError, match="The migration project didn't return nested/orders.sql."):
+        _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    ws.genie_migrate.delete.assert_called_once_with(PROJECT)
+    ws.genie_migrate.convert_project_files.assert_called_once()
+
+
+def test_shrinks_the_runs_to_the_workspace_limit(ws, upload_ws, tmp_path: Path, caplog) -> None:
+    sources = _write_files(tmp_path / "input", 600)
+    ws.genie_migrate.convert_project_files.side_effect = [
+        NO_FILES,
+        InvalidParameterValue("files per run 500 exceeds max 300"),
+        _succeeded(250),
+        _succeeded(250),
+        _succeeded(100),
+    ]
+    ws.genie_migrate.list_files.return_value = []
+
+    with caplog.at_level(logging.INFO):
+        result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error is None
+    sizes = [len(c.kwargs["names"]) for c in ws.genie_migrate.convert_project_files.call_args_list[1:]]
+    assert sizes == [500, 250, 250, 100]
+    assert "per-run limit is lower than 500 files, trying 250" in caplog.text
+    assert "Conversion run 1 of 3" in caplog.text
+
+
+def test_gives_up_when_even_one_file_is_rejected(ws, upload_ws, sources, tmp_path: Path) -> None:
+    ws.genie_migrate.convert_project_files.side_effect = [
+        NO_FILES,
+        InvalidParameterValue("rejected"),
+        InvalidParameterValue("rejected"),
+    ]
+    ws.genie_migrate.list_files.return_value = []
+
+    result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error == f"Could not start a conversion run: rejected The project: {URL}"
+    sizes = [len(c.kwargs["names"]) for c in ws.genie_migrate.convert_project_files.call_args_list[1:]]
+    assert sizes == [2, 1]
+
+
+def test_warns_when_a_run_reports_fewer_files_than_it_was_given(ws, upload_ws, sources, tmp_path, caplog) -> None:
+    run = _completed_operation(FileStatus.FILE_STATUS_SUCCESS, names=[f"{PROJECT}/files/customers.sql"])
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, run]
+    ws.genie_migrate.list_files.return_value = []
+
+    with caplog.at_level(logging.WARNING):
+        result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error is None
+    assert f"Conversion run 1 didn't report 1 of its 2 files: {PROJECT}/files/nested/orders.sql" in caplog.text
+
+
+def test_stops_when_the_converter_says_named_files_dont_need_conversion(ws, upload_ws, sources, tmp_path) -> None:
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, NO_FILES]
+    ws.genie_migrate.list_files.return_value = []
+
+    result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error is not None
+    assert result.error.startswith("The converter says these files don't need conversion: No files need conversion")
