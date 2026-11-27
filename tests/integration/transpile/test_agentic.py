@@ -1,5 +1,5 @@
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import pytest
 from databricks.sdk import WorkspaceClient
@@ -37,11 +37,11 @@ def test_converts_and_writes_each_result_into_its_source_folder(
     try:
         assert result.error is None
         assert result.summary["total_files_processed"] == 2
-        assert set(result.written) == {PurePosixPath("orders.sql"), PurePosixPath("nested/customers.sql")}
-        assert result.written[PurePosixPath("orders.sql")] == output_folder / f"orders{extension}"
-        assert (
-            result.written[PurePosixPath("nested/customers.sql")] == output_folder / "nested" / f"customers{extension}"
-        )
+        # The converter writes its outputs flat, and so does the local output.
+        assert set(result.written.values()) == {
+            output_folder / f"orders{extension}",
+            output_folder / f"customers{extension}",
+        }
         for path in result.written.values():
             assert path.read_text().strip()
     finally:

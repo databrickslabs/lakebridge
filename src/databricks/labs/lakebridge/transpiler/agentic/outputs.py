@@ -1,15 +1,18 @@
-"""Writes a conversion's outputs from the workspace into the local output folder."""
+"""Writes a conversion's outputs from the workspace into the local output folder, flat, as the converter wrote them."""
 
 import base64
 import binascii
 import io
 import json
 import logging
+import os
+import tempfile
 import zipfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+import requests
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import DatabricksError
 from databricks.sdk.service.geniemigrate import DestinationKind
@@ -18,20 +21,19 @@ from databricks.sdk.service.workspace import ExportFormat
 logger = logging.getLogger(__name__)
 
 QUERY_SUFFIX = ".dbquery.ipynb"
-"""The suffix of a converted Databricks SQL query's workspace path."""
+"""The suffix of a converted Databricks SQL query's workspace name."""
+NOTEBOOK_EXTENSIONS = ("py", "sql", "scala", "r")
+"""The extensions an exported notebook gets, by language."""
 
-
-def workspace_relative(path: str) -> str:
-    """A workspace path without the `/Workspace` prefix: responses may leave it out, requests may include it."""
-    return path.removeprefix("/Workspace") if path.startswith("/Workspace/") else path
+_DOWNLOAD_ERRORS = (DatabricksError, requests.exceptions.RequestException, TimeoutError, zipfile.BadZipFile)
 
 
 @dataclass(frozen=True)
 class ConvertedFile:
-    """A converted file in the workspace, and the source it was converted from."""
+    """A converted file in the workspace."""
 
-    source: PurePosixPath
-    """The source file, relative to the input folder."""
+    name: str
+    """The project file's resource name, `projects/<id>/files/<file_id>`."""
     destination: str
     """The workspace path of the converted file."""
     kind: DestinationKind | None
@@ -42,102 +44,115 @@ class ConvertedFile:
 
 
 class OutputWriter:
-    """Exports converted files from the workspace and writes each next to its source's place in the output folder.
+    """Downloads converted files from the workspace and writes them into the output folder, flat.
 
-    The converter writes every output flat into one workspace folder. Notebooks and plain files are exported with that
-    folder in one call; a file the folder export doesn't have, or every file when the folder can't be exported in one
-    call, is exported on its own. Databricks SQL queries aren't in the folder export: each is exported on its own, as
-    notebook JSON whose cells hold the SQL, and written as `<name>.sql`.
+    The converter writes every output into one workspace folder, named after its source without the extension, and the
+    local output mirrors that folder. One download of the folder (format AUTO, the only one that includes Databricks
+    SQL queries) covers both targets; a file the download doesn't have, or every file when the folder can't be
+    downloaded, is exported on its own. Queries are written as `<name>.sql`, from the notebook cells they export as.
     """
 
     def __init__(self, ws: WorkspaceClient, output_folder: Path) -> None:
         self._ws = ws
+        """A client with a long HTTP timeout: downloading a folder of 2000 outputs can take minutes."""
         self._output_folder = output_folder
 
-    def write(
-        self, converted_folder: str, files: Sequence[ConvertedFile]
-    ) -> tuple[dict[PurePosixPath, Path], list[str]]:
-        """Writes the outputs; returns the local path written for each source, and the export errors."""
-        written: dict[PurePosixPath, Path] = {}
+    def write(self, converted_folder: str, files: Sequence[ConvertedFile]) -> tuple[dict[str, Path], list[str]]:
+        """Writes the outputs; returns the local path written for each project file, and the export errors."""
+        written: dict[str, Path] = {}
         errors: list[str] = []
-        exported = self._export_folder(
-            converted_folder, [f for f in files if f.kind != DestinationKind.DESTINATION_KIND_QUERY]
-        )
+        entries = self._download_folder(converted_folder) if files else {}
         for file in files:
             try:
-                local = self._write_one(file, exported)
+                local_name, content = _from_entries(file, entries) or self._export_file(file)
+                written[file.name] = self._save(local_name, content)
             except (OSError, ValueError, zipfile.BadZipFile) as err:
-                errors.append(f"{file.source}: could not export {file.destination}: {err}")
-                continue
-            if local is not None:
-                written[file.source] = local
+                errors.append(f"Could not write {file.destination} locally: {err}")
         return written, errors
 
-    def _write_one(self, file: ConvertedFile, exported: dict[str, bytes]) -> Path | None:
-        if file.kind == DestinationKind.DESTINATION_KIND_QUERY:
-            name = file.destination_name.removesuffix(QUERY_SUFFIX)
-            return self._save(file.source, f"{name}.sql", self._export_query(file.destination))
-        entry = _find_entry(file.destination_name, exported)
-        if entry is not None:
-            return self._save(file.source, entry, exported[entry])
-        content, name = self._export_file(file)
-        return self._save(file.source, name, content)
-
-    def _export_folder(self, converted_folder: str, files: Sequence[ConvertedFile]) -> dict[str, bytes]:
-        """The folder's notebooks and files by exported name, or nothing when it can't be exported in one call."""
-        if not files:
-            return {}
+    def _download_folder(self, converted_folder: str) -> dict[str, bytes]:
+        """The folder's top-level entries by name, or nothing when it can't be downloaded in one call."""
         try:
-            response = self._ws.workspace.export(converted_folder, format=ExportFormat.SOURCE)
-        except DatabricksError as err:
-            logger.info(f"Exporting the converted files one by one: the folder export failed ({err}).")
+            raw = self._ws.workspace.download(converted_folder, format=ExportFormat.AUTO).read()
+            return _top_level_entries(raw)
+        except _DOWNLOAD_ERRORS as err:
+            logger.info(f"Exporting the converted files one by one: the folder download failed ({err}).")
             return {}
-        exported = {}
-        try:
-            with zipfile.ZipFile(io.BytesIO(base64.b64decode(response.content or ""))) as archive:
-                for info in archive.infolist():
-                    name = PurePosixPath(info.filename)
-                    # Entries are `<folder>/<file>`; skip folders, the manifest, and anything nested deeper.
-                    if info.is_dir() or len(name.parts) != 2 or name.name == "manifest.mf":
-                        continue
-                    exported[name.name] = archive.read(info)
-        except (zipfile.BadZipFile, binascii.Error) as err:
-            logger.info(
-                f"Exporting the converted files one by one: the folder export isn't a readable archive ({err})."
-            )
-            return {}
-        return exported
 
-    def _export_file(self, file: ConvertedFile) -> tuple[bytes, str]:
-        response = self._ws.workspace.export(file.destination, format=ExportFormat.SOURCE)
-        content = base64.b64decode(response.content or "")
+    def _export_file(self, file: ConvertedFile) -> tuple[str, bytes]:
+        """Exports one converted file; returns its local name and content."""
+        response = self._ws.workspace.export(file.destination, format=ExportFormat.AUTO)
+        try:
+            content = base64.b64decode(response.content or "")
+        except binascii.Error as err:
+            raise ValueError(f"the export isn't readable ({err})") from err
         name = file.destination_name
-        if file.kind == DestinationKind.DESTINATION_KIND_NOTEBOOK and response.file_type:
-            name = f"{name}.{response.file_type}"
-        return content, name
+        if _is_query(file):
+            return _query_name(name), _query_sql(content)
+        if file.kind != DestinationKind.DESTINATION_KIND_FILE and response.file_type in NOTEBOOK_EXTENSIONS:
+            return f"{name}.{response.file_type}", content
+        return name, content
 
-    def _export_query(self, destination: str) -> bytes:
-        response = self._ws.workspace.export(destination, format=ExportFormat.SOURCE)
-        notebook = json.loads(base64.b64decode(response.content or ""))
-        cells = [_cell_source(cell) for cell in notebook.get("cells", []) if cell.get("cell_type") == "code"]
-        sql = "\n\n".join(cell.rstrip("\n") for cell in cells if cell.strip())
-        return f"{sql}\n".encode() if sql else b""
-
-    def _save(self, source: PurePosixPath, name: str, content: bytes) -> Path:
-        local = self._output_folder / Path(*source.parent.parts) / name
-        local.parent.mkdir(parents=True, exist_ok=True)
-        local.write_bytes(content)
+    def _save(self, local_name: str, content: bytes) -> Path:
+        """Writes the file through a temporary file in the same folder, so a crash never leaves half a file."""
+        self._output_folder.mkdir(parents=True, exist_ok=True)
+        local = self._output_folder / local_name
+        handle, temporary = tempfile.mkstemp(dir=self._output_folder, prefix=f".{local_name}.", suffix=".tmp")
+        try:
+            with os.fdopen(handle, "wb") as out:
+                out.write(content)
+            os.replace(temporary, local)
+        except OSError:
+            Path(temporary).unlink(missing_ok=True)
+            raise
         return local
 
 
-def _find_entry(destination_name: str, exported: dict[str, bytes]) -> str | None:
-    """The exported entry for a destination: the same name, or the name plus the extension the export adds."""
-    if destination_name in exported:
-        return destination_name
-    for entry in exported:
-        if PurePosixPath(entry).stem == destination_name:
-            return entry
+def _top_level_entries(raw: bytes) -> dict[str, bytes]:
+    """A downloaded folder's entries by name. Only `<folder>/<entry>` counts: not folders, the manifest, or the
+    converter's internal files, which it keeps in a dot folder."""
+    entries = {}
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        for info in archive.infolist():
+            name = PurePosixPath(info.filename)
+            if not info.is_dir() and len(name.parts) == 2:
+                entries[name.name] = archive.read(info)
+    return entries
+
+
+def _from_entries(file: ConvertedFile, entries: dict[str, bytes]) -> tuple[str, bytes] | None:
+    """The local name and content for a file from the folder download, or None when there isn't exactly one match."""
+    name = file.destination_name
+    kind = file.kind
+    if kind in {DestinationKind.DESTINATION_KIND_QUERY, None} and name.endswith(QUERY_SUFFIX) and name in entries:
+        return _query_name(name), _query_sql(entries[name])
+    if kind in {DestinationKind.DESTINATION_KIND_NOTEBOOK, None}:
+        candidates = [f"{name}.{extension}" for extension in NOTEBOOK_EXTENSIONS if f"{name}.{extension}" in entries]
+        if len(candidates) == 1:
+            return candidates[0], entries[candidates[0]]
+        if candidates:
+            return None
+    if kind in {DestinationKind.DESTINATION_KIND_FILE, None} and name in entries:
+        return name, entries[name]
     return None
+
+
+def _is_query(file: ConvertedFile) -> bool:
+    if file.kind == DestinationKind.DESTINATION_KIND_QUERY:
+        return True
+    return file.kind is None and file.destination_name.endswith(QUERY_SUFFIX)
+
+
+def _query_name(destination_name: str) -> str:
+    return f"{destination_name.removesuffix(QUERY_SUFFIX)}.sql"
+
+
+def _query_sql(notebook_json: bytes) -> bytes:
+    """A query's SQL: the code cells of the notebook it exports as, in order."""
+    notebook = json.loads(notebook_json)
+    cells = [_cell_source(cell) for cell in notebook.get("cells", []) if cell.get("cell_type") == "code"]
+    sql = "\n\n".join(cell.rstrip("\n") for cell in cells if cell.strip())
+    return f"{sql}\n".encode() if sql else b""
 
 
 def _cell_source(cell: dict) -> str:

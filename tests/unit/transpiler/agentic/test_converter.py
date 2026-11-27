@@ -4,7 +4,7 @@ import json
 import logging
 import zipfile
 from datetime import datetime, timezone
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from unittest.mock import call, create_autospec
 
 import pytest
@@ -141,6 +141,11 @@ def _zip(**entries: str) -> str:
     return base64.b64encode(buffer.getvalue()).decode()
 
 
+def _folder(**entries: str) -> io.BytesIO:
+    """What downloading the converted folder streams: a zip of its entries, as base64-decoded bytes."""
+    return io.BytesIO(base64.b64decode(_zip(**entries)))
+
+
 def _encoded(content: str) -> str:
     return base64.b64encode(content.encode()).decode()
 
@@ -176,7 +181,7 @@ def fixture_sources(tmp_path: Path) -> SourceFiles:
 
 def _converter(ws: WorkspaceClient, upload_ws: WorkspaceClient) -> AgenticConverter:
     now = datetime(2026, 11, 26, 9, 30, tzinfo=timezone.utc)
-    return AgenticConverter(ws, upload_ws=upload_ws, sleep=lambda _: None, now=lambda: now)
+    return AgenticConverter(ws, long_ws=upload_ws, sleep=lambda _: None, now=lambda: now)
 
 
 def _convert(converter: AgenticConverter, sources: SourceFiles, tmp_path: Path, target: str = "PYSPARK", **kwargs):
@@ -191,9 +196,7 @@ def _convert(converter: AgenticConverter, sources: SourceFiles, tmp_path: Path, 
     )
 
 
-def test_converts_the_sources_and_writes_each_notebook_into_its_source_folder(
-    ws, upload_ws, sources, tmp_path: Path, caplog
-) -> None:
+def test_converts_the_sources_and_writes_each_notebook_flat(ws, upload_ws, sources, tmp_path: Path, caplog) -> None:
     ws.genie_migrate.convert_project_files.side_effect = [
         NO_FILES,
         _completed_operation(FileStatus.FILE_STATUS_SUCCESS, FileStatus.FILE_STATUS_PARTIAL_SUCCESS),
@@ -203,14 +206,14 @@ def test_converts_the_sources_and_writes_each_notebook_into_its_source_folder(
         _project_file("nested/orders.sql", FileStatus.FILE_STATUS_PARTIAL_SUCCESS, f"{RUN}/converted/orders", notebook),
         _project_file("customers.sql", FileStatus.FILE_STATUS_SUCCESS, f"{RUN}/converted/customers", notebook),
     ]
-    ws.workspace.export.return_value = ExportResponse(content=_zip(**{"customers.py": "# c", "orders.py": "# o"}))
+    upload_ws.workspace.download.return_value = _folder(**{"customers.py": "# c", "orders.py": "# o"})
 
     with caplog.at_level(logging.INFO):
         result = _convert(_converter(ws, upload_ws), sources, tmp_path, skill_paths=["/Workspace/skills/style"])
 
     output = tmp_path / "output"
     assert (output / "customers.py").read_text() == "# c"
-    assert (output / "nested" / "orders.py").read_text() == "# o"
+    assert (output / "orders.py").read_text() == "# o"
     assert result.error is None
     assert result.summary == {
         "total_files_processed": 2,
@@ -251,7 +254,8 @@ def test_converts_the_sources_and_writes_each_notebook_into_its_source_folder(
             skill_paths=["/Workspace/skills/style"],
         ),
     ]
-    ws.workspace.export.assert_called_once_with(f"{RUN}/converted", format=ExportFormat.SOURCE)
+    upload_ws.workspace.download.assert_called_once_with(f"{RUN}/converted", format=ExportFormat.AUTO)
+    upload_ws.workspace.export.assert_not_called()
     assert URL in caplog.text
 
 
@@ -268,14 +272,14 @@ def test_writes_each_databricks_sql_query_as_a_sql_file(ws, upload_ws, sources, 
         )
     ]
     notebook = {"cells": [{"cell_type": "code", "source": ["SELECT 1;\n", "SELECT 2;\n"]}, {"cell_type": "markdown"}]}
-    ws.workspace.export.return_value = ExportResponse(content=_encoded(json.dumps(notebook)))
+    upload_ws.workspace.download.return_value = _folder(**{"orders.dbquery.ipynb": json.dumps(notebook)})
 
     result = _convert(_converter(ws, upload_ws), sources, tmp_path, target="SPARKSQL")
 
-    assert (tmp_path / "output" / "nested" / "orders.sql").read_text() == "SELECT 1;\nSELECT 2;\n"
-    assert result.written == {PurePosixPath("nested/orders.sql"): tmp_path / "output" / "nested" / "orders.sql"}
-    # Queries aren't in the folder export, so only the query itself is exported.
-    ws.workspace.export.assert_called_once_with(f"{RUN}/converted/orders.dbquery.ipynb", format=ExportFormat.SOURCE)
+    assert (tmp_path / "output" / "orders.sql").read_text() == "SELECT 1;\nSELECT 2;\n"
+    assert result.written == {f"{PROJECT}/files/nested/orders.sql": tmp_path / "output" / "orders.sql"}
+    # The AUTO folder download includes queries, so nothing is exported on its own.
+    upload_ws.workspace.export.assert_not_called()
     assert ws.genie_migrate.create.call_args.args[0].display_name == "Migration Project - Snowflake to DBSQL"
 
 
@@ -343,7 +347,7 @@ def test_reports_a_run_that_did_not_complete_and_still_writes_what_was_converted
         ),
         _project_file("nested/orders.sql", FileStatus.FILE_STATUS_STOPPED),
     ]
-    ws.workspace.export.return_value = ExportResponse(content=_zip(**{"customers.json": "{}"}))
+    upload_ws.workspace.download.return_value = _folder(**{"customers.json": "{}"})
 
     result = _convert(_converter(ws, upload_ws), sources, tmp_path)
 
@@ -462,10 +466,8 @@ def test_exports_files_one_by_one_when_the_folder_cant_be_exported(ws, upload_ws
             DestinationKind.DESTINATION_KIND_NOTEBOOK,
         )
     ]
-    ws.workspace.export.side_effect = [
-        DatabricksError("Export too large", error_code="MAX_NOTEBOOK_SIZE_EXCEEDED"),
-        ExportResponse(content=_encoded("# c"), file_type="py"),
-    ]
+    upload_ws.workspace.download.side_effect = DatabricksError("Size of archive exceeds 209715200 bytes")
+    upload_ws.workspace.export.return_value = ExportResponse(content=_encoded("# c"), file_type="py")
 
     result = _convert(_converter(ws, upload_ws), sources, tmp_path)
 
@@ -540,7 +542,7 @@ def test_stops_following_after_repeated_failed_checks_and_reports_what_finished(
     ws.genie_migrate.list_files.return_value = [
         _project_file("customers.sql", FileStatus.FILE_STATUS_SUCCESS, f"{RUN}/converted/customers", notebook)
     ]
-    ws.workspace.export.return_value = ExportResponse(content=_zip(**{"customers.py": "# c"}))
+    upload_ws.workspace.download.return_value = _folder(**{"customers.py": "# c"})
 
     result = _convert(_converter(ws, upload_ws), sources, tmp_path)
 
@@ -626,10 +628,8 @@ def test_exports_files_one_by_one_when_the_folder_export_isnt_an_archive(ws, upl
     ws.genie_migrate.list_files.return_value = [
         _project_file("customers.sql", FileStatus.FILE_STATUS_SUCCESS, f"{RUN}/converted/customers", notebook)
     ]
-    ws.workspace.export.side_effect = [
-        ExportResponse(content=_encoded("<html>not an archive</html>")),
-        ExportResponse(content=_encoded("# c"), file_type="py"),
-    ]
+    upload_ws.workspace.download.return_value = io.BytesIO(b"<html>not an archive</html>")
+    upload_ws.workspace.export.return_value = ExportResponse(content=_encoded("# c"), file_type="py")
 
     result = _convert(_converter(ws, upload_ws), sources, tmp_path)
 

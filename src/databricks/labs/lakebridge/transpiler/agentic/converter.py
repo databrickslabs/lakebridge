@@ -40,7 +40,7 @@ from databricks.sdk.service.geniemigrate import (
 )
 from databricks.sdk.service.workspace import ImportFormat
 
-from databricks.labs.lakebridge.transpiler.agentic.outputs import ConvertedFile, OutputWriter, workspace_relative
+from databricks.labs.lakebridge.transpiler.agentic.outputs import ConvertedFile, OutputWriter
 from databricks.labs.lakebridge.transpiler.agentic.sources import SourceFiles
 from databricks.labs.lakebridge.transpiler.transpile_status import ErrorKind, ErrorSeverity, TranspileError
 
@@ -115,6 +115,11 @@ _NOT_AVAILABLE = frozenset({"FEATURE_DISABLED", "NOT_IMPLEMENTED"})
 _T = TypeVar("_T")
 
 
+def workspace_relative(path: str) -> str:
+    """A workspace path without the `/Workspace` prefix: responses may leave it out, requests may include it."""
+    return path.removeprefix("/Workspace") if path.startswith("/Workspace/") else path
+
+
 class AgenticConversionError(Exception):
     """The conversion couldn't run to the end; the message says what happened and where to follow up."""
 
@@ -135,8 +140,8 @@ class AgenticConversionResult:
     """The `transpile` summary: the same keys as the installed transpilers report."""
     error: str | None = None
     """Why the conversion didn't run to the end, if it didn't; the summary covers what it did."""
-    written: dict[PurePosixPath, Path] = field(default_factory=dict)
-    """The local output written for each source."""
+    written: dict[str, Path] = field(default_factory=dict)
+    """The local output written for each project file."""
     project: str = ""
     """The migration project, `projects/<id>`."""
     run_folder: str = ""
@@ -155,13 +160,13 @@ class AgenticConverter:
         self,
         ws: WorkspaceClient,
         *,
-        upload_ws: WorkspaceClient | None = None,
+        long_ws: WorkspaceClient | None = None,
         poll_seconds: float = POLL_SECONDS,
         sleep: Callable[[float], None] = time.sleep,
         now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     ) -> None:
         self._ws = ws
-        self._upload_ws = upload_ws
+        self._long_ws = long_ws
         self._poll_seconds = poll_seconds
         self._sleep = sleep
         self._now = now
@@ -296,7 +301,7 @@ class AgenticConverter:
     def _upload(self, sources: SourceFiles, run: str, project: str) -> None:
         archive = sources.archive("src")
         logger.info(f"Uploading {len(sources.relative_paths)} files to: {run}/src")
-        workspace = self._uploading_client().workspace
+        workspace = self._long_client().workspace
         for attempt in (1, 2):
             try:
                 # Imported as `src.zip` with format AUTO, the workspace expands the archive into `src/`.
@@ -311,12 +316,13 @@ class AgenticConverter:
                 self._delete_project(project)
                 raise AgenticConversionError(f"Could not upload the sources: {err}") from err
 
-    def _uploading_client(self) -> WorkspaceClient:
-        if self._upload_ws is None:
+    def _long_client(self) -> WorkspaceClient:
+        """A client with a long HTTP timeout, for uploading the sources and downloading the outputs."""
+        if self._long_ws is None:
             config = self._ws.config.copy()
             config.http_timeout_seconds = UPLOAD_TIMEOUT_SECONDS
-            self._upload_ws = WorkspaceClient(config=config)
-        return self._upload_ws
+            self._long_ws = WorkspaceClient(config=config)
+        return self._long_ws
 
     def _add_files(self, sources: SourceFiles, run: str, project: str) -> list[AddedFile]:
         """Adds the uploaded sources to the project; returns each source with the project file it was added as."""
@@ -448,11 +454,12 @@ class AgenticConverter:
         src_prefix = workspace_relative(f"{run}/src") + "/"
         by_source = sorted(((_relative_source(file, src_prefix), file) for file in files), key=lambda item: item[0])
         converted = [
-            ConvertedFile(source, workspace_relative(destination), file.destination_kind)
-            for source, file in by_source
-            if file.status in _CONVERTED and (destination := _destination(file))
+            ConvertedFile(file.name, workspace_relative(destination), file.destination_kind)
+            for _, file in by_source
+            if file.name and file.status in _CONVERTED and (destination := _destination(file))
         ]
-        written, export_errors = OutputWriter(self._ws, output_folder).write(f"{run}/converted", converted)
+        writer = OutputWriter(self._long_client(), output_folder)
+        written, export_errors = writer.write(f"{run}/converted", converted)
         failed = _report(by_source, written, sources.root)
         error_log_file = None
         if failed and error_path is not None:
@@ -495,14 +502,14 @@ class AgenticConverter:
 
 
 def _report(
-    by_source: Sequence[tuple[PurePosixPath, ProjectFile]], written: dict[PurePosixPath, Path], root: Path
+    by_source: Sequence[tuple[PurePosixPath, ProjectFile]], written: dict[str, Path], root: Path
 ) -> list[TranspileError]:
     """Logs each file's result; returns the files that weren't converted, as errors."""
     failed = []
     for source, file in by_source:
         status = file.status.value.removeprefix("FILE_STATUS_") if file.status else "NOT_CONVERTED"
-        if source in written:
-            logger.info(f"{source}: {status}, written to {written[source]}")
+        if file.name in written:
+            logger.info(f"{source}: {status}, written to {written[file.name]}")
         elif file.status in _CONVERTED:
             logger.warning(f"{source}: {status}, but its output couldn't be written locally")
         else:
