@@ -1,9 +1,9 @@
 -- 9 - Chart: cpu_consumption_by_hour_and_query_type
+-- One row per query: summing sys_query_detail segment rows double-counted segments that run in parallel.
 with query_metrics as (select user_id
                                ,query_id 
-                               ,duration/1000.0 as run_time_ms
-                           from sys_query_detail
-                          where step_id = -1)
+                               ,execution_time/1000.0 as run_time_ms
+                           from sys_query_history)
       ,query_overview as (select * from query_view natural join query_metrics)
 select 'chart_cpu_consumption_by_hour_and_query_type' set_name
       ,query_type

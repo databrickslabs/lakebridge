@@ -77,13 +77,13 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
     ),
     "redshift/sql/1_rs_spectrum_tb_month.sql": (
         "round(sum(returned_bytes)/(1024.0*1024*1024*1024),4)::double precision s3_scanned_tb_month",
-        "round(avg(s3_scanned_tb_month) over (), 4 )::double precision avg_daily_scanned_tb",
+        "round(sum(returned_bytes)/(1024.0*1024*1024*1024)/30,4)::double precision avg_daily_scanned_tb",
     ),
     "redshift/sql/2_rs_managed_storage_gb_stv.sql": (
         "round((sum(used) / 1024.0), 2)::double precision as rs_managed_storage_gb",
     ),
     "redshift/sql/2_rs_managed_storage_gb_serverless.sql": (
-        "round(avg(data_storage) / 1024.0, 2)::double precision as rs_managed_storage_gb",
+        "round(max(data_storage) / 1024.0, 2)::double precision as rs_managed_storage_gb",
     ),
     "redshift/sql/3_rs_nodes_serverless.sql": ("sum(compute_seconds)::double precision as compute_seconds",),
     "redshift/sql/4_rs_avg_concurrent_users.sql": (
@@ -91,11 +91,11 @@ REQUIRED_CASTS: dict[str, tuple[str, ...]] = {
     ),
     "redshift/sql/5_rs_avg_queries_minute.sql": ("avg(query_cnt)::double precision avg_queries_minute",),
     "redshift/sql/7_chart_cpu_consumption_by_query_type.sql": (
-        "duration/1000.0 as run_time_ms",
+        "execution_time/1000.0 as run_time_ms",
         "sum(run_time_ms)::double precision as sum_cpu_time",
     ),
     "redshift/sql/9_chart_cpu_consumption_by_hour_and_query_type.sql": (
-        "duration/1000.0 as run_time_ms",
+        "execution_time/1000.0 as run_time_ms",
         "sum(run_time_ms)::double precision as sum_cpu_time",
     ),
 }

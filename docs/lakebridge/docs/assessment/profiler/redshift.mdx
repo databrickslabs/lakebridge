@@ -46,8 +46,16 @@ The profiler connects as your configured user and runs read-only extracts. The p
 
 The unified pipeline standardizes on **SYS** monitoring views for query history and CPU charts. Objects referenced by the bundled SQL include, among others:
 
-- `sys_query_history`, `sys_query_detail`
+- `sys_query_history`
 - `sys_external_query_detail`
+
+:::warning
+**Grant `sys:monitor`.** Redshift shows a non-superuser only its own rows in the SYS views. Without `sys:monitor`, the profiler sees only its own queries and still reports success, so the extract is effectively empty. Grant the role before profiling:
+
+```sql
+GRANT ROLE sys:monitor TO <profiler_user>;
+```
+:::
 
 **Deployment-specific (optional) metrics** — these steps are marked optional and degrade to absent when the underlying objects are not available:
 
