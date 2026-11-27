@@ -28,6 +28,7 @@ from databricks.sdk.service.geniemigrate import (
     ConversionRun,
     ConversionRunState,
     ConvertProjectFilesOperation,
+    DestinationKind,
     FileStatus,
     Location,
     Project,
@@ -40,7 +41,7 @@ from databricks.sdk.service.geniemigrate import (
 )
 from databricks.sdk.service.workspace import ImportFormat
 
-from databricks.labs.lakebridge.transpiler.agentic.outputs import ConvertedFile, OutputWriter
+from databricks.labs.lakebridge.transpiler.agentic.outputs import ConvertedFile, OutputWriter, write_atomically
 from databricks.labs.lakebridge.transpiler.agentic.sources import SourceFiles
 from databricks.labs.lakebridge.transpiler.transpile_status import ErrorKind, ErrorSeverity, TranspileError
 
@@ -94,6 +95,9 @@ POLL_SECONDS = 15
 """How often to check on a conversion run."""
 MAX_FAILED_CHECKS = 5
 """How many checks on a conversion can fail in a row before Lakebridge stops following it."""
+RESULTS_FILE = "lakebridge-agentic-results.json"
+"""The results file written into the output folder, replacing an earlier one. A stable format: fields can be added
+later, but aren't renamed."""
 
 _NO_FILES_NEED_CONVERSION = "No files need conversion"
 _FINISHED = frozenset(
@@ -146,6 +150,33 @@ class AgenticConversionResult:
     """The migration project, `projects/<id>`."""
     run_folder: str = ""
     """The workspace folder holding the project, the uploaded sources and the converted files."""
+    results_file: Path | None = None
+    """The results of each file, as JSON."""
+
+
+@dataclass(frozen=True)
+class _Conversion:
+    """What the results file says about the conversion as a whole."""
+
+    run_folder: str
+    url: str
+    source_dialect: str
+    target_technology: str
+
+
+@dataclass(frozen=True)
+class _FileResult:
+    """A source's result: its project file's status, joined to the source through the `files:add` map."""
+
+    source: PurePosixPath
+    name: str
+    status: str
+    """`SUCCESS`, `PARTIAL_SUCCESS`, `ERROR`, `REVIEWED`, `QUEUED`, `IN_PROGRESS`, `STOPPED`, `NOT_CONVERTED`, or
+    `MISSING` when the project doesn't list it."""
+    destination: str | None
+    kind: DestinationKind | None
+    error: str | None
+    converted: bool
 
 
 class AgenticConverter:
@@ -212,7 +243,8 @@ class AgenticConverter:
         except AgenticConversionError as err:
             msg = f"Could not read the conversion's results: {err} The converted files are in the project: {url}"
             raise AgenticConversionError(msg) from err
-        result = self._results(run, url, files, sources, output_folder, error_path, error)
+        conversion = _Conversion(run, url, source_dialect, target_technology)
+        result = self._results(conversion, added, files, sources.root, output_folder, error_path, error)
         result.project, result.run_folder = project, run
         return result
 
@@ -443,36 +475,44 @@ class AgenticConverter:
 
     def _results(
         self,
-        run: str,
-        url: str,
-        files: list[ProjectFile],
-        sources: SourceFiles,
+        conversion: _Conversion,
+        added: list[AddedFile],
+        listing: list[ProjectFile],
+        root: Path,
         output_folder: Path,
         error_path: Path | None,
         error: str | None,
     ) -> AgenticConversionResult:
-        src_prefix = workspace_relative(f"{run}/src") + "/"
-        by_source = sorted(((_relative_source(file, src_prefix), file) for file in files), key=lambda item: item[0])
+        by_name = {file.name: file for file in listing if file.name}
+        results = [_file_result(file, by_name.get(file.name)) for file in added]
         converted = [
-            ConvertedFile(file.name, workspace_relative(destination), file.destination_kind)
-            for _, file in by_source
-            if file.name and file.status in _CONVERTED and (destination := _destination(file))
+            ConvertedFile(result.name, workspace_relative(result.destination), result.kind)
+            for result in results
+            if result.converted and result.destination
         ]
         writer = OutputWriter(self._long_client(), output_folder)
-        written, export_errors = writer.write(f"{run}/converted", converted)
-        failed = _report(by_source, written, sources.root)
+        written, export_errors = writer.write(f"{conversion.run_folder}/converted", converted)
+        failed = _report(results, written, root)
         error_log_file = None
         if failed and error_path is not None:
             with error_path.open("a", encoding="utf-8") as errors:
                 errors.writelines(f"{err}\n" for err in failed)
             error_log_file = str(error_path)
+        for export_error in export_errors:
+            logger.error(export_error)
         if export_errors:
-            for export_error in export_errors:
-                logger.error(export_error)
-            error = error or f"Some converted files couldn't be written locally; they're in the project: {url}"
-        logger.info(f"The migration project: {url}")
+            error = (
+                error or f"Some converted files couldn't be written locally; they're in the project: {conversion.url}"
+            )
+        results_file = output_folder / RESULTS_FILE
+        try:
+            write_atomically(results_file, _results_document(conversion, results, written, output_folder, error))
+            logger.info(f"The results of each file: {results_file}")
+        except OSError as err:
+            error = error or f"Could not write the results file {results_file}: {err}"
+        logger.info(f"The migration project: {conversion.url}")
         summary: dict[str, int | str | None] = {
-            "total_files_processed": len(files),
+            "total_files_processed": len(added),
             "total_queries_processed": len(written),
             "analysis_error_count": 0,
             "parsing_error_count": 0,
@@ -480,7 +520,7 @@ class AgenticConverter:
             "generation_error_count": len(failed),
             "error_log_file": error_log_file,
         }
-        return AgenticConversionResult(summary, error, written)
+        return AgenticConversionResult(summary, error, written, results_file=results_file)
 
     def _project_url(self, project: str) -> str:
         host = (self._ws.config.host or "").rstrip("/")
@@ -501,25 +541,64 @@ class AgenticConverter:
             logger.warning(f"Could not delete {path}: {err}")
 
 
-def _report(
-    by_source: Sequence[tuple[PurePosixPath, ProjectFile]], written: dict[str, Path], root: Path
-) -> list[TranspileError]:
-    """Logs each file's result; returns the files that weren't converted, as errors."""
+def _file_result(added: AddedFile, file: ProjectFile | None) -> _FileResult:
+    if file is None:
+        return _FileResult(
+            added.source, added.name, "MISSING", None, None, "Not returned by the migration project", False
+        )
+    status = file.status.value.removeprefix("FILE_STATUS_") if file.status else "NOT_CONVERTED"
+    destination = _destination(file)
+    converted = file.status in _CONVERTED and destination is not None
+    return _FileResult(
+        added.source, added.name, status, destination, file.destination_kind, file.error_message, converted
+    )
+
+
+def _report(results: Sequence[_FileResult], written: dict[str, Path], root: Path) -> list[TranspileError]:
+    """Logs each source's result; returns the sources that weren't converted, as errors."""
     failed = []
-    for source, file in by_source:
-        status = file.status.value.removeprefix("FILE_STATUS_") if file.status else "NOT_CONVERTED"
-        if file.name in written:
-            logger.info(f"{source}: {status}, written to {written[file.name]}")
-        elif file.status in _CONVERTED:
-            logger.warning(f"{source}: {status}, but its output couldn't be written locally")
+    for result in results:
+        if result.name in written:
+            logger.info(f"{result.source}: {result.status}, written to {written[result.name]}")
+        elif result.converted:
+            logger.warning(f"{result.source}: {result.status}, but its output couldn't be written locally")
         else:
-            message = file.error_message or "The file wasn't converted."
-            logger.warning(f"{source}: {status}: {message}")
+            message = result.error or "The file wasn't converted."
+            logger.warning(f"{result.source}: {result.status}: {message}")
             error = TranspileError(
-                "AGENTIC_CONVERSION", ErrorKind.GENERATION, ErrorSeverity.ERROR, root / source, message
+                "AGENTIC_CONVERSION", ErrorKind.GENERATION, ErrorSeverity.ERROR, root / result.source, message
             )
             failed.append(error)
     return failed
+
+
+def _results_document(
+    conversion: _Conversion,
+    results: Sequence[_FileResult],
+    written: dict[str, Path],
+    output_folder: Path,
+    error: str | None,
+) -> bytes:
+    """The results file: the conversion, and each source's status, local output, converted file and error."""
+    document = {
+        "project_url": conversion.url,
+        "run_folder": conversion.run_folder,
+        "source_dialect": conversion.source_dialect,
+        "target_technology": conversion.target_technology,
+        "completed": error is None,
+        "error": error,
+        "files": [
+            {
+                "source": str(result.source),
+                "status": result.status,
+                "output": str(written[result.name].relative_to(output_folder)) if result.name in written else None,
+                "workspace_path": result.destination,
+                "error": result.error,
+            }
+            for result in results
+        ],
+    }
+    return (json.dumps(document, indent=2) + "\n").encode()
 
 
 def _smaller_batch(batch: list[str], err: InvalidParameterValue) -> list[str]:
@@ -556,17 +635,6 @@ def _progress(run: ConversionRun | None) -> tuple[int, int]:
 
 def _destination(file: ProjectFile) -> str | None:
     return file.destination.workspace.path if file.destination and file.destination.workspace else None
-
-
-def _relative_source(file: ProjectFile, src_prefix: str) -> PurePosixPath:
-    path = (
-        workspace_relative(file.source.workspace.path)
-        if file.source and file.source.workspace and file.source.workspace.path
-        else ""
-    )
-    if path.startswith(src_prefix):
-        return PurePosixPath(path.removeprefix(src_prefix))
-    return PurePosixPath(PurePosixPath(path).name or (file.name or "unknown"))
 
 
 def validate_skill_paths(skills: str) -> list[str]:

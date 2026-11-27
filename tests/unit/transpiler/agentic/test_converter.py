@@ -745,3 +745,91 @@ def test_stops_when_the_converter_says_named_files_dont_need_conversion(ws, uplo
 
     assert result.error is not None
     assert result.error.startswith("The converter says these files don't need conversion: No files need conversion")
+
+
+def test_writes_the_results_file_for_every_source(ws, upload_ws, tmp_path: Path) -> None:
+    root = tmp_path / "input"
+    for name in ("a", "b", "c", "d", "e"):
+        (root / "nested").mkdir(parents=True, exist_ok=True)
+        (root / "nested" / f"{name}.sql").write_text("SELECT 1;")
+    sources = SourceFiles.collect(root)
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, _succeeded(5)]
+    notebook = DestinationKind.DESTINATION_KIND_NOTEBOOK
+    ws.genie_migrate.list_files.return_value = [
+        _project_file("nested/a.sql", FileStatus.FILE_STATUS_SUCCESS, f"{RUN}/converted/a", notebook),
+        _project_file("nested/b.sql", FileStatus.FILE_STATUS_PARTIAL_SUCCESS, f"{RUN}/converted/b", notebook),
+        _project_file("nested/c.sql", FileStatus.FILE_STATUS_ERROR, error_message="Unsupported syntax"),
+        _project_file("nested/d.sql", None),
+    ]
+    upload_ws.workspace.download.return_value = _folder(**{"a.py": "# a", "b.py": "# b"})
+    output = tmp_path / "output"
+    output.mkdir()
+    (output / "lakebridge-agentic-results.json").write_text("from an earlier run")
+
+    result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error is None
+    assert result.results_file == output / "lakebridge-agentic-results.json"
+    document = json.loads(result.results_file.read_text())
+    assert document == {
+        "project_url": URL,
+        "run_folder": RUN,
+        "source_dialect": "snowflake",
+        "target_technology": "PYSPARK",
+        "completed": True,
+        "error": None,
+        "files": [
+            {
+                "source": "nested/a.sql",
+                "status": "SUCCESS",
+                "output": "a.py",
+                "workspace_path": f"{RUN}/converted/a",
+                "error": None,
+            },
+            {
+                "source": "nested/b.sql",
+                "status": "PARTIAL_SUCCESS",
+                "output": "b.py",
+                "workspace_path": f"{RUN}/converted/b",
+                "error": None,
+            },
+            {
+                "source": "nested/c.sql",
+                "status": "ERROR",
+                "output": None,
+                "workspace_path": None,
+                "error": "Unsupported syntax",
+            },
+            {
+                "source": "nested/d.sql",
+                "status": "NOT_CONVERTED",
+                "output": None,
+                "workspace_path": None,
+                "error": None,
+            },
+            {
+                "source": "nested/e.sql",
+                "status": "MISSING",
+                "output": None,
+                "workspace_path": None,
+                "error": "Not returned by the migration project",
+            },
+        ],
+    }
+    assert result.summary["total_files_processed"] == 5
+    assert result.summary["total_queries_processed"] == 2
+    assert result.summary["generation_error_count"] == 3
+
+
+def test_the_results_file_says_when_the_conversion_didnt_complete(ws, upload_ws, sources, tmp_path: Path) -> None:
+    failed = _run(ConversionRunState.CONVERSION_RUN_STATE_FAILED)
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, FakeOperation(_run(ACTIVE), failed)]
+    ws.genie_migrate.list_files.return_value = []
+
+    result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.results_file is not None
+    document = json.loads(result.results_file.read_text())
+    assert document["completed"] is False
+    assert document["error"] == result.error == f"Conversion run 1 failed. The project: {URL}"
+    assert [file["status"] for file in document["files"]] == ["MISSING", "MISSING"]

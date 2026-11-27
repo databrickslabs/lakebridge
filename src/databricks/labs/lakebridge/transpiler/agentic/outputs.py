@@ -94,18 +94,22 @@ class OutputWriter:
         return name, content
 
     def _save(self, local_name: str, content: bytes) -> Path:
-        """Writes the file through a temporary file in the same folder, so a crash never leaves half a file."""
-        self._output_folder.mkdir(parents=True, exist_ok=True)
         local = self._output_folder / local_name
-        handle, temporary = tempfile.mkstemp(dir=self._output_folder, prefix=f".{local_name}.", suffix=".tmp")
-        try:
-            with os.fdopen(handle, "wb") as out:
-                out.write(content)
-            os.replace(temporary, local)
-        except OSError:
-            Path(temporary).unlink(missing_ok=True)
-            raise
+        write_atomically(local, content)
         return local
+
+
+def write_atomically(path: Path, content: bytes) -> None:
+    """Writes the file through a temporary file in the same folder, so a crash never leaves half a file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "wb") as out:
+            out.write(content)
+        os.replace(temporary, path)
+    except OSError:
+        Path(temporary).unlink(missing_ok=True)
+        raise
 
 
 def _top_level_entries(raw: bytes) -> dict[str, bytes]:
