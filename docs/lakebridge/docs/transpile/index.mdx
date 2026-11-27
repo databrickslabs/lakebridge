@@ -28,6 +28,12 @@ Switch is best suited for scenarios requiring semantic understanding and flexibi
 - **Extensible conversion through custom YAML prompts** — Adapt to proprietary or uncommon source formats
 - **Python notebook output for SQL beyond ANSI SQL/PSM standards** — Complex transformations that benefit from procedural code
 
+### Agentic Code Converter (in your workspace)
+
+`transpile --agentic true` converts with the Databricks agentic code converter instead of an installed transpiler: the
+same command, flags and local output folder, with the conversion running in your Databricks workspace. See
+[Agentic Code Converter](/docs/transpile/agentic_code_converter).
+
 ---
 
 ## Supported dialects
@@ -189,14 +195,17 @@ Usage:
   databricks labs lakebridge transpile [flags]
 
 Flags:
+      --agentic string                (Optional) Whether to convert with the agentic code converter in your workspace ('true') instead of an installed transpiler ('false')
       --catalog-name name             (Optional) Catalog name, only used when validating converted code
       --error-file-path path          (Optional) Local path where a log of conversion errors (if any) will be written
   -h, --help                          help for transpile
       --input-source path             (Optional) Local path of the sources to be convert
       --output-folder path            (Optional) Local path where converted code will be written
       --schema-name name              (Optional) Schema name, only used when validating converted code
+      --skills paths                  (Optional) Comma-separated workspace paths of custom skill folders for the agentic code converter (at most 10)
       --skip-validation string        (Optional) Whether to skip validating the output ('true') after conversion or not ('false')
       --source-dialect string         (Optional) The source dialect to use when performing conversion
+      --transpiler string             (Optional) The transpiler to convert with; 'agentic' selects the agentic code converter, like '--agentic true'
       --transpiler-config-path path   (Optional) Local path to the configuration file of the transpiler to use for conversion
 
 Global Flags:

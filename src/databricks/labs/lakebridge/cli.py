@@ -40,6 +40,15 @@ from databricks.labs.lakebridge.reconcile.recon_config import (
     RECONCILE_OPERATION_NAME,
 )
 from databricks.labs.lakebridge.reconcile.runner import ReconcileRunner
+from databricks.labs.lakebridge.transpiler.agentic.converter import (
+    AGENTIC_TRANSPILER,
+    SOURCE_DIALECTS,
+    TARGET_TECHNOLOGIES,
+    AgenticConversionError,
+    AgenticConverter,
+    validate_skill_paths,
+)
+from databricks.labs.lakebridge.transpiler.agentic.sources import SourceFiles, SourceFilesError
 from databricks.labs.lakebridge.transpiler.describe import TranspilersDescription
 from databricks.labs.lakebridge.transpiler.execute import transpile as do_transpile
 from databricks.labs.lakebridge.transpiler.lsp.lsp_engine import LSPEngine
@@ -117,8 +126,12 @@ def transpile(  # pylint: disable=too-many-arguments
     skip_validation: str | None = None,
     catalog_name: str | None = None,
     schema_name: str | None = None,
+    agentic: str | None = None,
+    transpiler: str | None = None,
+    skills: str | None = None,
     ctx: ApplicationContext | None = None,
     transpiler_repository: TranspilerRepository = TranspilerRepository.user_home(),
+    agentic_converter: AgenticConverter | None = None,
 ):
     """Transpiles source dialect to databricks dialect"""
     if ctx is None:
@@ -127,6 +140,25 @@ def transpile(  # pylint: disable=too-many-arguments
     logger.debug(f"Preconfigured transpiler config: {ctx.transpile_config!r}")
     ctx.add_user_agent_extra("cmd", "execute-transpile")
     checker = _TranspileConfigChecker(ctx.transpile_config, ctx.prompts, transpiler_repository)
+    if _use_agentic_converter(agentic, transpiler):
+        _warn_not_applicable_to_agentic(
+            {
+                "--transpiler-config-path": transpiler_config_path,
+                "--overrides-file": overrides_file,
+                "--skip-validation": skip_validation,
+                "--catalog-name": catalog_name,
+                "--schema-name": schema_name,
+            }
+        )
+        checker.use_source_dialect(source_dialect)
+        checker.use_target_technology(target_technology)
+        checker.use_input_source(input_source)
+        checker.use_output_folder(output_folder)
+        checker.use_error_file_path(error_file_path)
+        _transpile_agentic(ctx, checker, skills, agentic_converter)
+        return
+    if skills is not None:
+        raise_validation_exception("'--skills' only applies to the agentic code converter, with '--agentic true'.")
     checker.use_transpiler_config_path(transpiler_config_path)
     checker.use_source_dialect(source_dialect)
     checker.use_overrides_file(overrides_file)
@@ -143,6 +175,74 @@ def transpile(  # pylint: disable=too-many-arguments
     result = asyncio.run(_transpile(ctx, config, engine))
     # DO NOT Modify this print statement, it is used by the CLI to display results in GO Table Template
     print(json.dumps(result))
+
+
+def _use_agentic_converter(agentic: str | None, transpiler: str | None) -> bool:
+    """Whether `--agentic` or `--transpiler` selects the agentic code converter; conflicting values are an error."""
+    agentic_flag = None
+    if agentic is not None:
+        if agentic.lower() not in {"true", "false"}:
+            raise_validation_exception(f"Invalid value for '--agentic': {agentic!r} must be 'true' or 'false'.")
+        agentic_flag = agentic.lower() == "true"
+    if transpiler is not None and transpiler.lower() != AGENTIC_TRANSPILER:
+        msg = (
+            f"Invalid value for '--transpiler': {transpiler!r}, the only value is {AGENTIC_TRANSPILER!r}. Select an "
+            "installed transpiler with '--transpiler-config-path' or '--source-dialect'."
+        )
+        raise_validation_exception(msg)
+    if agentic_flag is False and transpiler is not None:
+        raise_validation_exception("Conflicting values: '--agentic false' and '--transpiler agentic'.")
+    return bool(agentic_flag) or transpiler is not None
+
+
+def _warn_not_applicable_to_agentic(flags: Mapping[str, str | None]) -> None:
+    """Stored configurations keep working with the agentic code converter: settings it doesn't use are ignored."""
+    for flag, value in flags.items():
+        if value is not None:
+            logger.warning(f"Ignoring {flag}: it doesn't apply to the agentic code converter.")
+
+
+def _transpile_agentic(
+    ctx: ApplicationContext,
+    checker: "_TranspileConfigChecker",
+    skills: str | None,
+    converter: AgenticConverter | None,
+) -> None:
+    skill_paths = validate_skill_paths(skills) if skills is not None else []
+    config, target_technology = checker.check_agentic()
+    if converter is None:
+        converter = AgenticConverter(ctx.workspace_client)
+    assert config.input_source is not None and config.output_folder is not None and config.source_dialect is not None
+    try:
+        sources = SourceFiles.collect(Path(config.input_source))
+    except SourceFilesError as err:
+        raise_validation_exception(str(err))
+    ctx.add_user_agent_extra("transpiler_source_tech", make_alphanum_or_semver(config.source_dialect))
+    ctx.add_user_agent_extra("transpiler_plugin_name", AGENTIC_TRANSPILER)
+    ctx.add_user_agent_extra("transpiler_target_tech", make_alphanum_or_semver(target_technology))
+    ctx.add_user_agent_extra("transpiler_file_count", str(len(sources.relative_paths)))
+    user_name = ctx.current_user.user_name
+    if not user_name:
+        raise_validation_exception("Could not resolve the current workspace user.")
+    try:
+        result = converter.convert(
+            sources=sources,
+            source_dialect=config.source_dialect,
+            target_technology=target_technology,
+            user_name=user_name,
+            output_folder=Path(config.output_folder),
+            error_path=config.error_path,
+            skill_paths=skill_paths,
+        )
+    except (AgenticConversionError, OSError) as err:
+        # Blueprint logs an exception a command raises but exits 0; a conversion that didn't finish exits 1.
+        logger.error(str(err))
+        sys.exit(1)
+    # DO NOT Modify this print statement, it is used by the CLI to display results in GO Table Template
+    print(json.dumps([result.summary]))
+    if result.error:
+        logger.error(result.error)
+        sys.exit(1)
 
 
 def _add_user_agent_extras_transpile(
@@ -235,6 +335,7 @@ class _TranspileConfigChecker:
         self._prompts = prompts
         self._transpiler_repository = transpiler_repository
         self._source_dialect_override = None
+        self._target_technology_override: str | None = None
 
     @staticmethod
     def _validate_transpiler_config_path(transpiler_config_path: str, msg: str) -> None:
@@ -280,6 +381,7 @@ class _TranspileConfigChecker:
     def use_target_technology(self, target_technology: str | None) -> None:
         if target_technology is not None:
             logger.debug(f"Setting target_technology to: {target_technology!r}")
+            self._target_technology_override = target_technology
             # Cannot validate this here: depends on the transpiler engine, and will be checked later.
             try:
                 self._set_config_transpiler_option("target-tech", target_technology)
@@ -599,6 +701,57 @@ class _TranspileConfigChecker:
         config = self._config
         logger.debug(f"Validated config: {config!r}")
         return config, engine
+
+    def check_agentic(self) -> tuple[TranspileConfig, str]:
+        """Checks the settings the agentic code converter uses; returns them with the target technology."""
+        logger.debug(f"Checking config for the agentic code converter: {self._config!r}")
+        self._check_input_source()
+        self._check_output_folder()
+        self._check_error_file_path()
+        source_dialect = self._check_agentic_source_dialect()
+        target_technology = self._check_agentic_target_technology()
+        config = dataclasses.replace(self._config, source_dialect=source_dialect)
+        logger.debug(f"Validated config: {config!r}, target technology: {target_technology!r}")
+        return config, target_technology
+
+    def _check_agentic_source_dialect(self) -> str:
+        supported_dialects = ", ".join(sorted(SOURCE_DIALECTS))
+        override = self._source_dialect_override
+        if override is not None:
+            if override not in SOURCE_DIALECTS:
+                msg = f"Invalid value for '--source-dialect': {override!r} must be one of: {supported_dialects}"
+                raise_validation_exception(msg)
+            return override
+        configured = self._config.source_dialect
+        if configured is None:
+            return self._prompts.choice("Select the source dialect:", sorted(SOURCE_DIALECTS))
+        if configured not in SOURCE_DIALECTS:
+            msg = (
+                f"Invalid configured source dialect for the agentic code converter: {configured!r} "
+                f"(supported dialects: {supported_dialects}); pass '--source-dialect' to override it."
+            )
+            raise_validation_exception(msg)
+        return configured
+
+    def _check_agentic_target_technology(self) -> str:
+        supported_targets = ", ".join(TARGET_TECHNOLOGIES)
+        override = self._target_technology_override
+        if override is not None:
+            if override.upper() not in TARGET_TECHNOLOGIES:
+                msg = f"Invalid value for '--target-technology': {override!r} must be one of: {supported_targets}"
+                raise_validation_exception(msg)
+            return override.upper()
+        options = self._config.transpiler_options
+        configured = options.get("target-tech") if isinstance(options, Mapping) else None
+        if configured is None:
+            return self._prompts.choice("Select the target technology:", list(TARGET_TECHNOLOGIES))
+        if not isinstance(configured, str) or configured.upper() not in TARGET_TECHNOLOGIES:
+            msg = (
+                f"Invalid configured target technology for the agentic code converter: {configured!r} (must be one of: "
+                f"{supported_targets}); pass '--target-technology' to override it."
+            )
+            raise_validation_exception(msg)
+        return configured.upper()
 
 
 async def _transpile(ctx: ApplicationContext, config: TranspileConfig, engine: TranspileEngine) -> RootJsonValue:

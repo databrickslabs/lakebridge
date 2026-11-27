@@ -1,0 +1,117 @@
+---
+sidebar_position: 3
+title: Agentic Code Converter
+---
+
+# Agentic Code Converter
+
+`transpile --agentic true` converts your sources with the Databricks **agentic code converter** instead of an
+installed transpiler. It's the same `transpile` command, with the same flags, stored configuration and local output
+folder; the conversion runs in your Databricks workspace:
+
+1. Lakebridge uploads your local sources to your workspace and creates a migration project for them.
+2. It converts every file, and waits until the conversion is done.
+3. It writes the converted files into `--output-folder`, each in its source file's folder, and reports each file's
+   result.
+
+For how the agentic code converter works, its supported sources and outputs, and how to review converted files, see
+the Databricks documentation:
+[AWS](https://docs.databricks.com/aws/en/migration/agentic-code-converter) |
+[Azure](https://learn.microsoft.com/azure/databricks/migration/agentic-code-converter) |
+[GCP](https://docs.databricks.com/gcp/en/migration/agentic-code-converter).
+
+## Requirements
+
+- A Databricks workspace where the agentic code converter is available. Lakebridge checks this before uploading
+  anything.
+- Workspace files enabled in that workspace.
+- A user identity: migration projects can't be created by a service principal.
+
+There's nothing to install: the agentic code converter doesn't need `install-transpile`.
+
+## Usage
+
+```bash
+databricks labs lakebridge transpile --agentic true \
+  --input-source <local path> \
+  --output-folder <local path> \
+  --source-dialect <dialect> \
+  --target-technology <SPARKSQL|PYSPARK>
+```
+
+`--transpiler agentic` selects the agentic code converter too.
+
+| Flag | Description |
+|---|---|
+| `--agentic` | `true` to convert with the agentic code converter. |
+| `--input-source` | Local path of the sources to convert: a file or a folder. |
+| `--output-folder` | Local folder the converted files are written to. Files with the same paths are overwritten. |
+| `--source-dialect` | The source dialect (see below). |
+| `--target-technology` | `SPARKSQL` for Databricks SQL queries, written as `.sql` files, or `PYSPARK` for Databricks notebooks. |
+| `--error-file-path` | (Optional) Local file that the files that weren't converted are appended to, with their errors. |
+| `--skills` | (Optional) Comma-separated workspace paths of custom skill folders for the conversion to use, at most 10. Without it, the converter finds your workspace skills itself. |
+
+Lakebridge prompts for the input source, output folder, source dialect and target technology when they aren't passed
+or stored in the `transpile` configuration. `--transpiler-config-path`, `--overrides-file`, `--skip-validation`,
+`--catalog-name` and `--schema-name` don't apply; when they're passed, Lakebridge ignores them with a warning.
+
+### Source dialects
+
+| `--source-dialect` | Source |
+|---|---|
+| `mssql` | Microsoft SQL Server (T-SQL) |
+| `synapse` | Azure Synapse Analytics dedicated SQL pools (T-SQL) |
+| `snowflake` | Snowflake |
+| `redshift` | Amazon Redshift |
+| `oracle` | Oracle |
+| `bigquery` | Google BigQuery |
+| `teradata` | Teradata |
+
+## What Lakebridge creates in your workspace
+
+Each conversion gets its own folder in your workspace home folder, holding the migration project:
+
+```
+/Users/<you>/migrations/<dialect>/run_<timestamp>/    the migration project
+├── src/                                             your uploaded sources
+└── converted/                                       the converted files
+```
+
+- The upload leaves out dot folders and dotfiles (`.git`, `.venv`, `.DS_Store`, …), `node_modules`, `__pycache__`,
+  `Thumbs.db` and Lakebridge Analyzer output files.
+- One conversion takes up to 2000 files. The converter writes all outputs into one folder, so two files with the same
+  name without their extension (`a/orders.sql` and `b/orders.ddl`) can't be converted together: Lakebridge says which
+  files clash before uploading anything.
+- The converter converts a few hundred files per run; Lakebridge starts runs one after another until every file is
+  converted.
+- Every conversion creates a new run folder and migration project; earlier ones aren't touched.
+
+## Results
+
+Lakebridge logs each file's result and the migration project's URL, and prints the same summary table as the other
+transpilers. Files that weren't converted are counted as errors, and appended to `--error-file-path` with their error.
+
+The command exits with a non-zero code when the conversion didn't run to the end: the converter isn't available in
+the workspace, the upload failed, another conversion run was already active in the project, a conversion run failed or
+was cancelled, or the converted files couldn't be written locally. Files that failed to convert don't change the exit
+code.
+
+Pressing Ctrl+C stops Lakebridge from waiting; the conversion keeps running in the migration project.
+
+## Example
+
+```bash
+databricks labs lakebridge transpile --agentic true \
+  --input-source ./sql --output-folder ./converted \
+  --source-dialect snowflake --target-technology SPARKSQL
+```
+
+```console
+INFO  Uploading 2 files to: /Users/<you>/migrations/snowflake/run_2026-11-26_093000/src
+INFO  Converting 2 files in the migration project: https://<workspace>/editor/migrations/<id>
+INFO  Conversion run 1: 0 of 2 files finished.
+INFO  Conversion run 1: 2 of 2 files finished.
+INFO  nested/customers.sql: SUCCESS, written to converted/nested/customers.sql
+INFO  orders.sql: SUCCESS, written to converted/orders.sql
+INFO  The migration project: https://<workspace>/editor/migrations/<id>
+```
