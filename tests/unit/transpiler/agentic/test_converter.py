@@ -632,3 +632,16 @@ def test_rejects_a_bad_skill_path_before_uploading(ws, upload_ws, sources, tmp_p
     ws.genie_migrate.delete.assert_called_once_with(PROJECT)
     ws.workspace.delete.assert_called_once_with(RUN, recursive=True)
     upload_ws.workspace.upload.assert_not_called()
+
+
+def test_treats_a_failed_token_refresh_like_any_failed_check(ws, upload_ws, sources, tmp_path: Path) -> None:
+    class TokenFails(FakeOperation):
+        def done(self) -> bool:
+            raise OSError("cannot get access token")
+
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, TokenFails(_run(ACTIVE))]
+    ws.genie_migrate.list_files.return_value = []
+
+    result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error == f"Could not check on the conversion (cannot get access token). The project: {URL}"

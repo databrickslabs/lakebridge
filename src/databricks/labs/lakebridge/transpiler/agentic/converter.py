@@ -105,8 +105,9 @@ _CONVERTED = frozenset(
     {FileStatus.FILE_STATUS_SUCCESS, FileStatus.FILE_STATUS_PARTIAL_SUCCESS, FileStatus.FILE_STATUS_REVIEWED}
 )
 _RETRYABLE = (InternalError, TemporarilyUnavailable, DeadlineExceeded, requests.exceptions.Timeout, TimeoutError)
-_API_ERRORS = (DatabricksError, requests.exceptions.RequestException, TimeoutError)
-"""What a workspace call can raise once the SDK's own retries are used up."""
+_API_ERRORS = (OSError,)
+"""What a workspace call can raise once the SDK's own retries are used up: its errors, network errors, timeouts and a
+failed token refresh (for example after losing network access) are all `OSError`s."""
 _NOT_AVAILABLE = frozenset({"FEATURE_DISABLED", "NOT_IMPLEMENTED"})
 """Error codes that mean the workspace can't convert files, rather than that checking failed."""
 _T = TypeVar("_T")

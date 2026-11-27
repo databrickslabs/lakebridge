@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.errors import DatabricksError
 from databricks.sdk.service.geniemigrate import DestinationKind
 from databricks.sdk.service.workspace import ExportFormat
 
@@ -89,7 +88,7 @@ class OutputWriter:
             return {}
         try:
             response = self._ws.workspace.export(converted_folder, format=ExportFormat.SOURCE)
-        except DatabricksError as err:
+        except OSError as err:
             logger.info(f"Exporting the converted files one by one: the folder export failed ({err}).")
             return {}
         exported = {}
