@@ -1,12 +1,15 @@
 """The local source files a conversion uploads, and the archive that uploads them."""
 
 import io
+import logging
 import os
 import zipfile
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+
+logger = logging.getLogger(__name__)
 
 MAX_FILES = 2000
 """The most files one conversion takes: a workspace archive import expands at most 2000 entries."""
@@ -107,12 +110,27 @@ def _folder_entry(name: str) -> zipfile.ZipInfo:
 
 
 def _walk(root: Path) -> Iterator[Path]:
-    """The files under `root` that get uploaded, in a stable order; excluded and dot folders aren't walked."""
+    """The files under `root` that get uploaded, in a stable order; excluded and dot folders aren't walked.
+
+    Symbolic links aren't followed, since they can point outside the input; each one skipped is logged.
+    """
     for directory, dirs, files in os.walk(root):
-        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in EXCLUDED_DIRS)
+        folder = Path(directory)
+        kept = []
+        for name in sorted(dirs):
+            if name.startswith(".") or name in EXCLUDED_DIRS:
+                continue
+            if (folder / name).is_symlink():
+                logger.warning(f"Skipping a symbolic link, it isn't uploaded: {(folder / name).relative_to(root)}")
+                continue
+            kept.append(name)
+        dirs[:] = kept
         for name in sorted(files):
             if name.startswith(".") or name in EXCLUDED_FILES:
                 continue
-            path = Path(directory) / name
-            if path.is_file() and not path.is_symlink():
+            path = folder / name
+            if path.is_symlink():
+                logger.warning(f"Skipping a symbolic link, it isn't uploaded: {path.relative_to(root)}")
+                continue
+            if path.is_file():
                 yield path

@@ -1,4 +1,5 @@
 import io
+import logging
 import zipfile
 from pathlib import Path, PurePosixPath
 
@@ -74,3 +75,18 @@ def test_archive_has_every_folder_before_its_files_under_one_root(tmp_path: Path
 
     assert names == ["src/a.sql", "src/nested/", "src/nested/deeper/", "src/nested/deeper/b.sql"]
     assert content == b"-- nested/deeper/b.sql\n"
+
+
+def test_skips_and_logs_symbolic_links(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    root = tmp_path / "input"
+    _write(root, "a.sql")
+    _write(tmp_path, "outside/b.sql")
+    (root / "link.sql").symlink_to(tmp_path / "outside" / "b.sql")
+    (root / "linked").symlink_to(tmp_path / "outside", target_is_directory=True)
+
+    with caplog.at_level(logging.WARNING):
+        files = SourceFiles.collect(root)
+
+    assert files.relative_paths == (PurePosixPath("a.sql"),)
+    assert "Skipping a symbolic link, it isn't uploaded: link.sql" in caplog.text
+    assert "Skipping a symbolic link, it isn't uploaded: linked" in caplog.text

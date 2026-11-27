@@ -18,6 +18,7 @@ from databricks.sdk.errors import (
     DatabricksError,
     DeadlineExceeded,
     InternalError,
+    InvalidParameterValue,
     NotFound,
     ResourceAlreadyExists,
     TemporarilyUnavailable,
@@ -173,7 +174,7 @@ class AgenticConverter:
         )
         url = self._project_url(project)
         try:
-            self._check_enabled(project)
+            self._check_enabled(project, list(skill_paths))
         except AgenticConversionError:
             self._delete_project(project)
             self._delete_folder(run)
@@ -247,10 +248,17 @@ class AgenticConverter:
             existing = next(iter(self._ws.genie_migrate.list(filter=f'folder = "{folder}"')), None)
             return existing if existing is not None else self._ws.genie_migrate.create(project)
 
-    def _check_enabled(self, project: str) -> None:
-        """Converting the empty project starts nothing, and fails differently depending on whether it's enabled."""
+    def _check_enabled(self, project: str, skill_paths: list[str]) -> None:
+        """Converting the empty project starts nothing, and fails differently depending on whether it's enabled.
+
+        The skill paths are checked too, so a bad one fails before anything is uploaded.
+        """
         try:
-            self._ws.genie_migrate.convert_project_files(parent=project)
+            self._ws.genie_migrate.convert_project_files(parent=project, skill_paths=skill_paths or None)
+        except InvalidParameterValue as err:
+            if skill_paths:
+                raise AgenticConversionError(f"Invalid value for '--skills': {err}") from err
+            raise self._not_available(err) from err
         except BadRequest as err:
             if _NO_FILES_NEED_CONVERSION in str(err):
                 return
@@ -493,6 +501,8 @@ def _relative_source(file: ProjectFile, src_prefix: str) -> PurePosixPath:
 def validate_skill_paths(skills: str) -> list[str]:
     """The `--skills` value, a comma-separated list of workspace skill folders, checked against the converter's limits."""
     paths = [path.strip() for path in skills.split(",") if path.strip()]
+    if not paths:
+        raise ValueError("Invalid value for '--skills': no skill folder given.")
     if len(paths) > MAX_SKILLS:
         raise ValueError(f"Invalid value for '--skills': at most {MAX_SKILLS} skill folders, got {len(paths)}.")
     for path in paths:

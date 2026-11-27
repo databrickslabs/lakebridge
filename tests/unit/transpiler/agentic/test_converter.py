@@ -10,7 +10,15 @@ from unittest.mock import call, create_autospec
 import pytest
 import requests
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.errors import AlreadyExists, BadRequest, DatabricksError, InternalError, NotFound, PermissionDenied
+from databricks.sdk.errors import (
+    AlreadyExists,
+    BadRequest,
+    DatabricksError,
+    InternalError,
+    InvalidParameterValue,
+    NotFound,
+    PermissionDenied,
+)
 from databricks.sdk.service.geniemigrate import (
     ConversionRun,
     ConversionRunErrorCode,
@@ -207,7 +215,7 @@ def test_converts_the_sources_and_writes_each_notebook_into_its_source_folder(
         ],
     )
     assert ws.genie_migrate.convert_project_files.call_args_list == [
-        call(parent=PROJECT),
+        call(parent=PROJECT, skill_paths=["/Workspace/skills/style"]),
         call(parent=PROJECT, skill_paths=["/Workspace/skills/style"]),
         call(parent=PROJECT, skill_paths=["/Workspace/skills/style"]),
     ]
@@ -589,3 +597,17 @@ def test_measures_the_skill_paths_as_json() -> None:
     with pytest.raises(ValueError, match="must fit in 1000 bytes"):
         validate_skill_paths(path)
     assert validate_skill_paths("/" + "a" * 995) == ["/" + "a" * 995]
+
+
+def test_rejects_a_bad_skill_path_before_uploading(ws, upload_ws, sources, tmp_path: Path) -> None:
+    ws.genie_migrate.convert_project_files.side_effect = [
+        InvalidParameterValue("Skill path /Workspace/x must be a folder directly inside one of: [...]")
+    ]
+
+    with pytest.raises(AgenticConversionError, match="Invalid value for '--skills': Skill path /Workspace/x must be"):
+        _convert(_converter(ws, upload_ws), sources, tmp_path, skill_paths=["/Workspace/x"])
+
+    ws.genie_migrate.convert_project_files.assert_called_once_with(parent=PROJECT, skill_paths=["/Workspace/x"])
+    ws.genie_migrate.delete.assert_called_once_with(PROJECT)
+    ws.workspace.delete.assert_called_once_with(RUN, recursive=True)
+    upload_ws.workspace.upload.assert_not_called()

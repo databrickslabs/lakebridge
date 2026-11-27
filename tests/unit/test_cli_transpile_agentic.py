@@ -152,6 +152,7 @@ def test_ignores_settings_that_dont_apply_with_a_warning(ctx, converter, input_s
         ({"agentic": "true", "source_dialect": "netezza"}, "'netezza' must be one of: bigquery, mssql, oracle"),
         ({"agentic": "true", "target_technology": "SCALA"}, "'--target-technology': 'SCALA' must be one of"),
         ({"agentic": "true", "skills": "relative/skill"}, "must be a workspace path"),
+        ({"agentic": "true", "skills": " , "}, "no skill folder given"),
         ({"agentic": "true", "skills": ",".join(f"/s/{i}" for i in range(11))}, "at most 10 skill folders"),
         ({"skills": "/Workspace/skills/a"}, "'--skills' only applies to the agentic code converter"),
     ],
