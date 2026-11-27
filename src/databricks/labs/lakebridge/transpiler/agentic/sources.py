@@ -11,8 +11,9 @@ from pathlib import Path, PurePosixPath
 
 logger = logging.getLogger(__name__)
 
-MAX_FILES = 2000
-"""The most files one conversion takes: a workspace archive import expands at most 2000 entries."""
+MAX_UPLOAD_FILES = 2000
+"""The most files one conversion takes: the sources go up as one workspace archive import, which expands at most 2000
+entries. More files would need several archives."""
 
 EXCLUDED_DIRS = frozenset({"node_modules", "__pycache__"})
 """Dependency folders left out of the upload, never walked. Every dot folder is left out too (`.git`, `.venv`, …)."""
@@ -63,10 +64,8 @@ class SourceFiles:
     def _check(self) -> None:
         if not self.relative_paths:
             raise SourceFilesError(f"No files to convert in: {self.root}")
-        if len(self.relative_paths) > MAX_FILES:
-            msg = (
-                f"The input has {len(self.relative_paths)} files, above the {MAX_FILES}-file limit for one conversion."
-            )
+        if len(self.relative_paths) > MAX_UPLOAD_FILES:
+            msg = f"The input has {len(self.relative_paths)} files, above the {MAX_UPLOAD_FILES}-file limit for one conversion."
             raise SourceFilesError(msg)
         # The converter writes every output into one folder, named after its source without the extension.
         by_stem: dict[str, list[PurePosixPath]] = defaultdict(list)

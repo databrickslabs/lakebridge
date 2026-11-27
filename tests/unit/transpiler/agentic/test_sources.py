@@ -52,7 +52,7 @@ def test_rejects_an_input_without_files(tmp_path: Path) -> None:
 
 
 def test_rejects_more_files_than_one_conversion_takes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(sources, "MAX_FILES", 2)
+    monkeypatch.setattr(sources, "MAX_UPLOAD_FILES", 2)
     _write(tmp_path, "a.sql", "b.sql", "c.sql")
 
     with pytest.raises(SourceFilesError, match="has 3 files, above the 2-file limit"):
