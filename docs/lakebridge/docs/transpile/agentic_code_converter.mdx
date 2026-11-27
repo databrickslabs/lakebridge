@@ -92,8 +92,9 @@ Lakebridge logs each file's result and the migration project's URL, and prints t
 transpilers. Files that weren't converted are counted as errors, and appended to `--error-file-path` with their error.
 
 The command exits with a non-zero code when the conversion didn't run to the end: the converter isn't available in
-the workspace, the upload failed, a conversion run failed or was cancelled, or the converted files couldn't be written
-locally. Files that failed to convert don't change the exit code.
+the workspace, the upload failed, another conversion run was already active in the project, a conversion run failed or
+was cancelled, or the converted files couldn't be written locally. Files that failed to convert don't change the exit
+code.
 
 Pressing Ctrl+C stops Lakebridge from waiting; the conversion keeps running in the migration project.
 

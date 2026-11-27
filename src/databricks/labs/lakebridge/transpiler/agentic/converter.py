@@ -104,7 +104,6 @@ _FINISHED = frozenset(
 _CONVERTED = frozenset(
     {FileStatus.FILE_STATUS_SUCCESS, FileStatus.FILE_STATUS_PARTIAL_SUCCESS, FileStatus.FILE_STATUS_REVIEWED}
 )
-_ACTIVE = frozenset({FileStatus.FILE_STATUS_QUEUED, FileStatus.FILE_STATUS_IN_PROGRESS})
 _RETRYABLE = (InternalError, TemporarilyUnavailable, DeadlineExceeded, requests.exceptions.Timeout, TimeoutError)
 _API_ERRORS = (DatabricksError, requests.exceptions.RequestException, TimeoutError)
 """What a workspace call can raise once the SDK's own retries are used up."""
@@ -255,16 +254,12 @@ class AgenticConverter:
         """
         try:
             self._ws.genie_migrate.convert_project_files(parent=project, skill_paths=skill_paths or None)
-        except InvalidParameterValue as err:
-            if skill_paths:
-                raise AgenticConversionError(f"Invalid value for '--skills': {err}") from err
-            raise self._not_available(err) from err
-        except BadRequest as err:
-            if _NO_FILES_NEED_CONVERSION in str(err):
-                return
-            raise self._not_available(err) from err
         except DatabricksError as err:
-            if err.error_code in _NOT_AVAILABLE:
+            if _no_files_need_conversion(err):
+                return
+            if isinstance(err, InvalidParameterValue) and skill_paths:
+                raise AgenticConversionError(f"Invalid value for '--skills': {err}") from err
+            if isinstance(err, BadRequest) or err.error_code in _NOT_AVAILABLE:
                 raise self._not_available(err) from err
             raise self._not_checked(err) from err
         except _API_ERRORS as err:
@@ -347,16 +342,16 @@ class AgenticConverter:
         while True:
             try:
                 return self._ws.genie_migrate.convert_project_files(parent=project, skill_paths=skill_paths or None)
-            except BadRequest as err:
-                if _NO_FILES_NEED_CONVERSION in str(err):
+            except (AlreadyExists, ResourceAlreadyExists) as err:
+                # A project runs one conversion at a time, and the active one isn't this command's to follow.
+                msg = f"A conversion run is already active in the project, so another can't start yet ({err})."
+                raise AgenticConversionError(msg) from err
+            except DatabricksError as err:
+                if _no_files_need_conversion(err):
                     return None
                 raise AgenticConversionError(f"Could not start a conversion run: {err}") from err
-            except (AlreadyExists, ResourceAlreadyExists):
-                # A project runs one conversion at a time; wait for the active one, then start the next.
-                logger.info("A conversion run is already active in the project, waiting for it to finish.")
-                self._wait_until_idle(project)
             except (requests.exceptions.Timeout, TimeoutError) as err:
-                # The run may have started anyway: starting again then finds it active, and waits for it.
+                # The run may have started anyway: starting again then finds it active, and stops.
                 timeouts += 1
                 if timeouts >= MAX_FAILED_CHECKS:
                     raise AgenticConversionError(f"Could not start a conversion run: {err}") from err
@@ -377,12 +372,6 @@ class AgenticConverter:
         finished, total = _progress(run)
         logger.info(f"Conversion run {number} ended {state}: {finished} of {total} files finished.")
         return run
-
-    def _wait_until_idle(self, project: str) -> None:
-        while any(
-            file.status in _ACTIVE for file in self._check(lambda: list(self._ws.genie_migrate.list_files(project)))
-        ):
-            self._sleep(self._poll_seconds)
 
     def _check(self, call: Callable[[], _T]) -> _T:
         """Checks on the conversion, tolerating a few failed checks in a row: one failed call doesn't end the wait."""
@@ -475,6 +464,11 @@ def _report(
             )
             failed.append(error)
     return failed
+
+
+def _no_files_need_conversion(err: DatabricksError) -> bool:
+    """Whether converting failed because no file is left to convert. Matched on the message, not the error code."""
+    return _NO_FILES_NEED_CONVERSION in str(err)
 
 
 def _progress(run: ConversionRun | None) -> tuple[int, int]:

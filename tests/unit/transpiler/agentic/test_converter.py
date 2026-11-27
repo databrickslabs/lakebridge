@@ -318,23 +318,17 @@ def test_reports_a_run_that_did_not_complete_and_still_writes_what_was_converted
     assert result.summary["generation_error_count"] == 1
 
 
-def test_waits_for_an_active_run_before_starting_the_next(ws, upload_ws, sources, tmp_path: Path) -> None:
-    ws.genie_migrate.convert_project_files.side_effect = [
-        NO_FILES,
-        AlreadyExists("a run is active"),
-        _completed_operation(FileStatus.FILE_STATUS_SUCCESS),
-        NO_FILES,
-    ]
-    ws.genie_migrate.list_files.side_effect = [
-        [_project_file("customers.sql", FileStatus.FILE_STATUS_IN_PROGRESS)],
-        [_project_file("customers.sql", FileStatus.FILE_STATUS_SUCCESS)],
-        [],
-    ]
+ACTIVE_RUN = f"A conversion run is already active in the project, so another can't start yet (a run is active). The project: {URL}"
+
+
+def test_stops_when_a_conversion_run_is_already_active(ws, upload_ws, sources, tmp_path: Path) -> None:
+    ws.genie_migrate.convert_project_files.side_effect = [NO_FILES, AlreadyExists("a run is active")]
+    ws.genie_migrate.list_files.return_value = []
 
     result = _convert(_converter(ws, upload_ws), sources, tmp_path)
 
-    assert result.error is None
-    assert ws.genie_migrate.list_files.call_count == 3
+    assert result.error == ACTIVE_RUN
+    assert ws.genie_migrate.convert_project_files.call_count == 2
 
 
 @pytest.mark.parametrize(
@@ -536,7 +530,6 @@ def test_starts_again_after_a_start_timed_out(ws, upload_ws, sources, tmp_path: 
     ws.genie_migrate.convert_project_files.side_effect = [
         NO_FILES,
         requests.exceptions.ReadTimeout("timed out"),
-        AlreadyExists("a run is active"),
         _completed_operation(FileStatus.FILE_STATUS_SUCCESS),
         NO_FILES,
     ]
@@ -545,7 +538,35 @@ def test_starts_again_after_a_start_timed_out(ws, upload_ws, sources, tmp_path: 
     result = _convert(_converter(ws, upload_ws), sources, tmp_path)
 
     assert result.error is None
-    assert ws.genie_migrate.convert_project_files.call_count == 5
+    assert ws.genie_migrate.convert_project_files.call_count == 4
+
+
+def test_stops_when_a_timed_out_start_went_through(ws, upload_ws, sources, tmp_path: Path) -> None:
+    ws.genie_migrate.convert_project_files.side_effect = [
+        NO_FILES,
+        requests.exceptions.ReadTimeout("timed out"),
+        AlreadyExists("a run is active"),
+    ]
+    ws.genie_migrate.list_files.return_value = []
+
+    result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error == ACTIVE_RUN
+
+
+def test_ends_the_loop_on_the_message_whatever_the_error_code(ws, upload_ws, sources, tmp_path: Path) -> None:
+    no_files = DatabricksError("No files need conversion", error_code="FAILED_PRECONDITION")
+    ws.genie_migrate.convert_project_files.side_effect = [
+        no_files,
+        _completed_operation(FileStatus.FILE_STATUS_SUCCESS),
+        no_files,
+    ]
+    ws.genie_migrate.list_files.return_value = []
+
+    result = _convert(_converter(ws, upload_ws), sources, tmp_path)
+
+    assert result.error is None
+    assert ws.genie_migrate.convert_project_files.call_count == 3
 
 
 def test_fails_cleanly_when_the_run_folder_cant_be_created(ws, upload_ws, sources, tmp_path: Path) -> None:
